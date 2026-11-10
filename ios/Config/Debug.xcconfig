@@ -1,0 +1,7 @@
+// Debug: local development (simulator talks to services on this Mac).
+#include "Shared.xcconfig"
+
+// No backend configuration (backend: none).
+
+// Per-developer overrides (git-ignored). Copy Secrets.example.xcconfig to Secrets.xcconfig.
+#include? "Secrets.xcconfig"
