@@ -140,7 +140,8 @@ struct PlayerView: View {
                     .padding(Spacing.s)
             }
         }
-        .background(.black)
+        .background { Color.black }
+        .clipped()
     }
 
     private func controls(_ model: PlayerModel) -> some View {

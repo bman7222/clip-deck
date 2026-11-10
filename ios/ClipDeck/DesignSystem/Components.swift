@@ -40,15 +40,27 @@ struct DeckPrimaryButtonStyle: ButtonStyle {
     var tint: Color = Theme.accent
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
+        StyledLabel(configuration: configuration, tint: tint)
+    }
+
+    private struct StyledLabel: View {
+        let configuration: Configuration
+        let tint: Color
+        @Environment(\.isEnabled) private var isEnabled
+
+        var body: some View {
+            configuration.label
             .font(.deckHeadline)
             .foregroundStyle(.white)
             .padding(.horizontal, Spacing.l)
             .padding(.vertical, Spacing.m)
             .frame(minHeight: 48)
             .background(tint, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+            .saturation(isEnabled ? 1 : 0)
+            .opacity(isEnabled ? 1 : 0.45)
             .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .animation(.spring(duration: 0.2), value: configuration.isPressed)
+        }
     }
 }
 
