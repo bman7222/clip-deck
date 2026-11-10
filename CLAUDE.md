@@ -41,8 +41,11 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 ## Current status
 
 - 2026-11-09: v1 features implemented (library, upload, subtitle files/browser, player with offset + cue list + Look Up,
-  Make a Card with partial ranges and re-record, offline queue, AnkiConnect settings and Sync), with unit and UI tests.
-- **Not yet compiled or run anywhere**: written on Windows. First step is a GitHub Actions run (needs the user's approval
-  to create a private repo and push); fix any compile errors, then review the UI-test screenshots.
-- Then: the user installs the .ipa via Sideloadly and tests syncing against desktop Anki.
+  Make a Card with partial ranges and re-record, offline queue, AnkiConnect settings and Sync).
+- 2026-11-10: **verified in CI** (GitHub Actions run 42740461564, iPhone 17 Pro simulator, iOS 26.5): app builds (Debug +
+  Release/unsigned .ipa); all unit tests pass (parsers, clip math, AnkiConnect client, syncer, files, real clip extraction);
+  UI tests pass (launch; full mining flow: seek via list, Make a Card, add next line + re-record, save, 1 waiting to sync).
+  Screenshots reviewed: library, show, player, card editor, sync sheet.
+- Not yet verified: on a real iPhone (Sideloadly install), real-video import from Files, sync against desktop Anki,
+  landscape layout, dark mode, large Dynamic Type.
 - Not in v1: see docs/PRODUCT_SPEC.md "Not yet implemented".
