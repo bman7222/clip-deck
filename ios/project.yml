@@ -55,13 +55,18 @@ targets:
           - UIInterfaceOrientationPortrait
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
-        # Lets the Debug app reach http://localhost services; does not allow arbitrary HTTP.
+        # AnkiConnect only speaks plain HTTP, and its address is whatever the user types (LAN IP,
+        # hostname, or a VPN name like Tailscale). The app makes no other network requests.
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
-        # Public build-time config (values come from Config/*.xcconfig), read by AppConfig.swift:
-        # (none yet)
-        # Usage descriptions for device capabilities go here, e.g.
-        # NSCameraUsageDescription: "Take photos of receipts to attach them to expenses."
+          NSAllowsArbitraryLoads: true
+        # iOS asks for this the first time the app contacts Anki on the local network.
+        NSLocalNetworkUsageDescription: "Clip Deck connects to Anki on your computer to send the cards you've made."
+        # Show Documents (Videos/, Subtitles/) in the Files app under On My iPhone > Clip Deck.
+        UIFileSharingEnabled: true
+        LSSupportsOpeningDocumentsInPlace: true
+        # Audio keeps playing a clip if the screen locks mid-playback.
+        UIBackgroundModes: [audio]
 
   ClipDeckTests:
     type: bundle.unit-test
