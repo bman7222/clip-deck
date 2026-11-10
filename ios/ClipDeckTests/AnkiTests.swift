@@ -15,7 +15,8 @@ struct AnkiConnectClientTests {
         let request = try client.makeRequest(action: "modelFieldNames", params: ["modelName": "Lapis"])
         #expect(request.httpMethod == "POST")
         #expect(request.url == base)
-        let body = try #require(JSONSerialization.jsonObject(with: try #require(request.httpBody)) as? [String: Any])
+        let httpBody = try #require(request.httpBody)
+        let body = try #require(JSONSerialization.jsonObject(with: httpBody) as? [String: Any])
         #expect(body["action"] as? String == "modelFieldNames")
         #expect(body["version"] as? Int == 6)
         #expect(body["key"] as? String == "secret")
@@ -24,7 +25,8 @@ struct AnkiConnectClientTests {
 
     @Test func omitsEmptyKeyAndParams() throws {
         let request = try AnkiConnectClient(baseURL: base).makeRequest(action: "version")
-        let body = try #require(JSONSerialization.jsonObject(with: try #require(request.httpBody)) as? [String: Any])
+        let httpBody = try #require(request.httpBody)
+        let body = try #require(JSONSerialization.jsonObject(with: httpBody) as? [String: Any])
         #expect(body["key"] == nil)
         #expect(body["params"] == nil)
     }
