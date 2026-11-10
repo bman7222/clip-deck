@@ -36,3 +36,7 @@ xcuserdata/
 .build/
 ios/Config/Secrets.xcconfig
 GoogleService-Info.plist
+
+# --- Python ---
+__pycache__/
+*.pyc
