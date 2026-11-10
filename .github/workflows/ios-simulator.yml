@@ -49,3 +49,27 @@ jobs:
             build/*.xcresult
           if-no-files-found: ignore
           retention-days: 14
+
+  # Unsigned build for your own iPhone: download "ClipDeck-ipa" from the run page and install it
+  # with Sideloadly (Windows/Mac), which signs it with your Apple ID.
+  ipa:
+    runs-on: macos-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Create local config from examples
+        run: cp -n ios/Config/Secrets.example.xcconfig ios/Config/Secrets.xcconfig || true
+
+      - name: Build unsigned IPA
+        run: bash scripts/build-ipa.sh
+
+      - name: Upload IPA
+        uses: actions/upload-artifact@v4
+        with:
+          name: ClipDeck-ipa
+          path: build/ipa/ClipDeck.ipa
+          retention-days: 30

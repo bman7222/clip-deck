@@ -15,7 +15,7 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 
 - Bundle id `dev.brent.clipdeck`; scheme / target `ClipDeck`.
 - `ios/project.yml` is the source of truth; the `.xcodeproj` is generated (`cd ios && xcodegen generate`). Never edit the `.xcodeproj`.
-- Feature code in `ios/ClipDeck/Features/<Feature>/` (View + `@Observable` model); shared UI in `DesignSystem/`; network/SDK code only in `Services/`.
+- Feature code in `ios/ClipDeck/Features/<Feature>/` (View + `@Observable` model); shared UI in `DesignSystem/`; non-UI logic (subtitles, media, Anki, files) in `Services/`; SwiftData models in `Models/`.
 - App target uses Swift 6 with MainActor default isolation.
 - Every interactive element gets an `accessibilityIdentifier` named `feature.element`.
 - Server secrets live only in `.env` (git-ignored) on the backend. Never put them in app code or xcconfig.
@@ -29,6 +29,20 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - After structural changes run `python3 ~/.claude/skills/iphone-app-setup-skill/scripts/verify_project.py .`
 - To resume setup or re-verify on a new machine: `/iphone-app-setup-skill verify`.
 
+## Project-specific notes
+
+- No backend. The only network code is `Services/Anki/AnkiConnectClient.swift` (AnkiConnect on the user's PC).
+- File paths in SwiftData are relative to Documents (`FileStore`); never store absolute paths.
+- Card media names are fixed per card (`CardMediaNames`), so Sync retries are idempotent; keep it that way.
+- `-uiTesting` launch argument (Debug): in-memory library + generated "Sample Show". `-uiTestingNoSeed` skips the sample.
+- The developer works on Windows with no Mac: Swift is compiled only by GitHub Actions (`.github/workflows/ios-simulator.yml`),
+  which also uploads UI-test screenshots and an unsigned `ClipDeck.ipa` for Sideloadly. Check run results before claiming anything builds.
+
 ## Current status
 
-{{FILL: what works and is verified, what is implemented but unverified, what is next.}}
+- 2026-11-09: v1 features implemented (library, upload, subtitle files/browser, player with offset + cue list + Look Up,
+  Make a Card with partial ranges and re-record, offline queue, AnkiConnect settings and Sync), with unit and UI tests.
+- **Not yet compiled or run anywhere**: written on Windows. First step is a GitHub Actions run (needs the user's approval
+  to create a private repo and push); fix any compile errors, then review the UI-test screenshots.
+- Then: the user installs the .ipa via Sideloadly and tests syncing against desktop Anki.
+- Not in v1: see docs/PRODUCT_SPEC.md "Not yet implemented".

@@ -19,6 +19,7 @@ ONLY=()
 if [[ $# -gt 0 ]]; then ONLY=(-only-testing "$1"); fi
 
 mkdir -p "$ROOT/build"
+status=0
 xcodebuild test \
   -project "$ROOT/ios/$SCHEME.xcodeproj" \
   -scheme "$SCHEME" \
@@ -26,5 +27,19 @@ xcodebuild test \
   -derivedDataPath "$DERIVED" \
   -resultBundlePath "$RESULT" \
   ${ONLY[@]+"${ONLY[@]}"} \
-  -quiet
+  -quiet || status=$?
+
+# Save the UI tests' screenshots (XCTAttachments) as PNGs, pass or fail, for review.
+if [[ -d "$RESULT" ]]; then
+  SHOTS="$ROOT/build/screenshots/ui-tests"
+  mkdir -p "$SHOTS"
+  xcrun xcresulttool export attachments --path "$RESULT" --output-path "$SHOTS" >/dev/null 2>&1 \
+    && echo "UI test screenshots: $SHOTS" \
+    || echo "(Could not export screenshots; open $RESULT in Xcode.)"
+fi
+
+if [[ $status -ne 0 ]]; then
+  echo "Tests FAILED (exit $status). Results: $RESULT" >&2
+  exit $status
+fi
 echo "Tests passed. Results: $RESULT"
