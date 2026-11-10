@@ -342,6 +342,8 @@ struct CuePanel: View {
                             CueRow(cue: cue, offsetMs: model.offsetMs, isCurrent: cue.id == model.currentCueIndex)
                                 .id(cue.id)
                                 .onTapGesture { model.seek(to: cue) }
+                                // One element per line (time + text), so VoiceOver and UI tests see a single button.
+                                .accessibilityElement(children: .combine)
                                 .accessibilityAddTraits(.isButton)
                                 .accessibilityIdentifier("cue.row.\(cue.id)")
                         }
