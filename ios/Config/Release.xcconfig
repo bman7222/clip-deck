@@ -1,0 +1,4 @@
+// Release: hosted services. Only public values belong here; server secrets never ship in the app.
+#include "Shared.xcconfig"
+
+// No backend configuration (backend: none).

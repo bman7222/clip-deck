@@ -1,0 +1,38 @@
+# --- secrets & local config (never commit) ---
+.env
+.env.*
+!.env.example
+*.pem
+*.p8
+*.p12
+*.key
+*.mobileprovision
+
+# --- build output, screenshots, test results ---
+build/
+*.log
+
+# --- per-developer Claude Code / simulator-skill state ---
+.claude/settings.local.json
+.claude/skills/ios-simulator-skill/config.json
+
+# --- OS / editors ---
+.DS_Store
+Thumbs.db
+.idea/
+.vscode/*
+!.vscode/extensions.json
+
+# --- Xcode (project is generated from ios/project.yml by XcodeGen) ---
+ios/*.xcodeproj/
+ios/*.xcworkspace/
+DerivedData/
+xcuserdata/
+*.xcresult
+*.ipa
+*.dSYM.zip
+*.dSYM
+.swiftpm/
+.build/
+ios/Config/Secrets.xcconfig
+GoogleService-Info.plist

@@ -1,0 +1,3 @@
+// Values shared by every build configuration.
+// Note: "//" starts a comment in xcconfig files. Write URLs as http:/$()/host so they survive.
+APP_DISPLAY_NAME = Clip Deck

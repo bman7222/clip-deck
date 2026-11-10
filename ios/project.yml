@@ -1,0 +1,107 @@
+# XcodeGen spec. Regenerate the Xcode project after any change here or after adding/removing files:
+#   cd ios && xcodegen generate
+# The generated ClipDeck.xcodeproj is git-ignored; this file is the source of truth.
+name: ClipDeck
+
+options:
+  bundleIdPrefix: dev.brent
+  deploymentTarget:
+    iOS: "17.0"
+  createIntermediateGroups: true
+  generateEmptyDirectories: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    TARGETED_DEVICE_FAMILY: "1"          # iPhone only; use "1,2" to add iPad
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEVELOPMENT_TEAM: ""                 # set your Apple team id for device builds (not needed for the simulator)
+
+# Swift packages go here, e.g.
+# packages:
+#   Supabase:
+#     url: https://github.com/supabase/supabase-swift
+#     from: "2.0.0"
+
+targets:
+  ClipDeck:
+    type: application
+    platform: iOS
+    sources:
+      - path: ClipDeck
+    configFiles:
+      Debug: Config/Debug.xcconfig
+      Release: Config/Release.xcconfig
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: dev.brent.clipdeck
+        MARKETING_VERSION: "0.1.0"
+        CURRENT_PROJECT_VERSION: "1"
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME: AccentColor
+        SWIFT_DEFAULT_ACTOR_ISOLATION: MainActor
+        SWIFT_APPROACHABLE_CONCURRENCY: YES
+        CODE_SIGN_STYLE: Automatic
+    # dependencies:
+    #   - package: Supabase
+    info:
+      path: ClipDeck/Info.plist
+      properties:
+        CFBundleDisplayName: $(APP_DISPLAY_NAME)
+        UILaunchScreen: {}
+        UIApplicationSceneManifest:
+          UIApplicationSupportsMultipleScenes: false
+        UISupportedInterfaceOrientations:
+          - UIInterfaceOrientationPortrait
+          - UIInterfaceOrientationLandscapeLeft
+          - UIInterfaceOrientationLandscapeRight
+        # Lets the Debug app reach http://localhost services; does not allow arbitrary HTTP.
+        NSAppTransportSecurity:
+          NSAllowsLocalNetworking: true
+        # Public build-time config (values come from Config/*.xcconfig), read by AppConfig.swift:
+        # (none yet)
+        # Usage descriptions for device capabilities go here, e.g.
+        # NSCameraUsageDescription: "Take photos of receipts to attach them to expenses."
+
+  ClipDeckTests:
+    type: bundle.unit-test
+    platform: iOS
+    sources:
+      - path: ClipDeckTests
+    dependencies:
+      - target: ClipDeck
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.brent.clipdeck.tests
+
+  ClipDeckUITests:
+    type: bundle.ui-testing
+    platform: iOS
+    sources:
+      - path: ClipDeckUITests
+    dependencies:
+      - target: ClipDeck
+    settings:
+      base:
+        GENERATE_INFOPLIST_FILE: YES
+        PRODUCT_BUNDLE_IDENTIFIER: dev.brent.clipdeck.uitests
+        TEST_TARGET_NAME: ClipDeck
+
+schemes:
+  ClipDeck:
+    build:
+      targets:
+        ClipDeck: all
+        ClipDeckTests: [test]
+        ClipDeckUITests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: true
+      targets:
+        - ClipDeckTests
+        - ClipDeckUITests
+    archive:
+      config: Release
