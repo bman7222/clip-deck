@@ -1,0 +1,21 @@
+project: clip-deck
+stack: ios-swiftui
+ci_only: true                 # Windows, no Mac: Swift builds/tests only in GitHub Actions
+mode: pause                   # pause | auto
+git: commit                   # commit | pr
+tracker: github               # local | github | both
+push: true                    # loop branch is pushed anyway for CI
+branch_prefix: loop/
+max_fix_rounds: 3
+default_branch: main
+models:
+  builders: sonnet            # sonnet | opus (override: run --opus, or model: in a task)
+commands:
+  build: "./scripts/build-ipa.sh"
+  test: "./scripts/test-ios.sh"
+  lint: ""
+  run: "./scripts/run-ios.sh"
+ci:
+  workflow: ios-simulator.yml
+  trigger: "gh workflow run ios-simulator.yml --ref <branch>"   # push to non-main branches does NOT trigger it
+  artifacts: [simulator-results, ClipDeck-ipa]
