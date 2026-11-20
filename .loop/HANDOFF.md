@@ -262,3 +262,31 @@
 - Done: T-004 passed in round 2 (Opus). Squashed to a2483ee. CI 44698930097 (scope=tests, 144/144) + 44702732605 (scope=ipa) green. The repo went public today, and the loop now runs in ci.mode: conservative.
 - Left: T-006 (upload flow, fullstack, model: opus) is next. Could fix: remove the redundant `as?` casts at ConversionPlanTests :39/:216/:345; add a test proving the interrupt callback fires (ConversionCore.run with the flag already set); record measured values with Attachment.record so green runs keep them.
 - Gotchas: deviations kept by default (Brent can override): H.264 yuvj420p allowed; an MKV with no audio converts video-only with a .noAudioTrack warning.
+
+## 2026-11-20 03:48 · loop-backend · T-006 · round 1 (opus, backend half)
+- Done: `EpisodeImporter`. Prepare: extension, iCloud start + a coordinated read held by `SourceAccess`, free space ≥ size + max(10 %, 200 MB), probe + default plan. Import/relink: stage in tmp/Converting/<uuid>, convert or copy, move with uniquePath, insert + save, roll back moved files/folders/models on failure. Launch sweep in ClipDeckApp; `-uiTesting -uiTestingMKV` seeds fixture 4 through the real importer; 20 unit tests; ARCHITECTURE "Importing episodes"; flag docs in CLAUDE.md/DEVELOPMENT.md
+- Left: the frontend wires UploadEpisodeView and MissingFileView to the CONTRACT in the task file (pickers, audio picker, progress/Cancel, idle timer, background task), writes the MKV UI test and the rest of the AC-8 docs. Nothing compiled yet (CI only)
+- Files: ios/ClipDeck/Services/{EpisodeImporter,SourceAccess}.swift, ios/ClipDeck/App/{ClipDeckApp,RootView}.swift, ios/ClipDeckTests/EpisodeImporterTests.swift, docs/ARCHITECTURE.md, docs/DEVELOPMENT.md, CLAUDE.md
+- Gotchas: progress is a `@MainActor (Double) -> Void`; to cancel, cancel the task (CancellationError, nothing added, PreparedVideo stays open for a retry); call `prepared.close()` when the user picks another file. Tests hold a conversion with `EpisodeImporter.onConversionProgress` + `ConverterGate`
+
+## 2026-11-20 09:06 · loop-frontend · T-006 · round 1 (opus, frontend half)
+- Done: added `VideoImportModel`. It prepares the picked file in a kept task, holds the audio choice and checks its plan, and runs the import with the idle timer off, a background task and the J-5 expiry message. Added `ImportProgressView`. UploadEpisodeView and MissingFileView now go through `EpisodeImporter`: pickers use `[.movie, .item]`, with `upload.audioTrack`, `upload.preparing` and `upload.progress`/`upload.cancelConvert` (and the matching `missing.*` identifiers). Added MKVImportUITests (`mkv-01-player`, `mkv-02-card`) and updated DESIGN, PRODUCT_SPEC, README and DEVELOPMENT
+- Left: CI run (nothing compiled)
+- Files: ios/ClipDeck/Features/Library/{VideoImportModel,ImportProgressView,UploadEpisodeView,SubtitleBrowserView,LibraryView}.swift, ios/ClipDeck/Services/FileStore.swift (removed the unused videoExtensions), ios/ClipDeckUITests/MKVImportUITests.swift, docs/{DESIGN,PRODUCT_SPEC,DEVELOPMENT}.md, README.md
+- Gotchas: a relink starts by itself once prepare is ready (default audio track). Import warnings show in an alert before the sheet closes. A refused pick replaces the previous file
+
+## 2026-11-20 09:35 · loop-tester · T-006 · round 1
+- Done: read CI 44750491956 (b0e466c, scope=all). ipa job green: everything compiles, with no new warnings. 162/165 test runs passed, including all 19 EpisodeImporterTests, both MKVImportUITests (mkv-01/mkv-02 look right), MiningFlowUITests and LaunchUITests. Reviewed the diff (paths, security scope, continuations, docs): no Must or Should fix
+- Verdict: Blocked (verify-only). 3 UI tests the diff doesn't touch failed on taps/timing: AboutUITests/testAboutShowsVersionAndNoticeTextIntact, and in PlayerLandscapeBehaviourUITests ControlsStay… and OpenSubtitlesMenu…. All three passed in 44698930097. I added model tests for AC-3 to AC-6, which need one run
+- Files: ios/ClipDeckTests/VideoImportModelTests.swift (new, 7 tests, not run yet), .loop/tasks/T-006-mkv-upload-flow.md (Test report round 1)
+- Gotchas: those UI flakes aren't in Learned yet. No fixture has 2+ audio tracks, so the upload.audioTrack picker has never been rendered. Every mutation check costs a dispatch in conservative mode, so none were run
+
+## 2026-11-20 10:02 · loop-tester · T-006 · round 1 addendum
+- Done: read CI 44755434228 (41bf53a, scope=tests): simulator green, 172/172 Success, 0 issues. All 7 VideoImportModelTests passed (extension, picker types, space → Add disabled, idle timer on/restored, cancel/failure add nothing, relink via the model), which closes the model-level parts of AC-3 to AC-6
+- Verdict: Pass. No Must or Should fix. Could fix: the coordinated read is held while the sheet sits idle; the ErrorBanner "Try again" may not be a separate VoiceOver button
+- Files: .loop/tasks/T-006-mkv-upload-flow.md (Round 1 addendum); no test edits in this pass
+- Gotchas (Learned candidates): AboutUITests/testAboutShowsVersionAndNoticeTextIntact and PlayerLandscapeBehaviourUITests testControlsStayWhilePausedAndAutoHideWhilePlaying / testOpenSubtitlesMenuKeepsControlsUpWhilePlaying failed once on taps/timing (44750491956) and passed on the re-run with no code change, so they're flaky
+
+## 2026-11-20 · orchestrator · T-006 · landed
+- Done: T-006 passed (1 round on Opus + 1 verify-only pass). Squashed to 428e97c. MKV import works end to end in CI: pick, convert, play, make a card.
+- Left: T-005 (optional built-in subtitles) is held until last, as the spec says. Next in auto mode: T-003 (SideStore guide), then T-009, T-010, T-008. Could fix: the coordinated read is held while the sheet sits idle (check on a device); ErrorBanner hides "Try again" from VoiceOver as its own button.
