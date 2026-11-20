@@ -58,6 +58,7 @@ CI only:
 4. `gh run download <id> -n simulator-results -D <scratch>/ci`; check the xcresult lists the new tests as run, not skipped.
 
 ### Agent notes
+- From T-012 (1489506): the app links six FFmpegBuild products (avformat, avcodec, avutil, swresample, plus dav1d and zvbi, which load at launch). `FFmpegInspector` already wraps opening and probing with libavformat. Build the converter next to it and reuse its patterns (internal import of the Aether modules, error describe()). The only AAC encoder is FFmpeg's native `aac` (no `aac_at`). Fixtures 1-5 are in build/fixtures via CLIPDECK_FIXTURES.
 - Depends on: T-012 (libraries, fixtures through `CLIPDECK_FIXTURES`, notices).
 - Source: `.loop/specs/mkv-import.md` (Concurrency, Conversion rules, Contracts); review findings 2, 5 and 6 in `.loop/specs/mkv-import.review.md`.
 - `SWIFT_APPROACHABLE_CONCURRENCY` makes a plain `nonisolated async` function run on the caller's actor, so it would freeze the UI. Hence `@concurrent`. `Synchronization.Atomic`/`Mutex` need iOS 18; use `OSAllocatedUnfairLock` (`os`).
