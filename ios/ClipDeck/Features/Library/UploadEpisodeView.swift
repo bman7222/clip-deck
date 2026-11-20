@@ -73,11 +73,38 @@ struct UploadEpisodeView: View {
                         }
                         .accessibilityIdentifier("upload.audioTrack")
                     }
+                    if !video.usableSubtitleTracks.isEmpty {
+                        Picker("Embedded subtitles", selection: subtitleSelection) {
+                            Text("None").tag(Int?.none)
+                            ForEach(video.usableSubtitleTracks, id: \.streamIndex) { track in
+                                Text(track.label).tag(Int?.some(track.streamIndex))
+                            }
+                        }
+                        .accessibilityIdentifier("upload.embeddedSubtitle")
+                        ForEach(video.unusableSubtitleTracks, id: \.streamIndex) { track in
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(track.label)
+                                Text(track.isImageBased ? "image-based, can't be used" : "format not supported")
+                                    .font(.footnote)
+                            }
+                            .foregroundStyle(Theme.inkSoft)
+                            .accessibilityElement(children: .combine)
+                            .accessibilityIdentifier("upload.embeddedSubtitle.unusable.\(track.streamIndex)")
+                        }
+                    }
                 } header: {
                     Text("Episode")
                 } footer: {
-                    if video.prepared?.needsConversion == true {
-                        Text("MKV videos are converted to MP4 when you add them. Keep Clip Deck open until it finishes.")
+                    VStack(alignment: .leading, spacing: 6) {
+                        if video.prepared?.needsConversion == true {
+                            Text("MKV videos are converted to MP4 when you add them. Keep Clip Deck open until it finishes.")
+                        }
+                        if !video.usableSubtitleTracks.isEmpty {
+                            Text(subtitleURL == nil
+                                 ? "All text tracks are saved with the episode; the one you pick starts selected. Switch later with Load different subtitles."
+                                 : "The subtitle file you chose below is used. The embedded tracks are still saved.")
+                                .accessibilityIdentifier("upload.embeddedSubtitleNote")
+                        }
                     }
                 }
                 .disabled(video.isRunning)
@@ -164,6 +191,13 @@ struct UploadEpisodeView: View {
         Binding(
             get: { video.selectedAudio ?? video.audioTracks.first?.streamIndex ?? 0 },
             set: { video.selectAudio($0) }
+        )
+    }
+
+    private var subtitleSelection: Binding<Int?> {
+        Binding(
+            get: { video.selectedSubtitle },
+            set: { video.selectSubtitle($0) }
         )
     }
 

@@ -36,7 +36,7 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - Card media names are fixed per card (`CardMediaNames`), so Sync retries are idempotent; keep it that way.
 - `-uiTesting` launch argument (Debug): in-memory library + generated "Sample Show". `-uiTestingNoSeed` skips the sample.
   `-uiTesting -uiTestingMKV` instead imports MKV fixture 4 through `EpisodeImporter` as "MKV Show / Episode 1" (with the
-  sample SRT); it needs `CLIPDECK_FIXTURES` in the app's environment (UI tests forward it through `launchEnvironment`).
+  sample SRT) and fixture 1 as "Episode 2" (its embedded SRT; the ASS track is saved too); it needs `CLIPDECK_FIXTURES` in the app's environment (UI tests forward it through `launchEnvironment`).
 - `-uiTestingExpiry <ISO-8601 date>` (Debug, with `-uiTesting`) overrides the install-expiry date from the signing profile,
   so the library's expiry banner and the Anki settings expiry line can be tested. `-uiTestingKeepExpiryDismissal` keeps the
   banner's dismissal day across a relaunch (the "uiTesting" defaults are otherwise cleared on every launch).

@@ -64,6 +64,57 @@ final class MKVImportUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["toast"].waitForExistence(timeout: 5), "Saved confirmation shows")
     }
 
+    /// T-005 AC-7: "Episode 2" is fixture 1, imported with its embedded SRT as the subtitle file. The player shows
+    /// the embedded lines, and "Load different subtitles" also lists the other extracted track (the ASS one).
+    /// Cue times are source time plus the video's first-frame time, so only the texts are checked.
+    @MainActor
+    func testEmbeddedSubtitlesShowInPlayerAndPicker() throws {
+        let fixtures = ProcessInfo.processInfo.environment["CLIPDECK_FIXTURES"] ?? ""
+        XCTAssertFalse(fixtures.isEmpty, "CLIPDECK_FIXTURES must be set (run ./scripts/test-ios.sh, which generates the fixtures)")
+
+        let app = XCUIApplication()
+        app.launchArguments += ["-uiTesting", "-uiTestingMKV"]
+        app.launchEnvironment["CLIPDECK_FIXTURES"] = fixtures
+        app.launch()
+
+        let showTile = app.buttons["library.show.MKV Show"]
+        if !showTile.waitForExistence(timeout: 120) {
+            attach(text: app.debugDescription, name: "mkv-03-library-tree")
+            XCTFail("The MKV show should appear after the fixtures are imported (see the app log for UITestSeeder)")
+        }
+        showTile.tap()
+
+        let episodeRow = app.buttons["episode.row.Episode 2"]
+        XCTAssertTrue(episodeRow.waitForExistence(timeout: 10), "Episode 2 should be listed")
+        episodeRow.tap()
+
+        let expected = ["こんにちは、世界。", "これはテストです。", "さようなら。"]
+        let first = app.descendants(matching: .any)["cue.row.0"]
+        XCTAssertTrue(first.waitForExistence(timeout: 15), "The player should open with the embedded subtitle list")
+        for (index, text) in expected.enumerated() {
+            let row = app.descendants(matching: .any)["cue.row.\(index)"]
+            XCTAssertTrue(row.exists, "Missing cue row \(index)")
+            XCTAssertTrue(row.label.contains(text), "Cue \(index): \(row.label)")
+        }
+        attach(screenshot: app.screenshot(), name: "mkv-03-embedded")
+
+        // The other extracted track is in the subtitle picker with no extra wiring.
+        let menu = app.buttons["player.subtitlesMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        let load = app.buttons["Load different subtitles"]
+        XCTAssertTrue(load.waitForExistence(timeout: 5))
+        load.tap()
+        XCTAssertTrue(app.navigationBars["Subtitles for Episode 2"].waitForExistence(timeout: 5))
+        let srt = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'subtitlePicker.file.1 ' AND identifier ENDSWITH '.srt'"))
+        let ass = app.buttons.matching(NSPredicate(
+            format: "identifier BEGINSWITH 'subtitlePicker.file.2 ' AND identifier ENDSWITH '.ass'"))
+        XCTAssertTrue(srt.firstMatch.waitForExistence(timeout: 5), "The SRT track is listed")
+        XCTAssertTrue(ass.firstMatch.exists, "The ASS track is listed: \(app.debugDescription)")
+        attach(screenshot: app.screenshot(), name: "mkv-04-subtitle-picker")
+    }
+
     /// AC-3: the upload sheet offers MKV, and Add episode stays disabled until a usable video is chosen.
     @MainActor
     func testUploadSheetOffersMKV() throws {

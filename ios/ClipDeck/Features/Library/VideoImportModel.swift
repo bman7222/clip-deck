@@ -41,6 +41,9 @@ final class VideoImportModel {
     private(set) var prepared: PreparedVideo?
     /// The chosen audio track (a `MediaProbe.Audio.streamIndex`); starts at the prepared default.
     private(set) var selectedAudio: Int?
+    /// The chosen embedded subtitle track (an `EmbeddedSubtitleTrack.streamIndex`); nil = "None". Starts at the
+    /// prepared default.
+    private(set) var selectedSubtitle: Int?
     /// Why this video can't be added (prepare or audio-plan failure). Add stays disabled while it is set.
     private(set) var videoError: String?
 
@@ -93,7 +96,25 @@ final class VideoImportModel {
         isConverting ? "Converting… \(Int((progress * 100).rounded(.down)))%" : "Adding…"
     }
 
-    var options: EpisodeImportOptions { EpisodeImportOptions(audioStreamIndex: selectedAudio) }
+    /// The text tracks to offer in the "Embedded subtitles" picker. Empty (row hidden) for MP4/MOV/M4V, an MKV
+    /// without subtitle tracks, or one with pictures only.
+    var usableSubtitleTracks: [EmbeddedSubtitleTrack] { prepared?.usableSubtitleTracks ?? [] }
+
+    /// Tracks that can't be used (pictures, unwritable formats); shown greyed out, never selectable. Only listed
+    /// when there is something usable to choose from.
+    var unusableSubtitleTracks: [EmbeddedSubtitleTrack] {
+        guard !usableSubtitleTracks.isEmpty else { return [] }
+        return (prepared?.subtitleTracks ?? []).filter { !$0.isUsable }
+    }
+
+    /// Every usable text track is saved (so each shows under "Load different subtitles"); the picker only decides
+    /// which one the episode starts with.
+    var options: EpisodeImportOptions {
+        EpisodeImportOptions(
+            audioStreamIndex: selectedAudio,
+            embeddedSubtitleStreams: prepared?.usableSubtitleStreamIndices ?? [],
+            chosenSubtitleStream: selectedSubtitle)
+    }
 
     // MARK: Picking and preparing
 
@@ -125,6 +146,7 @@ final class VideoImportModel {
                 }
                 self.prepared = prepared
                 self.selectedAudio = prepared.defaultAudioStreamIndex
+                self.selectedSubtitle = prepared.defaultSubtitleStreamIndex
                 self.status = .ready
                 self.prepareTask = nil
                 self.checkPlan()
@@ -148,6 +170,11 @@ final class VideoImportModel {
         checkPlan()
     }
 
+    /// The "Embedded subtitles" picker's choice; nil is "None".
+    func selectSubtitle(_ streamIndex: Int?) {
+        selectedSubtitle = streamIndex
+    }
+
     private func checkPlan() {
         guard let prepared else { return }
         do {
@@ -166,6 +193,7 @@ final class VideoImportModel {
         prepared?.close()
         prepared = nil
         selectedAudio = nil
+        selectedSubtitle = nil
         videoError = nil
         fileName = nil
         status = .empty

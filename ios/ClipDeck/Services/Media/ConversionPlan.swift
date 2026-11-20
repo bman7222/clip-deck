@@ -22,6 +22,8 @@ nonisolated enum UnsupportedMediaError: Error, Equatable, Sendable, LocalizedErr
     case audioChoice(Int)
     /// Audio that must be transcoded but has no decoder in this FFmpeg build.
     case audioCodec(String)
+    /// A subtitle stream index that isn't a subtitle track of this file.
+    case subtitleChoice(Int)
 
     static let advice = "Convert it on a computer to H.264 (8-bit) or HEVC, for example with HandBrake, then try again."
 
@@ -51,13 +53,16 @@ nonisolated enum UnsupportedMediaError: Error, Equatable, Sendable, LocalizedErr
             "The chosen audio track isn't in this file. Choose another one."
         case .audioCodec(let name):
             "\(name) audio can't be converted. Choose another audio track, or convert the file on a computer."
+        case .subtitleChoice:
+            "The chosen subtitle track isn't in this file. Choose another one."
         }
     }
 }
 
 /// How an MKV becomes an MP4 (spec › Conversion rules). A pure function of the probe, the chosen audio
 /// track and `supportsAV1`: no I/O, so every rule is unit-tested on probe values.
-/// Subtitle streams never appear in a plan: the converter writes none (T-005 extracts them as files).
+/// Subtitle streams are never written into the MP4. The text ones listed in `subtitles` are extracted as `.srt` /
+/// `.ass` files next to it (T-005); everything else in the file's subtitle streams is ignored.
 nonisolated struct ConversionPlan: Sendable, Equatable {
     nonisolated struct Video: Sendable, Equatable {
         var streamIndex: Int
@@ -82,6 +87,44 @@ nonisolated struct ConversionPlan: Sendable, Equatable {
         var mode: AudioMode
     }
 
+    /// The text formats that can be written as a subtitle file, named by how the packets must be read.
+    nonisolated enum SubtitleKind: String, Sendable, Equatable {
+        /// SubRip (and plain text): the packet is the cue text. Written as `.srt`.
+        case subRip
+        /// WebVTT in Matroska: the packet is the cue payload (FFmpeg moves identifier and settings to side data). Written as `.srt`.
+        case webVTT
+        /// ASS/SSA: the packet is `ReadOrder,Layer,Style,Name,MarginL,MarginR,MarginV,Effect,Text`. Written as `.ass`.
+        case ass
+
+        var fileExtension: String { self == .ass ? "ass" : "srt" }
+
+        /// The kind for an FFmpeg codec name, or nil for a text format this build doesn't write (and for pictures).
+        init?(codec: String) {
+            switch codec {
+            case "subrip", "text": self = .subRip
+            case "webvtt": self = .webVTT
+            case "ass", "ssa": self = .ass
+            default: return nil
+            }
+        }
+    }
+
+    /// One text subtitle track to write as a file while converting.
+    nonisolated struct SubtitleExtraction: Sendable, Equatable {
+        var streamIndex: Int
+        var codec: String
+        var kind: SubtitleKind
+        var language: String?
+        var title: String?
+        /// 1-based position among the file's subtitle streams (stable, so names don't depend on the choice).
+        var number: Int
+        /// File name with extension, e.g. "2 jpn Signs.ass". Already safe on disk.
+        var fileName: String
+        /// The track chosen as the episode's subtitle: if its file can't be written, the import fails. For any other
+        /// track a write failure is only a warning.
+        var isRequired: Bool = false
+    }
+
     nonisolated enum Warning: String, Sendable, Equatable {
         /// The file has no audio track: it plays, but cards will have no sound.
         case noAudioTrack
@@ -94,6 +137,8 @@ nonisolated struct ConversionPlan: Sendable, Equatable {
     /// From the probe; used for progress when the file size is unknown.
     var sourceStartSeconds: Double?
     var sourceDurationSeconds: Double?
+    /// Text subtitle tracks to extract as files (empty unless the caller asked for some).
+    var subtitles: [SubtitleExtraction] = []
 
     static let transcodeBitRate = 192_000
     static let transcodeChannels = 2
@@ -105,7 +150,12 @@ nonisolated struct ConversionPlan: Sendable, Equatable {
     ///   - audioStreamIndex: the user's choice (a stream index from `probe.audioTracks`); nil = the file's
     ///     default-flagged track, else the first.
     ///   - supportsAV1: `VTIsHardwareDecodeSupported(kCMVideoCodecType_AV1)` on the device.
-    static func make(probe: MediaProbe, audioStreamIndex: Int? = nil, supportsAV1: Bool) throws(UnsupportedMediaError) -> ConversionPlan {
+    ///   - extractingSubtitleStreams: stream indices of subtitle tracks to write as files. Picture tracks and text
+    ///     formats this build can't write are skipped (they show as unusable in the UI); an index that isn't a
+    ///     subtitle stream at all throws `.subtitleChoice`.
+    static func make(probe: MediaProbe, audioStreamIndex: Int? = nil, supportsAV1: Bool,
+                     extractingSubtitleStreams: [Int] = [],
+                     requiredSubtitleStream: Int? = nil) throws(UnsupportedMediaError) -> ConversionPlan {
         let video = try videoPlan(probe.video, supportsAV1: supportsAV1)
 
         let chosen: MediaProbe.Audio?
@@ -132,7 +182,70 @@ nonisolated struct ConversionPlan: Sendable, Equatable {
             audio: audio,
             warnings: warnings,
             sourceStartSeconds: probe.startSeconds,
-            sourceDurationSeconds: probe.durationSeconds)
+            sourceDurationSeconds: probe.durationSeconds,
+            subtitles: try subtitleExtractions(in: probe, streams: extractingSubtitleStreams,
+                                               required: requiredSubtitleStream))
+    }
+
+    // MARK: Subtitle rules
+
+    /// Whether a subtitle track can be written as a file: a text track in a format `SubtitleKind` knows.
+    static func isUsableSubtitle(_ track: MediaProbe.Subtitle) -> Bool {
+        track.isText && SubtitleKind(codec: track.codec) != nil
+    }
+
+    /// The default episode subtitle: the default-flagged usable text track, else the first usable text track,
+    /// else nil (picture-only files and files with no subtitles give nil, and no warning).
+    static func defaultSubtitleTrack(in probe: MediaProbe) -> MediaProbe.Subtitle? {
+        let usable = probe.subtitleTracks.filter(isUsableSubtitle)
+        return usable.first(where: \.isDefault) ?? usable.first
+    }
+
+    /// The extractions for the given stream indices, in file order, each stream once.
+    static func subtitleExtractions(in probe: MediaProbe, streams: [Int],
+                                    required: Int? = nil) throws(UnsupportedMediaError) -> [SubtitleExtraction] {
+        var result: [SubtitleExtraction] = []
+        for (position, track) in probe.subtitleTracks.enumerated() where streams.contains(track.streamIndex) {
+            guard isUsableSubtitle(track), let kind = SubtitleKind(codec: track.codec) else { continue }
+            result.append(SubtitleExtraction(
+                streamIndex: track.streamIndex,
+                codec: track.codec,
+                kind: kind,
+                language: track.language,
+                title: track.title,
+                number: position + 1,
+                fileName: subtitleFileName(number: position + 1, language: track.language, title: track.title, kind: kind),
+                isRequired: track.streamIndex == required))
+        }
+        for stream in streams where !probe.subtitleTracks.contains(where: { $0.streamIndex == stream }) {
+            throw .subtitleChoice(stream)
+        }
+        return result
+    }
+
+    /// Longest subtitle file name we write, in UTF-8 bytes (file systems allow 255; this leaves room for " (2)").
+    static let maximumSubtitleFileNameBytes = 200
+    static let maximumLanguageCharacters = 16
+    static let maximumTitleCharacters = 60
+
+    /// `<n> <language> <title>.<ext>` (language "und" and missing parts are left out; "Subtitles" if both are).
+    /// Language and title come from the file, so they are capped (16 and 60 characters) and the whole name is cut,
+    /// at a character boundary, to at most 200 UTF-8 bytes.
+    static func subtitleFileName(number: Int, language: String?, title: String?, kind: SubtitleKind) -> String {
+        var parts = ["\(number)"]
+        let language = language?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        let title = title?.trimmingCharacters(in: .whitespacesAndNewlines) ?? ""
+        if !language.isEmpty, language.lowercased() != "und" { parts.append(String(language.prefix(maximumLanguageCharacters))) }
+        if !title.isEmpty { parts.append(String(title.prefix(maximumTitleCharacters))) }
+        if parts.count == 1 { parts.append("Subtitles") }
+        var base = FileStore.safeName(parts.joined(separator: " "))
+        let digits = String(number).count
+        let limit = maximumSubtitleFileNameBytes - 1 - kind.fileExtension.utf8.count
+        // Whole characters only. The leading number is never cut, so the name stays non-empty and unique per track.
+        while base.utf8.count > limit, base.count > digits {
+            base.removeLast()
+        }
+        return "\(base).\(kind.fileExtension)"
     }
 
     /// The file's default-flagged audio track, else the first one.
@@ -169,6 +282,14 @@ nonisolated struct ConversionPlan: Sendable, Equatable {
         case "vorbis": "Vorbis"
         case "dts": "DTS"
         case "truehd": "TrueHD"
+        case "subrip": "SRT"
+        case "ass": "ASS"
+        case "ssa": "SSA"
+        case "webvtt": "WebVTT"
+        case "text": "Text"
+        case "hdmv_pgs_subtitle": "PGS"
+        case "dvd_subtitle": "VobSub"
+        case "dvb_subtitle": "DVB"
         default: codec.uppercased()
         }
     }
