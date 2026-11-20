@@ -4,7 +4,7 @@ Short version: set up SideStore once with the computer. After that, a daily Shor
 
 > **If no refresh works for 7 days, SideStore expires too, and only the computer can bring it back.** Before you travel, refresh by hand and check that every counter in SideStore › My Apps says 7.
 >
-> **iOS updates can break the pairing file**, and then every refresh fails. SideStore's [Install](https://docs.sidestore.io/docs/installation/install) page says: "Your pairing file may expire if you update or reset your iPhone". Only iloader on the computer can replace it. So before a trip, turn off automatic iOS updates and don't update while you're away. After any update, check the counters the next morning.
+> **iOS updates can break the pairing file**, and then every refresh fails. SideStore's [Install](https://docs.sidestore.io/docs/installation/install) page says: "Your pairing file may expire if you update or reset your iPhone, iPad, or iPod touch. … This also occurs at random times because of Apple's software." Only iloader on the computer can replace it. So before a trip, turn off automatic iOS updates (Settings › General › Software Update › Automatic Updates) and don't update while you're away. Because it can also happen at random times, check the counters every few days, not just after an update.
 
 **Already have Clip Deck from Sideloadly?** Before setup step 1, read [Moving from Sideloadly to SideStore](#moving-from-sideloadly-to-sidestore) and sync your cards.
 
@@ -37,9 +37,17 @@ SideStore signs Clip Deck under its own bundle ID: `dev.brent.clipdeck` plus you
 
 ## Getting the IPA
 
-- **Today:** open the [Actions page](https://github.com/bman7222/clip-deck/actions) and find the newest green **iOS simulator** run that lists **ClipDeck-ipa** under Artifacts. Not every run has one, and artifacts are kept for 30 days. Runs on `main` contain finished work. Runs on a `loop/…` branch contain work in progress. You have to sign in to GitHub to download. The download is a zip: tap it in Files to unzip it and get `ClipDeck.ipa`.
-- **After T-009:** the [Releases page](https://github.com/bman7222/clip-deck/releases) will have `ClipDeck.ipa`, and you can download it on the phone.
-- **After T-010:** Clip Deck will show up as a SideStore source, so SideStore can find and install updates by itself.
+- **From the phone (normal way):** open the [Releases page](https://github.com/bman7222/clip-deck/releases) in Safari and tap the newest release. The repo is public, so no GitHub login is needed. Download `ClipDeck.ipa` (ignore `ClipDeck.ipa.sha256`, that is only a checksum). Then either tap the download in Files and share it to **SideStore**, or in SideStore › My Apps tap **+** and pick the file (SideStore's file import).
+- **Without a release:** open the [Actions page](https://github.com/bman7222/clip-deck/actions), pick a green **iOS simulator** run that lists **ClipDeck-ipa** under Artifacts, and download it (this needs a GitHub login). The download is a zip: tap it in Files to unzip it and get `ClipDeck.ipa`. Artifacts are kept for 30 days, and runs on a `loop/…` branch are work in progress.
+- **Later (T-010):** Clip Deck will show up as a SideStore source, so SideStore can find and install updates by itself.
+
+### Cutting a release (on the computer)
+
+```bash
+git tag v0.2.0 && git push origin v0.2.0
+```
+
+The **Release IPA** workflow builds the unsigned IPA and publishes it as release `v0.2.0` with `ClipDeck.ipa` and `ClipDeck.ipa.sha256` (a few minutes). Or run it by hand: Actions › Release IPA › Run workflow, version `0.2.0` (no `v`; the workflow creates the tag). The version must look like `1.2.3` or `1.2.3-rc1`; a version with `-` is published as a pre-release. The number shown in the app is the version, and the build number is the workflow run number. It never overwrites: reusing an existing version fails with a clear message, so pick the next one. The release notes link to the exact FFmpeg source this build uses (read from `ios/project.yml`) and to `THIRD_PARTY_NOTICES.md` and `LICENSE`.
 
 ## Refresh on the phone
 
@@ -114,19 +122,22 @@ Apple's guide: [Add automations](https://support.apple.com/guide/shortcuts/add-a
 
 SideStore only refreshes apps it installed, so you install Clip Deck again through SideStore and add your episodes again. Clip Deck can't export or import its library.
 
-1. **Before setup step 1:** open the Sideloadly Clip Deck at home with Anki open. Tap the sync button (circling arrows, top right) and sync until the sheet says **"Everything is in Anki."** Cards already in Anki are safe.
+1. **Before setup step 1:**
+   - **If the Sideloadly copy has already expired** (it won't open), reinstall it with Sideloadly first so you can sync the cards. Installing over the top keeps its data.
+   - **Check that you still have the episode's video and subtitle files** in the Files app. You will add them again in step 3.
+   - Open the Sideloadly Clip Deck at home with Anki open. Tap the sync button (circling arrows, top right) and sync until the sheet says **"Everything is in Anki."** Cards already in Anki are safe.
 2. **Expect the old copy to stop opening.**
    - A free Apple ID has one active signing certificate (SideStore's code: "a free account is limited to 1 active certificate").
    - Setting up SideStore with the same Apple ID will likely revoke the certificate Sideloadly used. iloader may say "Maximum certificates reached… will revoke your existing certificates" (setup step 4), or SideStore may ask to revoke (setup step 8).
    - After that, iOS won't open the Sideloadly copy. Its files stay on the phone.
 3. **After setup:** install `ClipDeck.ipa` through SideStore (setup step 10). Tap **Upload episode** and add your episode(s) and subtitles again.
-4. **Deleting the old copy:** only if you see **two** Clip Deck icons and the new one plays your episode. If you see only **one** Clip Deck, don't delete anything.
+4. **Deleting the old copy:** only if you see **two** Clip Deck icons and the new one plays your episode. If you see only **one** Clip Deck, don't delete anything. While the old copy is installed it uses one of your 3 app slots (SideStore uses another), so delete it once the new one works.
 
 [SideStore's FAQ](https://docs.sidestore.io/docs/faq) says a Sideloadly app's data carries over, but SideStore's code installs Clip Deck under a new ID (`dev.brent.clipdeck.<team ID>`). Plan as if it doesn't carry over.
 
 ## Alternatives and later
 
-- **Sideloadly (instead of SideStore):** the README's original method. It can only re-sign from the computer, so the app stops opening 7 days after your last install. Use one or the other with an Apple ID: with both, each one revokes the other's certificate.
+- **Sideloadly (instead of SideStore):** the README's original method. It can only re-sign from the computer, so the app stops opening 7 days after your last install. Use one or the other with an Apple ID: setting up one will likely revoke the other's certificate, and that copy stops opening.
 - **Later: paid account.** A paid Apple Developer account ($99/yr) removes the 3-app limit and signs for 365 days ([FAQ](https://docs.sidestore.io/docs/faq)). It also allows TestFlight (T-007, see [ARCHITECTURE.md](ARCHITECTURE.md), "Deployment").
 
 ## Brent, please confirm

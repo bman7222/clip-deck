@@ -90,7 +90,7 @@ With a free Apple ID, a sideloaded app stops opening after 7 days.
    - trust your Apple ID under **Settings › General › VPN & Device Management**.
 3. Before it expires, install it again the same way. Installing over the top keeps your library and cards.
 
-Pick one. If you use Sideloadly and SideStore with the same free Apple ID, each one revokes the other's certificate, and the other copy stops opening. Clip Deck can't move its library between copies. To switch, sync your cards to Anki first: see [Moving from Sideloadly to SideStore](docs/INSTALL_ON_IPHONE.md#moving-from-sideloadly-to-sidestore).
+Pick one. If you use Sideloadly and SideStore with the same free Apple ID, setting up one will likely revoke the other's certificate, and the other copy stops opening. Clip Deck can't move its library between copies. To switch, sync your cards to Anki first: see [Moving from Sideloadly to SideStore](docs/INSTALL_ON_IPHONE.md#moving-from-sideloadly-to-sidestore).
 
 On a Mac, `./scripts/build-ipa.sh` builds the same file locally.
 

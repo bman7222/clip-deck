@@ -1,0 +1,129 @@
+# Publishes an unsigned ClipDeck.ipa as a GitHub Release (install it on the phone with SideStore).
+#   git tag v0.2.0 && git push origin v0.2.0        (or: Actions > Release IPA > Run workflow, version 0.2.0)
+# Never overwrites: if the release or (for a manual run) the tag already exists, the run fails before building.
+name: Release IPA
+
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version without the v, e.g. 0.2.0 or 0.2.0-rc1 (tagged v0.2.0)"
+        type: string
+        required: true
+
+# The only write the job needs: creating the release (and, for a manual run, its tag).
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}-${{ inputs.version }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: macos-latest
+    timeout-minutes: 40
+    env:
+      GH_TOKEN: ${{ github.token }}
+      # Untrusted text: only ever read as "$VAR" inside the scripts below, after validation.
+      INPUT_VERSION: ${{ inputs.version }}
+      REF_NAME: ${{ github.ref_name }}
+      EVENT_NAME: ${{ github.event_name }}
+      RUN_NUMBER: ${{ github.run_number }}
+      REPO: ${{ github.repository }}
+      SERVER_URL: ${{ github.server_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Work out and validate the version
+        run: |
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]]; then
+            VERSION="$INPUT_VERSION"
+          else
+            VERSION="${REF_NAME#v}"
+          fi
+          if [[ ! "$VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]]; then
+            echo "::error::Version '$VERSION' is not like 1.2.3 or 1.2.3-rc1 (tags look like v1.2.3)."
+            exit 1
+          fi
+          TAG="v$VERSION"
+          PRERELEASE=false
+          [[ "$VERSION" == *-* ]] && PRERELEASE=true
+          {
+            echo "VERSION=$VERSION"
+            echo "TAG=$TAG"
+            echo "PRERELEASE=$PRERELEASE"
+          } >> "$GITHUB_ENV"
+
+      - name: Refuse to overwrite an existing release or tag
+        run: |
+          if gh release view "$TAG" --repo "$REPO" >/dev/null 2>&1; then
+            echo "::error::Release $TAG already exists. Pick a new version; this workflow never overwrites a release."
+            exit 1
+          fi
+          if [[ "$EVENT_NAME" == "workflow_dispatch" ]] \
+             && git ls-remote --exit-code --tags origin "refs/tags/$TAG" >/dev/null 2>&1; then
+            echo "::error::Tag $TAG already exists. Pick a new version, or push the tag to build that tag."
+            exit 1
+          fi
+
+      - name: Install xcodegen
+        run: brew install xcodegen
+
+      - name: Create local config from examples
+        run: cp -n ios/Config/Secrets.example.xcconfig ios/Config/Secrets.xcconfig || true
+
+      - name: Build unsigned IPA with the version
+        env:
+          MARKETING_VERSION: ${{ env.VERSION }}
+          CURRENT_PROJECT_VERSION: ${{ github.run_number }}
+        run: bash scripts/build-ipa.sh
+
+      - name: Check licence notices are inside the IPA
+        run: bash scripts/check-ipa-notices.sh build/ipa/ClipDeck.ipa
+
+      - name: Check the IPA version and bundle ID
+        run: |
+          python3 -I - build/ipa/ClipDeck.ipa "$VERSION" "$RUN_NUMBER" <<'PY'
+          import plistlib, sys, zipfile
+          ipa, version, build = sys.argv[1:4]
+          with zipfile.ZipFile(ipa) as z:
+              info = plistlib.loads(z.read("Payload/ClipDeck.app/Info.plist"))
+          want = {
+              "CFBundleShortVersionString": version,
+              "CFBundleVersion": build,
+              "CFBundleIdentifier": "dev.brent.clipdeck",
+          }
+          bad = {k: (info.get(k), v) for k, v in want.items() if info.get(k) != v}
+          for k, (got, exp) in bad.items():
+              print(f"::error::Info.plist {k} is {got!r}, expected {exp!r}")
+          sys.exit(1 if bad else 0)
+          PY
+
+      - name: Checksum and release notes
+        run: |
+          (cd build/ipa && shasum -a 256 ClipDeck.ipa > ClipDeck.ipa.sha256 && cat ClipDeck.ipa.sha256)
+          # The FFmpegBuild tag comes from the one place it is pinned.
+          FFMPEG_VERSION="$(awk '/^  FFmpegBuild:/{f=1;next} f&&/exactVersion:/{print $2; exit}' ios/project.yml | tr -d "\"'")"
+          if [[ ! "$FFMPEG_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+            echo "::error::Could not read the FFmpegBuild exactVersion from ios/project.yml (got '$FFMPEG_VERSION')."
+            exit 1
+          fi
+          cat > build/release-notes.md <<NOTES
+          Unsigned iPhone build of Clip Deck $VERSION (build $RUN_NUMBER). Install it with SideStore: download \`ClipDeck.ipa\` and share it to SideStore (see [docs/INSTALL_ON_IPHONE.md]($SERVER_URL/$REPO/blob/$TAG/docs/INSTALL_ON_IPHONE.md)). \`ClipDeck.ipa.sha256\` is its SHA-256 checksum.
+
+          ### Third-party software
+          This build bundles FFmpeg (LGPL-2.1) as dynamic frameworks from FFmpegBuild. The exact source for this build: $SERVER_URL/superuser404notfound/FFmpegBuild/tree/$FFMPEG_VERSION
+
+          Licence texts: [THIRD_PARTY_NOTICES.md]($SERVER_URL/$REPO/blob/$TAG/THIRD_PARTY_NOTICES.md) and [LICENSE]($SERVER_URL/$REPO/blob/$TAG/LICENSE). Both are also inside the app (\`Licenses/\`).
+
+          NOTES
+
+      - name: Create the release
+        run: |
+          FLAGS=(--repo "$REPO" --target "$GITHUB_SHA" --title "Clip Deck $VERSION" --notes-file build/release-notes.md --generate-notes)
+          if [[ "$PRERELEASE" == "true" ]]; then FLAGS+=(--prerelease); else FLAGS+=(--latest); fi
+          gh release create "$TAG" "${FLAGS[@]}" build/ipa/ClipDeck.ipa build/ipa/ClipDeck.ipa.sha256
+          gh release view "$TAG" --repo "$REPO" --json url,assets --jq '.url, (.assets[].name)'
