@@ -128,3 +128,56 @@
 - Done: T-002 passed after round 2 plus a verify-only pass. Squashed to dbe6201. CI 44658198733 green (58/58).
 - Left: T-011 (resizable divider) is next on the landscape chain; its Agent notes carry Brent's usable-width rule.
 - Gotchas: the round-1 builder's session ended mid-task; a fresh builder resumed from the task file without trouble. The tester can't run `gh run rerun` (permission denied), so the orchestrator asks Brent before any re-run.
+
+## 2026-11-19 · loop-frontend · T-011 · round 1 (sonnet)
+- Done: draggable divider handle (`player.panelHandle`, 44 pt, own DragGesture) resizing the landscape panel between 180 pt and 50 % of the usable width; fraction stored with @AppStorage (default 0.25), saved on drag end; double-tap/VoiceOver reset; drag holds the controls up
+- Left: CI run (nothing compiled locally); the UI test `testPanelHandleResizesRemembersAndResets` is the first real check that press-and-drag drives the handle
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, docs/DESIGN.md, docs/DEVELOPMENT.md
+- Gotchas: the test leaves the stored width at the default; UserDefaults survive between UI-test launches
+
+## 2026-11-19 21:25 · loop-tester · T-011 · round 1
+- Done: checked CI run 44660105956 (headSha 11b22d7). ipa green; simulator red because the UI test target doesn't compile (raw newlines in a string literal, PlayerLandscapeUITests.swift:229-231), so 0 tests ran. The drag, relaunch, reset and T-002 regressions are all unproven
+- Verdict: Fail. Must fix: compile error (tester fixed it in the working tree, not run). Should fix: the handle's 44 pt hit area covers the panel's leading 32 pt for its full height, so taps there don't reach cue rows or Make a Card, and list scrolls that start there resize the panel instead. Could fix: a cancelled drag leaves the live state set (use @GestureState); a handle-test failure cascades into the T-002 width test
+- Files: ios/ClipDeckUITests/PlayerLandscapeUITests.swift (uncommitted: compile fix, AC-5 label/value asserts, far-left 50 % max assert)
+- Gotchas: an empty screenshots manifest plus TestCaseRuns = 0 in the xcresult means the test build failed. Read --log-failed before looking for attachments
+
+## 2026-11-19 · loop-frontend · T-011 · round 2 (sonnet)
+- Done: kept tester's compile fix and AC-5/AC-2 asserts; handle hit area moved 32 pt over the video (bars get 32 pt trailing padding while the panel is open); drag is @GestureState-based, minimumDistance 8, horizontal only; -uiTesting launches reset player.panelFraction unless -uiTestingKeepPanelWidth; new test for a cue-row tap 16 pt from the edge
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeck/App/ClipDeckApp.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift
+- Gotchas: GestureState needs `= nil` for an optional; the resize test's relaunch passes -uiTestingKeepPanelWidth
+
+## 2026-11-19 22:05 · loop-tester · T-011 · round 2
+- Done: verified CI run 44661143691 (headSha c0da745). ipa green; simulator 59/60. All round-1 findings are fixed. press(forDuration:thenDragTo:) drives the handle live on iOS 26.5 (recording: the edge moves 625 → 584 → 520 → 507). +120 pt gives content 307.3 pt (expected 307.5). The toggle and the bar's Make a Card are 12 pt clear of the handle. T-002's exact width holds (249.33 vs 249.5) even after the failed test left 0.41 stored, which proves the -uiTesting reset
+- Verdict: Fail. Should fix: the grip capsule moved with the hit area and now sits 10 pt left of the panel edge, over the video, in a dark 35 % ink (AC-1). The handle test failed at the relaunch because of a test defect: when the player opens already in landscape the controls start up, and tapVideo hid them. The tester fixed this in the test file. Persistence, the 180/50 % limits and the reset are still unshown
+- Files: ios/ClipDeckUITests/PlayerLandscapeUITests.swift (uncommitted: conditional tapVideo in launchWithPanelOpen; bar-clearance asserts plus landscape-05-panel-max attachments at 50 %)
+- Gotchas: frames from the XCUITest recording work through headless Chrome CDP if Chrome opens the .mp4 URL directly (a file:// video from about:blank fails to load). The pre-existing T-001 behaviour: opening the player in landscape shows controls; rotating in hides them
+
+## 2026-11-19 · loop-frontend · T-011 · round 3 (sonnet)
+- Done: grip moved back onto the panel's leading edge (white capsule, dark outline + shadow); drag direction decided once per drag (origin + latch) so a resize is always saved; single tap on the handle toggles the controls (double-tap still resets)
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift
+- Gotchas: handle stays one accessibility element, so no separate grip identifier; tester's test edits kept
+
+## 2026-11-19 22:22 · loop-tester · T-011 · round 3
+- Done: checked CI run 44665692227 (headSha 639a612). ipa green; simulator 59/60. Grip centre at 504.33 vs panel.minX 504.67 (recording frame). Width survives the relaunch (±4). The 180 pt minimum and 50 % maximum asserts pass. All three drags work with the new .onChanged. The round-2 relaunch fix works
+- Verdict: Fail. Must fix: at the 50 % maximum the icon-only bottom row needs 464.3 pt (because of the 32 pt handle clearance) but the video column is 437.7 pt. The ZStack overflows, so the video and bars shift 13.67 pt left and the picture is cropped about 13.7 pt per side (PlayerLandscapeUITests.swift:187, video minX −13.67). This starts above about 46 % on this device. Could fix: the live and save drag latches disagree; the single tap on the handle has no test. AC-4's reset from a non-default width is still unshown
+- Files: .loop/tasks/T-011-resizable-landscape-panel.md (Test report round 3); no test edits
+- Gotchas: video crop can be measured from recording frames: picture height × 16/9 against the column width. A ZStack with one overflowing child (a bar) re-centres every layer, including the video
+
+## 2026-11-19 23:04 · loop-frontend · T-011 · round 4 (opus)
+- Done: the bars are now an overlay on the fixed-width video (leading-aligned, clipped), so they can never widen or shift the column. The bottom row has a third ViewThatFits option without the ±5 s skips (about 242 pt; the row gets about 320 pt at 50 %). A single drag latch (decided in onChanged) drives both the live resize and the save. New tests: a single tap on the handle toggles the controls, and controls start hidden when the player opens in landscape. Controls show on a real pause only (true → false), so landscape always starts hidden
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, docs/DESIGN.md
+- Gotchas: launchWithPanelOpen now asserts the controls are hidden for 2 s and then always taps. An overlay sized by its base view can't resize that view, unlike a ZStack sibling
+
+## 2026-11-19 23:16 · loop-tester · T-011 · round 4
+- Done: verified CI 44672073767 (headSha 35dba5d). Both jobs green, 62/62, run-ios green. At 50 %: video {0,0,437,402} (the full column), back minX 74 (inset + 12), toggle and Make a Card maxX 393 vs handle 405, no ±5 s skips (still present at 41 %). The reset from 50 % runs and passes. The new single-tap and starts-hidden tests pass. A real pause (clip end) still brings the controls back with no tap
+- Verdict: Pass. No Must or Should fix. Could fix: assert that the skips are gone at the max; attach a player.video element screenshot. T-001 AC-2's "stay visible while paused" should be reworded to "once shown …; entering landscape starts hidden"
+- Files: .loop/tasks/T-011-resizable-landscape-panel.md (Test report round 4); no test edits
+- Gotchas: all-green runs keep no screen recordings. Use the -frames attachments and the Activities timestamps
+
+## 2026-11-19 · orchestrator · T-011 · landed
+- Done: T-011 passed in round 4 (an extra round on Opus that Brent approved). Squashed to 3f38205. CI 44672073767 green (62/62). The landscape chain T-001 → T-002 → T-011 is complete.
+- Left: open Could fix items for a future test pass: assert the skips are gone and video width = window − panel at the maximum; attach a player.video element screenshot.
+- Gotchas: new rule (Brent): after any failed Sonnet round, ask him whether to retry on Sonnet or switch to Opus (models.ask_on_sonnet_fail).
