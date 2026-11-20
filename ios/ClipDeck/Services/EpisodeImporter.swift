@@ -349,7 +349,7 @@ struct EpisodeImporter {
         let video: URL
         let videoExtension: String
         let readURL = prepared.access.readURL
-        if let plan = try prepared.plan(for: options) {
+        if let plan = try prepared.plan(for: options, userPickedSubtitleFile: subtitleFile != nil) {
             warnings += plan.warnings.map { $0.message }
             videoExtension = "mp4"
             video = staging.appending(path: "Episode.mp4")
@@ -632,15 +632,18 @@ nonisolated struct PreparedVideo: Sendable {
     /// The conversion plan for these options, or nil for a file that is copied. Throws
     /// `EpisodeImportError.unsupported` when the chosen audio track can't be used; show its message and keep
     /// Add episode disabled.
-    func plan(for options: EpisodeImportOptions) throws -> ConversionPlan? {
+    /// `userPickedSubtitleFile`: the user picked their own subtitle file, which wins over the chosen built-in track,
+    /// so that track is still extracted but failing to write it only adds a warning.
+    func plan(for options: EpisodeImportOptions, userPickedSubtitleFile: Bool = false) throws -> ConversionPlan? {
         guard let probe else { return nil }
         let subtitleStreams = options.subtitleStreamsToExtract
+        let requiredStream = userPickedSubtitleFile ? nil : options.chosenSubtitleStream
         guard let audioStreamIndex = options.audioStreamIndex, audioStreamIndex != defaultAudioStreamIndex else {
             guard var plan = defaultPlan else { return nil }
             if !subtitleStreams.isEmpty {
                 do {
                     plan.subtitles = try ConversionPlan.subtitleExtractions(
-                        in: probe, streams: subtitleStreams, required: options.chosenSubtitleStream)
+                        in: probe, streams: subtitleStreams, required: requiredStream)
                 } catch {
                     throw EpisodeImportError.unsupported(error)
                 }
@@ -649,7 +652,7 @@ nonisolated struct PreparedVideo: Sendable {
         }
         switch EpisodeImporter.makePlan(probe, audioStreamIndex: audioStreamIndex, supportsAV1: supportsAV1,
                                         subtitleStreams: subtitleStreams,
-                                        requiredSubtitleStream: options.chosenSubtitleStream) {
+                                        requiredSubtitleStream: requiredStream) {
         case .success(let plan): return plan
         case .failure(let error): throw EpisodeImportError.unsupported(error)
         }

@@ -36,7 +36,7 @@ struct ConversionPlanTests {
             _ = try ConversionPlan.make(probe: probe, supportsAV1: supportsAV1)
             return nil
         } catch {
-            return error as? UnsupportedMediaError
+            return error
         }
     }
 
@@ -213,7 +213,7 @@ struct ConversionPlanTests {
             _ = try ConversionPlan.make(probe: Self.probe(), audioStreamIndex: 0, supportsAV1: false)
             Issue.record("expected audioChoice")
         } catch {
-            #expect(error as? UnsupportedMediaError == .audioChoice(0))
+            #expect(error == .audioChoice(0))
         }
     }
 
@@ -342,7 +342,7 @@ struct ConverterHelperTests {
             _ = try fixer.fix(pts: pts, dts: dts)
             return nil
         } catch {
-            return error as? TimestampOutOfRange
+            return error
         }
     }
 
