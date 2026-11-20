@@ -10,7 +10,13 @@ struct ClipDeckApp: App {
     init() {
         let isUITesting = LaunchFlags.isUITesting
         // UI tests get a fresh in-memory library and default settings on every launch.
-        if isUITesting { UserDefaults.standard.removePersistentDomain(forName: "uiTesting") }
+        // -uiTestingKeepExpiryDismissal keeps only the expiry-banner dismissal day, so a test can relaunch the same day.
+        if isUITesting {
+            let kept = ProcessInfo.processInfo.arguments.contains("-uiTestingKeepExpiryDismissal")
+                ? UserDefaults(suiteName: "uiTesting")?.string(forKey: ExpiryReminderStore.key) : nil
+            UserDefaults.standard.removePersistentDomain(forName: "uiTesting")
+            if let kept { UserDefaults(suiteName: "uiTesting")?.set(kept, forKey: ExpiryReminderStore.key) }
+        }
         // The landscape panel width lives in the standard defaults, which outlive a UI-test launch. Start every
         // UI-test launch at the default width unless the test asks to keep it (-uiTestingKeepPanelWidth).
         if isUITesting, !ProcessInfo.processInfo.arguments.contains("-uiTestingKeepPanelWidth") {

@@ -6,6 +6,7 @@ struct AnkiSettingsView: View {
     @Environment(SettingsStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var status: ConnectionStatus = .idle
+    @State private var installExpiry = InstallExpiry.currentExpiry()
 
     enum ConnectionStatus: Equatable {
         case idle, checking
@@ -82,6 +83,12 @@ struct AnkiSettingsView: View {
                         Text("About and licences")
                     }
                     .accessibilityIdentifier("settings.about")
+                    if let installExpiry {
+                        Text(InstallExpiry.settingsText(expiry: installExpiry))
+                            .font(.deckCallout)
+                            .foregroundStyle(Theme.inkSoft)
+                            .accessibilityIdentifier("settings.expiry")
+                    }
                 }
 
                 Section("Set up AnkiConnect (once)") {
