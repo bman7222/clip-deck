@@ -352,3 +352,21 @@
 - Done: T-003 passed in round 3 (round 1 sonnet, rounds 2-3 opus; Brent chose Opus after the Sonnet fail). Squashed to 9a66a4a. Docs only, so no CI.
 - Left: T-009 is next and carries T-003's Could fix items C1-C5. Brent declined an export/import task (he has 1 episode and will re-upload it).
 - Gotchas: SideStore installs Clip Deck as dev.brent.clipdeck.<teamID>, and setting it up with the same free Apple ID revokes Sideloadly's certificate.
+
+## 2026-11-20 · loop-backend · T-009 · round 1 (sonnet)
+- Done: release.yml (tag v* / dispatch, validated version via env, notices check, plist check, sha256, notes with FFmpeg tag link, gh release create), build-ipa.sh optional version env vars, Getting the IPA now points to Releases, new "Cutting a release" section, T-003 C1-C5
+- Left: tester runs the rc tag from the loop branch, cleans up with gh release delete --cleanup-tag
+- Files: .github/workflows/release.yml, scripts/build-ipa.sh, docs/INSTALL_ON_IPHONE.md, README.md, docs/DEVELOPMENT.md
+- Gotchas: prerelease versions (with -) are not marked latest; YAML and bash only syntax-checked locally
+
+## 2026-11-20 10:53 · loop-tester · T-009 · round 1
+- Done: checked release.yml run 44767085601 (tag v0.1.1-rc1, success). I downloaded the release, with and without auth. The IPA plist has 0.1.1-rc1, build 1 and dev.brent.clipdeck, the sha256 matches, the notes link FFmpegBuild 3.16.0, THIRD_PARTY_NOTICES and LICENSE (all 200), and the notices check passed in the log
+- Done: ran the workflow's own run: blocks locally. Version validation, 16 cases. Overwrite refusal against the real repo ("Release v0.1.1-rc1 already exists"). --latest vs --prerelease flags. The plist check catches wrong values. build-ipa.sh against stub xcodebuild: unchanged args without the vars
+- Verdict: Pass. Could fix only: GH_TOKEN at job level plus a persisted checkout token, a misleading "push the tag" hint, raw input in ::error::, leading zeros accepted, checkout not SHA-pinned
+- Left: the orchestrator deletes release v0.1.1-rc1 (--cleanup-tag). A real workflow_dispatch can only run after merge. Brent installs from Safari with SideStore
+- Files: .loop/tasks/T-009-github-release-ipa.md (Test report round 1); no repo test files (stub harnesses in %LOCALAPPDATA%\Temp\clip-deck-loop\T-009-r1)
+- Gotchas: rc tags are published as pre-releases, so /releases/latest stays 404 until a plain vX.Y.Z tag is pushed. `gh release view --json` has no isLatest field
+
+## 2026-11-20 · orchestrator · T-009 · landed
+- Done: T-009 passed in round 1 (sonnet). Squashed to e6138e1. Release run 44767085601 on test tag v0.1.1-rc1 green; the test release and tag were deleted afterwards.
+- Left: T-010 (SideStore source) is next and carries T-009's workflow hardening. No real release exists yet: Brent cuts the first one (e.g. v0.2.0) once the branch is merged, or the loop can tag one when he asks.
