@@ -17,6 +17,15 @@ struct PlayerView: View {
     @State private var miningError: String?
     @State private var draft: CardDraft?
     @State private var toast: String?
+    @State private var isLandscape = false
+    @State private var controlsVisible = false
+    @State private var hideTask: Task<Void, Never>?
+    @State private var topBarHeight: CGFloat = 60
+    @State private var bottomBarHeight: CGFloat = 100
+    /// Landscape subtitles dialog. A presented state SwiftUI clears itself, so it can hold the controls up.
+    @State private var subtitleDialogOpen = false
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverOn
 
     private let store = FileStore.live
 
@@ -25,7 +34,7 @@ struct PlayerView: View {
             if let model {
                 GeometryReader { geometry in
                     if geometry.size.width > geometry.size.height {
-                        landscape(model)
+                        landscape(model, insets: geometry.safeAreaInsets)
                     } else {
                         portrait(model)
                     }
@@ -35,10 +44,32 @@ struct PlayerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Theme.shell)
+        .background(isLandscape ? Color.black : Theme.shell)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.onChange(of: proxy.size, initial: true) { _, size in
+                    let landscape = size.width > size.height
+                    guard landscape != isLandscape else { return }
+                    isLandscape = landscape
+                    // Entering or leaving landscape always starts with the controls hidden.
+                    controlsVisible = false
+                    subtitleDialogOpen = false
+                    hideTask?.cancel()
+                }
+            }
+        }
         .navigationTitle(episode.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Theme.shell, for: .navigationBar)
+        .toolbar(isLandscape ? .hidden : .automatic, for: .navigationBar)
+        .statusBarHidden(isLandscape && !controlsShown)
+        .persistentSystemOverlays(isLandscape ? .hidden : .automatic)
+        .onChange(of: model?.isPlaying) { _, playing in
+            // Pausing (or a finished clip) brings the controls back; playing starts the countdown.
+            if isLandscape, playing == false { controlsVisible = true }
+            restartHideTimer()
+        }
+        .onChange(of: keepsControlsUp) { restartHideTimer() }
         .onAppear(perform: setUp)
         .onDisappear {
             if let model {
@@ -83,7 +114,7 @@ struct PlayerView: View {
 
     private func portrait(_ model: PlayerModel) -> some View {
         VStack(spacing: 0) {
-            videoScreen(model)
+            videoScreen(model, onTap: { model.togglePlay() })
                 .aspectRatio(16 / 9, contentMode: .fit)
             VStack(spacing: 0) {
                 controls(model)
@@ -100,15 +131,36 @@ struct PlayerView: View {
         }
     }
 
-    private func landscape(_ model: PlayerModel) -> some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                videoScreen(model)
-                controls(model)
-                    .padding(.horizontal, Spacing.m)
-                    .padding(.vertical, Spacing.s)
-                    .background(Theme.panel)
+    private func landscape(_ model: PlayerModel, insets: EdgeInsets) -> some View {
+        let shown = controlsShown
+        return HStack(spacing: 0) {
+            ZStack {
+                videoScreen(
+                    model,
+                    subtitleBottomPadding: shown ? bottomBarHeight + insets.bottom + Spacing.s : Spacing.m + insets.bottom,
+                    badgeTopPadding: shown ? topBarHeight + insets.top + Spacing.s : insets.top,
+                    edgeInsets: EdgeInsets(
+                        top: 0, leading: insets.leading,
+                        bottom: 0, trailing: showSidePanel ? 0 : insets.trailing
+                    ),
+                    onTap: toggleControls
+                )
+                .ignoresSafeArea(edges: showSidePanel ? [.vertical, .leading] : .all)
+
+                // Rendered only while shown, so the accessibility tree matches the screen.
+                if shown {
+                    VStack(spacing: 0) {
+                        topBar
+                            .measuredHeight($topBarHeight)
+                        Spacer(minLength: 0)
+                        bottomBar(model)
+                            .measuredHeight($bottomBarHeight)
+                    }
+                    .environment(\.colorScheme, .dark)
+                    .transition(.opacity)
+                }
             }
+            .animation(.easeInOut(duration: 0.2), value: shown)
             if showSidePanel {
                 VStack(spacing: 0) {
                     if let subtitleProblem {
@@ -123,20 +175,85 @@ struct PlayerView: View {
             }
         }
         .animation(.spring(duration: 0.3), value: showSidePanel)
+        // Landscape uses a dialog, not a Menu: gestures on a Menu don't fire on iOS 26, so an open Menu
+        // can't be tracked and the auto-hide would tear it down. The dialog's binding clears on any dismissal.
+        .confirmationDialog("Subtitles", isPresented: $subtitleDialogOpen, titleVisibility: .hidden) {
+            Button("Load different subtitles") { showSubtitlePicker = true }
+            Button(showSidePanel ? "Hide subtitle list" : "Show subtitle list") { showSidePanel.toggle() }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
-    private func videoScreen(_ model: PlayerModel) -> some View {
+    /// Landscape top bar: back, episode title, and an empty trailing slot (filled by the panel button later).
+    private var topBar: some View {
+        HStack(spacing: Spacing.s) {
+            Button { dismiss() } label: { Image(systemName: "chevron.left") }
+                .buttonStyle(DeckIconButtonStyle())
+                .accessibilityLabel("Back")
+                .accessibilityIdentifier("player.back")
+            Text(episode.title)
+                .font(.deckHeadline)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Color.clear.frame(width: 44, height: 44)
+        }
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, Spacing.s)
+        .background(Color.black.opacity(0.55).ignoresSafeArea(edges: [.top, .horizontal]))
+    }
+
+    /// Landscape bottom bar: scrubber, then transport and Make a Card on one row.
+    private func bottomBar(_ model: PlayerModel) -> some View {
+        VStack(spacing: Spacing.xs) {
+            Scrubber(model: model)
+            // With the side list open there is less room: fall back to an icon-only Make a Card.
+            ViewThatFits(in: .horizontal) {
+                bottomRow(model, iconOnly: false)
+                bottomRow(model, iconOnly: true)
+            }
+            if let miningError {
+                ErrorBanner(message: miningError)
+            }
+        }
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, Spacing.s)
+        .background(Color.black.opacity(0.55).ignoresSafeArea(edges: [.bottom, .horizontal]))
+    }
+
+    private func bottomRow(_ model: PlayerModel, iconOnly: Bool) -> some View {
+        HStack(spacing: Spacing.s) {
+            transportButtons(model, landscape: true)
+            Spacer(minLength: Spacing.s)
+            makeCardButton(model, fullWidth: false, iconOnly: iconOnly)
+        }
+    }
+
+    /// The video with its subtitle line. `onTap` differs by orientation: play/pause or show/hide controls.
+    private func videoScreen(
+        _ model: PlayerModel,
+        subtitleBottomPadding: CGFloat = Spacing.m,
+        badgeTopPadding: CGFloat = 0,
+        edgeInsets: EdgeInsets = EdgeInsets(),
+        onTap: @escaping () -> Void
+    ) -> some View {
         ZStack(alignment: .bottom) {
             PlayerLayerView(player: model.player)
-                .onTapGesture { model.togglePlay() }
+                .accessibilityIdentifier("player.video")
+                .onTapGesture(perform: onTap)
             if let cue = model.currentCue {
                 SelectableText(text: cue.text, textStyle: .title3, weight: .bold, color: .white, outlined: true, identifier: "player.subtitle")
                     .padding(.horizontal, Spacing.l)
-                    .padding(.bottom, Spacing.m)
+                    .padding(.leading, edgeInsets.leading)
+                    .padding(.trailing, edgeInsets.trailing)
+                    .padding(.bottom, subtitleBottomPadding)
+                    .animation(.easeInOut(duration: 0.2), value: subtitleBottomPadding)
             }
             if let miningRange {
                 RecordingBadge(range: miningRange)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.top, badgeTopPadding)
+                    .padding(.leading, edgeInsets.leading)
                     .padding(Spacing.s)
             }
         }
@@ -144,57 +261,104 @@ struct PlayerView: View {
         .clipped()
     }
 
+    // MARK: Overlay timing
+
+    private var controlsShown: Bool { controlsVisible || voiceOverOn }
+
+    /// While any of these hold, the controls never auto-hide.
+    private var keepsControlsUp: Bool {
+        voiceOverOn || showOffset || showSubtitlePicker || subtitleDialogOpen || draft != nil
+            || !(model?.isPlaying ?? false) || (model?.isScrubbing ?? false)
+    }
+
+    private func toggleControls() {
+        controlsVisible.toggle()
+        restartHideTimer()
+    }
+
+    private func restartHideTimer() {
+        hideTask?.cancel()
+        hideTask = nil
+        guard isLandscape, controlsVisible, !keepsControlsUp else { return }
+        hideTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            controlsVisible = false
+        }
+    }
+
     private func controls(_ model: PlayerModel) -> some View {
         VStack(spacing: Spacing.s) {
             Scrubber(model: model)
             HStack(spacing: Spacing.s) {
-                Button { model.skip(byMs: -5_000) } label: { Image(systemName: "gobackward.5") }
-                    .buttonStyle(DeckIconButtonStyle())
-                    .accessibilityLabel("Back 5 seconds")
-                Button { model.togglePlay() } label: { Image(systemName: model.isPlaying ? "pause.fill" : "play.fill") }
-                    .buttonStyle(DeckIconButtonStyle(isActive: true))
-                    .accessibilityLabel(model.isPlaying ? "Pause" : "Play")
-                    .accessibilityIdentifier("player.playPause")
-                Button { model.skip(byMs: 5_000) } label: { Image(systemName: "goforward.5") }
-                    .buttonStyle(DeckIconButtonStyle())
-                    .accessibilityLabel("Forward 5 seconds")
-                Button { showOffset = true } label: {
-                    Text(TimeFormat.offset(model.offsetMs))
-                        .font(.deckCaption)
-                        .lineLimit(1)
-                        .frame(width: 60)
-                }
-                .buttonStyle(DeckIconButtonStyle(isActive: model.offsetMs != 0))
-                .frame(width: 60)
-                .accessibilityLabel("Subtitle offset \(TimeFormat.offset(model.offsetMs))")
-                .accessibilityIdentifier("player.offset")
-                Menu {
-                    Button("Load different subtitles", systemImage: "captions.bubble") { showSubtitlePicker = true }
-                    Button(showSidePanel ? "Hide subtitle list" : "Show subtitle list", systemImage: "sidebar.right") { showSidePanel.toggle() }
-                } label: {
-                    Image(systemName: "captions.bubble.fill")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.ink)
-                        .frame(width: 44, height: 44)
-                        .background(Theme.shell, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                }
-                .accessibilityLabel("Subtitles")
-                .accessibilityIdentifier("player.subtitlesMenu")
+                transportButtons(model, landscape: false)
                 Spacer(minLength: 0)
             }
-            Button {
-                Task { await makeCard(model) }
-            } label: {
-                Label(miningRange == nil ? "Make a Card" : "Recording…", systemImage: "rectangle.stack.badge.plus")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(DeckPrimaryButtonStyle())
-            .disabled(miningRange != nil || model.track.isEmpty)
-            .accessibilityIdentifier("player.makeCard")
+            makeCardButton(model, fullWidth: true)
             if let miningError {
                 ErrorBanner(message: miningError)
             }
         }
+    }
+
+    /// Skip buttons restart the landscape auto-hide countdown (no-op in portrait). The other controls
+    /// already do it through state changes: play/pause, scrubbing, the offset sheet, the subtitles dialog.
+    @ViewBuilder
+    private func transportButtons(_ model: PlayerModel, landscape: Bool) -> some View {
+        Button { model.skip(byMs: -5_000); restartHideTimer() } label: { Image(systemName: "gobackward.5") }
+            .buttonStyle(DeckIconButtonStyle())
+            .accessibilityLabel("Back 5 seconds")
+        Button { model.togglePlay() } label: { Image(systemName: model.isPlaying ? "pause.fill" : "play.fill") }
+            .buttonStyle(DeckIconButtonStyle(isActive: true))
+            .accessibilityLabel(model.isPlaying ? "Pause" : "Play")
+            .accessibilityIdentifier("player.playPause")
+        Button { model.skip(byMs: 5_000); restartHideTimer() } label: { Image(systemName: "goforward.5") }
+            .buttonStyle(DeckIconButtonStyle())
+            .accessibilityLabel("Forward 5 seconds")
+        Button { showOffset = true } label: {
+            Text(TimeFormat.offset(model.offsetMs))
+                .font(.deckCaption)
+                .lineLimit(1)
+                .frame(width: 60)
+        }
+        .buttonStyle(DeckIconButtonStyle(isActive: model.offsetMs != 0))
+        .frame(width: 60)
+        .accessibilityLabel("Subtitle offset \(TimeFormat.offset(model.offsetMs))")
+        .accessibilityIdentifier("player.offset")
+        if landscape {
+            // Same identifier as the portrait Menu; opens the landscape dialog (see `landscape(_:insets:)`).
+            Button { subtitleDialogOpen = true } label: { Image(systemName: "captions.bubble.fill") }
+                .buttonStyle(DeckIconButtonStyle())
+                .accessibilityLabel("Subtitles")
+                .accessibilityIdentifier("player.subtitlesMenu")
+        } else {
+            Menu {
+                Button("Load different subtitles", systemImage: "captions.bubble") { showSubtitlePicker = true }
+                Button(showSidePanel ? "Hide subtitle list" : "Show subtitle list", systemImage: "sidebar.right") { showSidePanel.toggle() }
+            } label: {
+                Image(systemName: "captions.bubble.fill")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.shell, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+            }
+            .accessibilityLabel("Subtitles")
+            .accessibilityIdentifier("player.subtitlesMenu")
+        }
+    }
+
+    private func makeCardButton(_ model: PlayerModel, fullWidth: Bool, iconOnly: Bool = false) -> some View {
+        Button {
+            Task { await makeCard(model) }
+        } label: {
+            Label(miningRange == nil ? "Make a Card" : "Recording…", systemImage: "rectangle.stack.badge.plus")
+                .labelStyle(MakeCardLabelStyle(iconOnly: iconOnly))
+                .frame(maxWidth: fullWidth ? .infinity : nil)
+        }
+        .accessibilityLabel(miningRange == nil ? "Make a Card" : "Recording")
+        .buttonStyle(DeckPrimaryButtonStyle())
+        .disabled(miningRange != nil || model.track.isEmpty)
+        .accessibilityIdentifier("player.makeCard")
     }
 
     // MARK: Actions
@@ -288,6 +452,29 @@ private struct RecordingBadge: View {
             .padding(.vertical, Spacing.xs)
             .background(Theme.danger, in: Capsule())
             .accessibilityLabel("Recording clip")
+    }
+}
+
+private struct MakeCardLabelStyle: LabelStyle {
+    let iconOnly: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if iconOnly {
+            configuration.icon
+        } else {
+            Label(configuration)
+        }
+    }
+}
+
+private extension View {
+    /// Writes this view's height into `height` whenever it changes.
+    func measuredHeight(_ height: Binding<CGFloat>) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.onChange(of: proxy.size.height, initial: true) { _, value in height.wrappedValue = value }
+            }
+        }
     }
 }
 
