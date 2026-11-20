@@ -38,6 +38,7 @@ Brent may be away from his computer for weeks. A release page he can reach from 
 Unverified for Brent: downloading the IPA on the iPhone from the private repo's release page and installing it with SideStore.
 
 ### Agent notes
+- Carried over from T-003's final review (9a66a4a); T-009 edits docs/INSTALL_ON_IPHONE.md anyway, so fix these there: C1 if the Sideloadly copy has already expired, reinstall it with Sideloadly first so the cards can be synced (installing over the top keeps the data); C2 before setup, check you still have the episode's video and subtitle files in Files; C3 make the README/DEVELOPMENT wording "can revoke" match the guide's "will likely"; C4 quote all of install.mdx:73 ("at random times") and give the path Settings › General › Software Update › Automatic Updates; C5 the old copy uses one of the 3 app slots while installed. Also update "Getting the IPA" to point at Releases.
 - Depends on: None (links into T-003's guide if present).
 - Source: coordinator's plan for Brent's "reload without my computer" requirement.
 - The repo is **private** today (`gh repo view --json visibility` → PRIVATE, checked 2026-11-19). Brent has chosen to make it public; the orchestrator does that before T-010 is tested. Don't change visibility in this task, and don't depend on it being public.

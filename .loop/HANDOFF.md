@@ -290,3 +290,65 @@
 ## 2026-11-20 · orchestrator · T-006 · landed
 - Done: T-006 passed (1 round on Opus + 1 verify-only pass). Squashed to 428e97c. MKV import works end to end in CI: pick, convert, play, make a card.
 - Left: T-005 (optional built-in subtitles) is held until last, as the spec says. Next in auto mode: T-003 (SideStore guide), then T-009, T-010, T-008. Could fix: the coordinated read is held while the sheet sits idle (check on a device); ErrorBanner hides "Try again" from VoiceOver as its own button.
+
+## 2026-11-20 · loop-backend · T-003 · round 1 (sonnet)
+- Done: wrote docs/INSTALL_ON_IPHONE.md (iloader + LocalDevVPN + SideStore, daily Shortcuts automation with LocalDevVPN "Enable" then SideStore "Refresh All Apps", expiry/data rules, limits, update-in-place) and pointers in README, DEVELOPMENT, ARCHITECTURE
+- Left: tester checks the links; Brent confirms the unconfirmed labels listed at the end of the guide
+- Files: docs/INSTALL_ON_IPHONE.md, README.md, docs/DEVELOPMENT.md, docs/ARCHITECTURE.md, .loop/tasks/T-003-install-past-7-days-guide.md
+- Gotchas: docs-only, no CI needed. Facts sourced from SideStore-Docs @7e441d3, SideStore @4f3d18d, LocalDevVPN @17740a2 (see task notes)
+
+## 2026-11-20 10:11 · loop-tester · T-003 · round 1
+- Done: checked docs/INSTALL_ON_IPHONE.md against AC-1..AC-8 and the sources at the cited SHAs. All links return 200, and only doc files changed. The iloader, LocalDevVPN, trust, Developer Mode, "7 DAYS" and pairing-file steps match the docs
+- Verdict: Fail. Must fix:
+  1. The Shortcuts steps at :51-56 don't match Apple's guide. On iOS 27 you add the trigger via Edit > Automation and allow unattended runs via Privacy > Allow Running When Locked. On iOS 17-26, Run Immediately comes before Next.
+  2. SideStore adds the team ID to the bundle ID by default (OperationContexts.swift:291). A Sideloadly copy is never refreshed, and the SideStore copy starts empty. README:87 invites that path.
+- Should fix: :45 says nothing (Refresh All includes SideStore); the latest green run at :35 has no ClipDeck-ipa; recovery at :65 stops at the reinstall; the computer warning isn't prominent; T-010 isn't mentioned; the Refresh, Missed and Updating sections have no doc links
+- Files: .loop/tasks/T-003-install-past-7-days-guide.md (Test report round 1); no test files
+- Gotchas: "Refresh All" is confirmed in MyAppsViewController.swift:1980. The source tarballs are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-003-r1. Python's `-I` flag ignores PYTHONIOENCODING, so call sys.stdout.reconfigure(encoding='utf-8')
+
+## 2026-11-20 10:27 · loop-backend · T-003 · round 2 (opus)
+- Done: rewrote docs/INSTALL_ON_IPHONE.md.
+  - Shortcuts steps split into iOS 17-26 and iOS 27 from Apple's guide (Allow Running When Locked, optional Wait).
+  - SideStore bundle ID is `dev.brent.clipdeck.<team ID>`, so the Sideloadly copy is separate. New "Moving from Sideloadly to SideStore" section; the app has no library export/import.
+  - Added the SideStore-expired recovery path and a bold warning near the top.
+  - README now recommends SideStore with Sideloadly as the alternative, and lists the guide under Documentation. Updated DEVELOPMENT (new "two icons" row) and ARCHITECTURE.
+- Left: Brent's confirm list (Shortcuts labels on his iOS, overnight run while locked, one copy or two). Recommend a follow-up task "Export and import the library".
+- Files: docs/INSTALL_ON_IPHONE.md, README.md, docs/DEVELOPMENT.md, docs/ARCHITECTURE.md, .loop/tasks/T-003-install-past-7-days-guide.md
+- Gotchas: iloader's "Install SideStore (Stable)" installs `releases/latest` = 0.7.0-alpha, not develop. Code facts were checked at 4f3d18d, 0.7.0-alpha and 0.6.3. Apple's iOS 26 guide says "Ask Before Running › Don't Ask", not "Run Immediately".
+
+## 2026-11-20 10:36 · loop-tester · T-003 · round 2
+- Done: every round-1 finding (2 Must, 6 Should, all Could) is fixed, with evidence. I re-checked:
+  - Apple's iOS 26 and iOS 27 Shortcuts pages, fetched today: they match :62-80.
+  - SideStore 0.7.0-alpha (`releases/latest`, the one iloader Stable installs; sideload.rs:126-130) and 4f3d18d: team-ID suffix, Refresh All includes SideStore last, the + button, .ipa share-in.
+  - Links: 16/16 return 200. Anchors: 15/15 resolve. Only docs changed.
+- Verdict: Fail.
+  - Must fix: the Moving section says the Sideloadly copy "still expires 7 days after" its install. iloader ("Maximum certificates reached … will revoke your existing certificates", en.json:78-79) and SideStore (free account = 1 cert, CodeSignValidator.swift:19) say setup can revoke Sideloadly's certificate, so that copy stops opening right away. Sync cards and write the list before setup step 1.
+  - Should fix: warn that an iOS update can break the pairing file while Brent is away (install.mdx), and handle the case where only one Clip Deck icon appears in the Moving steps.
+- Files: .loop/tasks/T-003-install-past-7-days-guide.md (Test report round 2); no test files
+- Gotchas: the 0.7.0-alpha tag object is 193ae6e and its commit is 6032424. The tarball and the iloader files are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-003-r2-test
+
+## 2026-11-20 10:55 · loop-backend · T-003 · round 3 (opus)
+- Done: rewrote "Moving from Sideloadly to SideStore" short.
+  - Sync until "Everything is in Anki." before setup step 1, and expect the old copy to stop opening (one certificate per free account).
+  - Re-add the episode in the SideStore copy. Delete the old copy only if there are two icons and the new one plays.
+  - Added the iloader "Maximum certificates reached" note at step 4, a bold "iOS updates can break the pairing file" warning (top + refresh section) and the could-fix wording.
+  - README "Pick one" and DEVELOPMENT :12/:69/:176 now say the two tools revoke each other's certificate on one Apple ID.
+- Left: Brent's confirm list. The orchestrator can drop the export/import follow-up (Brent declined it).
+- Files: docs/INSTALL_ON_IPHONE.md, README.md, docs/DEVELOPMENT.md, docs/ARCHITECTURE.md, .loop/tasks/T-003-install-past-7-days-guide.md
+- Gotchas: Clip Deck's empty sync state reads "Everything is in Anki." (SyncView.swift:23), not "0 waiting". The Bash tool's heredocs choke on some multi-line text here, so write files with Write and then `cat >>`.
+
+## 2026-11-20 10:44 · loop-tester · T-003 · round 3
+- Done: all round-2 findings are fixed, with evidence. M1: sync before setup step 1 via :9 and Moving step 1, and the old copy is expected to stop opening. S1: an iOS-update warning at :7 and :52 that quotes install.mdx:73. S2: one icon means delete nothing. All the Could fix items are done too. The literal walk-through checks out: cards can't be lost, the only copy can't be deleted, and the iOS-update risk is warned about before a trip. "Everything is in Anki." is at SyncView.swift:23, and it counts pending and failed cards. Links: 15/15 return 200. Anchors: 18/18 resolve. Only docs changed.
+- Verdict: Pass. No Must or Should fix. Could fix:
+  - C1: no fallback if the Sideloadly copy has already expired at step 1.
+  - C2: check that the source video and subtitles exist before setup.
+  - C3: the flat "each revokes the other" (README:93, DEV:12/:176, guide :129) vs the guide's "will likely". The Sideloadly direction is only inferred.
+  - C4: quote the "random times" half of install.mdx:73, and give the Automatic Updates path.
+  - C5: the old copy uses an app slot.
+- Files: .loop/tasks/T-003-install-past-7-days-guide.md (Test report round 3); no test files
+- Gotchas: the iloader en.json and today's live install/faq pages are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-003-r3-test
+
+## 2026-11-20 · orchestrator · T-003 · landed
+- Done: T-003 passed in round 3 (round 1 sonnet, rounds 2-3 opus; Brent chose Opus after the Sonnet fail). Squashed to 9a66a4a. Docs only, so no CI.
+- Left: T-009 is next and carries T-003's Could fix items C1-C5. Brent declined an export/import task (he has 1 episode and will re-upload it).
+- Gotchas: SideStore installs Clip Deck as dev.brent.clipdeck.<teamID>, and setting it up with the same free Apple ID revokes Sideloadly's certificate.
