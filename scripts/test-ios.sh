@@ -3,6 +3,7 @@
 # Usage: ./scripts/test-ios.sh                     all tests
 #        ./scripts/test-ios.sh ClipDeckTests       one test target (passed to -only-testing)
 #        SIM_NAME="iPhone 17 Pro" ./scripts/test-ios.sh
+# Needs ffmpeg (brew install ffmpeg) to generate the MKV fixtures in build/fixtures.
 # Results bundle: build/TestResults-<timestamp>.xcresult (open in Xcode for details).
 set -euo pipefail
 
@@ -12,7 +13,13 @@ DERIVED="$ROOT/build/DerivedData"
 RESULT="$ROOT/build/TestResults-$(date +%Y%m%d-%H%M%S).xcresult"
 
 command -v xcodegen >/dev/null || { echo "xcodegen not found: brew install xcodegen" >&2; exit 1; }
+command -v ffmpeg >/dev/null || { echo "ffmpeg not found: brew install ffmpeg (the tests generate their MKV fixtures with it)" >&2; exit 1; }
 (cd "$ROOT/ios" && xcodegen generate --quiet)
+
+# Generate the MKV test fixtures; xcodebuild passes TEST_RUNNER_* to the test process without the prefix.
+FIXTURES="$ROOT/build/fixtures"
+bash "$ROOT/scripts/make-test-media.sh" "$FIXTURES"
+export TEST_RUNNER_CLIPDECK_FIXTURES="$FIXTURES"
 
 UDID="$(python3 "$ROOT/scripts/pick-simulator.py" "${SIM_NAME:-}")"
 ONLY=()

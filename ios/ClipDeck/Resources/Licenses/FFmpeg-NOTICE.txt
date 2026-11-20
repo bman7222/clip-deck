@@ -1,0 +1,30 @@
+FFmpeg notice
+
+Clip Deck uses the FFmpeg libraries (libavformat, libavcodec, libavutil and
+libswresample) to open MKV files. FFmpeg is free software licensed under the
+GNU Lesser General Public License version 2.1 or later (LGPL-2.1). The full text
+is in FFmpeg-LGPL-2.1.txt. This build was made without --enable-gpl,
+--enable-version3 and --enable-nonfree.
+
+FFmpeg: Copyright (c) 2000-2026 the FFmpeg developers. Licensed under the
+LGPL-2.1-or-later; see FFmpeg-LGPL-2.1.txt.
+
+FFmpeg version: n8.1.3 (FFmpeg is a trademark of Fabrice Bellard, originator of
+the FFmpeg project).
+Built and packaged by: FFmpegBuild 3.16.0, a Swift package of dynamic frameworks.
+The FFmpeg libraries are separate frameworks inside the app (Frameworks/Aether*),
+so you can replace them with your own modified build.
+
+Source code
+FFmpegBuild 3.16.0 (build script, patches and packaged frameworks):
+https://github.com/superuser404notfound/FFmpegBuild/tree/3.16.0
+FFmpeg n8.1.3 source:
+https://ffmpeg.org/releases/ffmpeg-8.1.3.tar.xz
+https://github.com/FFmpeg/FFmpeg/tree/n8.1.3
+FFmpegBuild applies a few local patches to FFmpeg; they are listed in its README
+and published in its repository at the tag above.
+
+The Clip Deck licence (ClipDeck-LICENSE.txt) lets you modify and reverse engineer
+the app to debug your own modifications of these libraries, and replace them.
+The copyright notices and licences of the other components inside the frameworks
+(dav1d, libzvbi) are in Other-Components.txt.

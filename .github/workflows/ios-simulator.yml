@@ -25,8 +25,9 @@ jobs:
           xcodebuild -version
           xcrun simctl list runtimes | grep -i ios || true
 
-      - name: Install xcodegen
-        run: brew install xcodegen
+      - name: Install xcodegen and ffmpeg
+        # ffmpeg is a build-time tool only: scripts/make-test-media.sh uses it to generate the MKV test fixtures.
+        run: brew install xcodegen ffmpeg
 
       - name: Create local config from examples
         run: |
@@ -66,6 +67,9 @@ jobs:
 
       - name: Build unsigned IPA
         run: bash scripts/build-ipa.sh
+
+      - name: Check licence notices are inside the IPA
+        run: bash scripts/check-ipa-notices.sh build/ipa/ClipDeck.ipa
 
       - name: Upload IPA
         uses: actions/upload-artifact@v4

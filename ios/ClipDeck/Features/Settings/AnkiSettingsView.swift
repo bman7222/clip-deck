@@ -75,6 +75,15 @@ struct AnkiSettingsView: View {
                     Stepper("End \(store.anki.audioPaddingEndMs) ms later", value: $store.anki.audioPaddingEndMs, in: 0...2_000, step: 100)
                 }
 
+                Section {
+                    NavigationLink {
+                        AboutView()
+                    } label: {
+                        Text("About and licences")
+                    }
+                    .accessibilityIdentifier("settings.about")
+                }
+
                 Section("Set up AnkiConnect (once)") {
                     VStack(alignment: .leading, spacing: Spacing.s) {
                         Text("1. In Anki on your computer: Tools › Add-ons › Get Add-ons, code 2055492159.")

@@ -103,6 +103,7 @@ Show                            ││ 1:40 前の行             ││    │ 
 | Card editor | Replay, range, re-record, fields, save | "Recording…" | — | Banner (export failed) |
 | Sync sheet | Waiting count, Sync, per-card status | "Syncing 2 of 5…" | "Everything is in Anki." | Setup problem banner; summary in red; per-card error |
 | Anki settings | Address, test, deck/note type, field map, padding, setup steps | Spinner on Test connection | Free-text fields until connected | Error text under Test connection |
+| About and licences | Settings › About and licences: versions, Clip Deck licence, FFmpeg notice with source links, full LGPL-2.1 text, other components. One scrolling list; monospaced footnote text that follows Dynamic Type | — | "Licence text missing: <name>" in place of a file that is not bundled | — |
 
 ## Interaction and motion
 
