@@ -12,6 +12,6 @@ Goal: MKV import, full-screen landscape player with resizable subtitle panel, Si
 | T-005 | Optional: use the subtitles built into an MKV #5 | fullstack | T-006 | todo | | |
 | T-003 | Write the SideStore guide so Clip Deck refreshes itself without a computer #3 | backend | — | done | 3 | 9a66a4a |
 | T-009 | Publish each Clip Deck build as a GitHub Release #9 | backend | — | done | 1 | e6138e1 |
-| T-010 | Let SideStore find and install Clip Deck updates on its own #10 | backend | T-009, T-012 | todo | | |
+| T-010 | Let SideStore find and install Clip Deck updates on its own #10 | backend | T-009, T-012 | done | 1 | 46fa8aa |
 | T-008 | Remind me once a day to refresh in SideStore before the app expires #8 | fullstack | — | todo | | |
 | T-007 | Upload a build to TestFlight from GitHub Actions #7 | backend | T-003 | blocked | | Needs a paid Apple Developer account; Brent is staying on the free account for now |

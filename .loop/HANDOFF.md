@@ -370,3 +370,25 @@
 ## 2026-11-20 · orchestrator · T-009 · landed
 - Done: T-009 passed in round 1 (sonnet). Squashed to e6138e1. Release run 44767085601 on test tag v0.1.1-rc1 green; the test release and tag were deleted afterwards.
 - Left: T-010 (SideStore source) is next and carries T-009's workflow hardening. No real release exists yet: Brent cuts the first one (e.g. v0.2.0) once the branch is merged, or the loop can tag one when he asks.
+
+## 2026-11-20 · loop-backend · T-010 · round 1 (sonnet)
+- Done: scripts/make-source-json.py (+ scripts/test-make-source-json.py), release.yml step that regenerates and uploads apps.json for stable releases, T-009 hardening (token scoping, persist-credentials, message, newline-safe error, no leading zeros), install guide section for the source
+- Left: tester needs a stable-looking tag run to exercise the apps.json step; repo is public
+- Files: scripts/make-source-json.py, scripts/test-make-source-json.py, .github/workflows/release.yml, scripts/build-ipa.sh, docs/INSTALL_ON_IPHONE.md
+- Gotchas: SideStore links updates via installedApp.storeApp (set only when installed from the source), not by bundle ID, so the team-ID suffix is harmless but a file-imported copy never sees updates. Release notes now carry "Build number: N", which the script needs. /releases/latest/download/apps.json 404s until a non-pre-release exists.
+
+## 2026-11-20 12:53 · loop-tester · T-010 · round 1
+- Done: verified the real release v0.2.0 (run 44786901731, green; the apps.json step ran). The release is latest, not a pre-release, has 3 assets, and its notes start "Build number: 2". All links return 200 without auth
+- Done: the anonymous apps.json passes json.tool and --check. The IPA's bytes, sha256, version 0.2.0, build 2 and dev.brent.clipdeck all equal apps.json, so SideStore's VerifyAppOperation checks (4f3d18d :56-163) would pass. The log confirms the hardening: GH_TOKEN on 3 steps only, auth removed after checkout. The local test script passes and catches all 4 mutations
+- Verdict: Pass. Could fix only:
+  - versions are sorted by publish date, not by version
+  - no documented recovery if the apps.json step fails (a re-run is refused)
+  - the in-app version notes tell you to share the IPA
+  - checkout@v4 Node 20 warning
+- Left: Brent checks on the phone: add the source, install from it over the current copy, get the update on the next release
+- Files: .loop/tasks/T-010-sidestore-source.md (Test report round 1); no test files
+- Gotchas: a SideStore source without a top-level "version" key is v1, so it needs no appPermissions. Adding "version": 2 would require declaring NSLocalNetworkUsageDescription. Scratch files are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-010-r1
+
+## 2026-11-20 · orchestrator · T-010 · landed
+- Done: T-010 passed (1 round, sonnet). Squashed to 46fa8aa. First real release **v0.2.0** published (Brent's choice), with tag v0.2.0 pointing at the pre-squash commit 8d21225 (same tree). Source URL: https://github.com/bman7222/clip-deck/releases/latest/download/apps.json
+- Left: T-008 (expiry banner) is next, then optional T-005. Open follow-ups (Could fix, no task yet): make-source-json.py should sort versions by semver rather than published_at; document the apps.json recovery (or attach it in gh release create); reword the version notes shown inside SideStore; actions/checkout v5.
