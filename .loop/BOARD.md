@@ -7,7 +7,7 @@ Goal: MKV import, full-screen landscape player with resizable subtitle panel, Si
 | T-002 | Pop the subtitle list out on the right in landscape #2 | frontend | T-001 | done | 2 | dbe6201 |
 | T-011 | Drag the divider to resize the landscape subtitle panel #11 | frontend | T-002 | done | 4 | 3f38205 |
 | T-012 | Add the FFmpeg libraries, the test MKVs and the licence notices #12 | fullstack | — | done | 2 | 1489506 |
-| T-004 | Convert an MKV file into a playable MP4 inside the app #4 | backend | T-012 | todo | | |
+| T-004 | Convert an MKV file into a playable MP4 inside the app #4 | backend | T-012 | done | 2 | a2483ee |
 | T-006 | Add an MKV episode from the upload sheet #6 | fullstack | T-004 | todo | | |
 | T-005 | Optional: use the subtitles built into an MKV #5 | fullstack | T-006 | todo | | |
 | T-003 | Write the SideStore guide so Clip Deck refreshes itself without a computer #3 | backend | — | todo | | |

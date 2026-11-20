@@ -17,6 +17,8 @@ commands:
   lint: ""
   run: "./scripts/run-ios.sh"
 ci:
+  mode: conservative          # conservative | normal (SKILL.md "CI budget"); repo is public since 2026-11-20, so minutes are free
+  max_runs_per_task: 4
   workflow: ios-simulator.yml
-  trigger: "gh workflow run ios-simulator.yml --ref <branch>"   # push to non-main branches does NOT trigger it
+  trigger: "gh workflow run ios-simulator.yml --ref <branch> [-f scope=all|tests|ipa] [-f only_testing=Target/Class]"   # pushes to non-main branches do NOT trigger it
   artifacts: [simulator-results, ClipDeck-ipa]

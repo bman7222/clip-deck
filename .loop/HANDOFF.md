@@ -228,3 +228,37 @@
 - Done: T-012 passed (round 2 on Opus + 2 verify-only passes). Squashed to 1489506. CI 44681060076 green (72/72). The FFmpeg libraries, CI fixtures, LICENSE and About screen are in.
 - Left: T-004 (converter, model: opus) is next. Could fix: THIRD_PARTY_NOTICES.md libzvbi ure.* cell should also list Iñaki García Etxebarrria and Michael H. Schimek.
 - Gotchas: Brent's backup fork bman7222/FFmpegBuild exists (tag 3.16.0 = 7de456f). The app still uses upstream. iOS 26 merges a row's label and value into one StaticText ("Clip Deck, 0.1.0"). XCUIElement.screenshot() of a very tall Text fails with "Rendering screen failed".
+
+## 2026-11-20 02:31 · loop-backend · T-004 · round 1 (opus)
+- Done: MediaProber/MediaProbe (AC-1); pure ConversionPlan with typed UnsupportedMediaError (AC-2); MediaConverter.convert (AC-3/AC-4): Task.detached sync core, an OSAllocatedUnfairLock cancel flag read by AVIOInterruptCB and the packet loop, throttled progress, edit lists, the remux.c pattern, hvc1, AAC-LC stereo transcode via swresample and an audio FIFO. ARCHITECTURE concurrency and timeline rules (AC-8). Pure plan/helper tests plus fixture tests: playable, tracks, duration, edit lists, hvc1, ClipExtractor, colour/beep sync, off-main, heartbeat, cancel
+- Left: CI run (nothing compiled). T-006 builds EpisodeImporter on the contract in the task notes
+- Files: ios/ClipDeck/Services/Media/{FFmpegSupport,MediaProbe,ConversionPlan,MediaConverter}.swift, ios/ClipDeckTests/{ConversionPlanTests,MediaConverterTests}.swift, docs/ARCHITECTURE.md
+- Gotchas: these FFmpeg 8 headers have no avcodec_profile_name (use av_get_profile_name). The DOVI config is in codecpar->coded_side_data. The mp4 muxer has AVFMT_TS_NEGATIVE, so timestamps are kept and movenc writes the edit lists. mux.c rejects unset or non-increasing DTS (hence TimestampFixer). The tests take a fixture's "second 0" from the probe's video start
+
+## 2026-11-20 02:50 · loop-tester · T-004 · round 1
+- Done: read CI 44695949361 (1ecf97a). The ipa job is green: all 4 new Media files compiled for the device. The app target also compiled clean for the simulator (0 errors, 0 new warnings). The test target failed on 1 error, so 0 tests ran
+- Verdict: Fail. Must fix: MediaConverterTests.swift:82 `allSatisfy(\.isText)` inside #expect ("call can throw, but it is not marked with 'try'"). Should fix: trapping Int64 `+` in TimestampFixer and nextAudioPTS (MediaConverter.swift:122,131-132,140,609) lets a malformed MKV crash the app. Should fix: ARCHITECTURE.md lost its `## Decisions` heading. Could fix: an audio decode error aborts the import; the probe can't be cancelled
+- Files: ios/ClipDeckTests/MediaConverterTests.swift:82 (tester's fix `allSatisfy { $0.isText }`, uncommitted), .loop/tasks/T-004-mkv-converter.md (Test report round 1)
+- Gotchas: a key-path argument inside #expect(x.allSatisfy(\.k)) doesn't compile; use a trailing closure. Removing `use_editlist` is not a useful mutation (movenc already defaults to 1); use `use_editlist=0`. xcresult Data/ files are zstd: `zstd -d` them, then grep the build log
+
+## 2026-11-20 · loop-backend · T-004 · round 2 (opus)
+- Done: all 5 round-1 findings.
+  - Kept the tester's line-82 test fix.
+  - TimestampFixer rejects |ts| > 2^60 as `.damagedFile`, finds the median by comparison and uses `&+`; the audio anchor is bounded too. Overflow tests cover .max/.min twice in a row.
+  - `## Decisions` heading restored.
+  - Audio decode errors are skipped like ffmpeg (DecodeErrorBudget: give up past 50 errors that are also over 10 % of packets) and reported in `Report.warnings`.
+  - MediaProber.load is cancellable (shared `ConversionCancelFlag.interruptCallback()`), with 2 tests.
+- Left: CI run (nothing compiled)
+- Files: ios/ClipDeck/Services/Media/{MediaConverter,MediaProbe}.swift, ios/ClipDeckTests/{ConversionPlanTests,MediaConverterTests}.swift, docs/ARCHITECTURE.md
+- Gotchas: the rebase mutation is `use_editlist=0`, not leaving the option out (movenc's default is already 1). Keep `#expect` free of top-level calls with key-path arguments, and of `inout` or mutating calls.
+
+## 2026-11-20 03:25 · loop-tester · T-004 · round 2
+- Done: read CI 44698930097 (60857c0, scope=tests). The simulator job is green: 144/144 test runs Success, 0 issues, 0 skips. Every T-004 test ran, including convertsToAPlayableMP4 × 4, both sync tests, the fixture-3 edit lists, the heartbeat, cancel, the overflow tests and probe cancel. All 5 round-1 findings are fixed
+- Verdict: Pass. No Must or Should fix. Could fix: 3 test warnings ("conditional cast always succeeds", ConversionPlanTests.swift:39/216/345); no test isolates the AVIOInterruptCB (aSetCancelFlagStopsTheProbe also passes via the post-check at MediaProbe.swift:359); passing runs record no measured values
+- Files: .loop/tasks/T-004-mkv-converter.md (Test report round 2); no test edits
+- Gotchas: the xcresult has a `database.sqlite3`. Query TestCaseRuns/TestCases/TestIssues/Arguments with Python's sqlite3 to list every test and its arguments on Windows. Swift Testing passes keep no values, but per-test durations give upper bounds (the cancel test took 0.012 s in total)
+
+## 2026-11-20 · orchestrator · T-004 · landed
+- Done: T-004 passed in round 2 (Opus). Squashed to a2483ee. CI 44698930097 (scope=tests, 144/144) + 44702732605 (scope=ipa) green. The repo went public today, and the loop now runs in ci.mode: conservative.
+- Left: T-006 (upload flow, fullstack, model: opus) is next. Could fix: remove the redundant `as?` casts at ConversionPlanTests :39/:216/:345; add a test proving the interrupt callback fires (ConversionCore.run with the flag already set); record measured values with Attachment.record so green runs keep them.
+- Gotchas: deviations kept by default (Brent can override): H.264 yuvj420p allowed; an MKV with no audio converts video-only with a .noAudioTrack warning.
