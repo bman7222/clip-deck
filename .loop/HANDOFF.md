@@ -392,3 +392,39 @@
 ## 2026-11-20 · orchestrator · T-010 · landed
 - Done: T-010 passed (1 round, sonnet). Squashed to 46fa8aa. First real release **v0.2.0** published (Brent's choice), with tag v0.2.0 pointing at the pre-squash commit 8d21225 (same tree). Source URL: https://github.com/bman7222/clip-deck/releases/latest/download/apps.json
 - Left: T-008 (expiry banner) is next, then optional T-005. Open follow-ups (Could fix, no task yet): make-source-json.py should sort versions by semver rather than published_at; document the apps.json recovery (or attach it in gh release create); reword the version notes shown inside SideStore; actions/checkout v5.
+
+## 2026-11-20 · loop-backend · T-008 · round 1 (sonnet, backend half)
+- Done: `InstallExpiry` (profile parser, 48 h decision, Debug `-uiTestingExpiry`, banner/settings strings) and `ExpiryReminderStore` (last-dismissed local day in UserDefaults), 24 unit tests, `LSApplicationQueriesSchemes: [sidestore]` in project.yml
+- Left: frontend banner, Anki settings row, UI test, docs for the launch flag
+- Files: ios/ClipDeck/Services/InstallExpiry.swift, ios/ClipDeckTests/InstallExpiryTests.swift, ios/project.yml
+- Gotchas: `sidestore://` confirmed in SideStore@4f3d18d AltStore/Info.plist; nothing compiled locally (CI only); UI-test launches must use the "uiTesting" defaults suite for the store; certificate expiry skipped (not cheap)
+
+## 2026-11-20 · loop-frontend · T-008 · round 1 (sonnet, frontend half)
+- Done: ExpiryBanner (X, swipe, Open SideStore with failure message), library wiring (read once, re-eval on scenePhase active), Anki settings expiry line, 3 UI tests, `-uiTestingKeepExpiryDismissal` flag, docs
+- Left: CI run; tester to check element queries and screenshots; Brent taps Open SideStore once on device
+- Files: ios/ClipDeck/Features/Library/ExpiryBanner.swift, LibraryView.swift, Features/Settings/AnkiSettingsView.swift, App/ClipDeckApp.swift, ios/ClipDeckUITests/ExpiryBannerUITests.swift, CLAUDE.md, docs/DEVELOPMENT.md
+- Gotchas: new files need xcodegen (sources are folder-based, CI runs it); the suite-clearing in ClipDeckApp keeps the dismissal key only with the new flag
+
+## 2026-11-20 13:31 · loop-tester · T-008 · round 1
+- Done: read run 44788627149. The ipa job is green, and the IPA plist has LSApplicationQueriesSchemes ['sidestore'] and no profile. Simulator: 197 pass, 2 fail, both test-side: the launch wait was 10 s but sample seeding took about 17 s, and the Settings row is below the fold of a lazy Form. All 24 InstallExpiryTests passed, and every existing UI suite passed, including the known flakes.
+- Verdict: Fail. S1: at AX-L the "Open SideStore" label truncates to "Open SideS..." (ExpiryBanner.swift:30-40), so AC-7's "wraps" is not met. Could fix C1-C6 are in the task file.
+- Tests: fixed ExpiryBannerUITests (60 s launch wait, scroll to settings.expiry, @MainActor helpers, a relaunch without the flag shows the banner). Added swipe and open-fails tests. Next run: only_testing=ClipDeckUITests/ExpiryBannerUITests, scope=tests.
+- Files: ios/ClipDeckUITests/ExpiryBannerUITests.swift, .loop/tasks/T-008-install-expiry-reminder.md
+- Gotchas: the xcresult can be read on Windows through its database.sqlite3 (TestIssues, Activities, Attachments) plus screenshots/ui-tests/manifest.json. RootView's "Preparing sample episode…" can last about 17 s on CI, so wait at least 30 s after a seeded launch.
+
+## 2026-11-20 · loop-frontend · T-008 · round 2 (sonnet)
+- Done: banner wraps at accessibility sizes (icon and X in a top row, full-width message, wrapping "Open SideStore" label), scaled X glyph, removed LSApplicationQueriesSchemes from project.yml
+- Left: CI rerun; tester re-checks expiry-02-large-text; C2/C4/C5/C6 not done
+- Files: ios/ClipDeck/Features/Library/ExpiryBanner.swift, ios/project.yml
+- Gotchas: no canOpenURL anywhere; failure of openURL is handled by its completion handler
+
+## 2026-11-20 14:31 · loop-tester · T-008 · round 2
+- Done: read run 44796687521 (scope=all, 8439051). Both jobs are green, and 201/201 tests pass with 0 issues, including all 5 ExpiryBannerUITests (relaunch reset, swipe, open-failed, settings scroll) and every earlier suite with the known flakes. The IPA plist has no LSApplicationQueriesSchemes and no profile.
+- Screenshots: expiry-02-large-text shows the AX layout with "Open SideStore" fully visible and the toolbar clear, so S1 is fixed. expiry-03-open-failed shows the error text under the button.
+- Verdict: Pass. Could fix only: C7 (the large-text test can't detect truncation; AX5 would show the button label wrap), plus C2/C4/C5/C6 from round 1.
+- Files: .loop/tasks/T-008-install-expiry-reminder.md (Test report round 2); no test files changed
+- Gotchas: scratch files are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-008-r2. The xcresult database.sqlite3 (TestCaseRuns, Activities) gives per-test results on Windows.
+
+## 2026-11-20 · orchestrator · T-008 · landed
+- Done: T-008 passed in round 2 (sonnet). Squashed to 0adca02. CI 44796687521 green (201/201). Every required task is now done; only optional T-005 and blocked T-007 remain.
+- Left: v0.2.0 was released before T-008, so the expiry banner reaches the phone only in the next release (e.g. v0.3.0). Open Could fix: C7 (a test that catches a cut-off label at AX5), C2, C4-C6.
