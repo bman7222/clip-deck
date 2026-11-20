@@ -339,3 +339,6 @@ CHECKS_RUN: CI run 44644572562 (headSha 4e13857): ipa (scripts/build-ipa.sh) PAS
 UNVERIFIED: scrubbing, sheet and VoiceOver keep-up (read only); "Load different subtitles" from the landscape dialog; Look Up on the landscape subtitle; auto-hide timing feel and corner clearance on a real iPhone
 REVIEWED_AT: 4e13857539d1c7ccc18426ffccabf4469d8cee85
 ```
+
+## Amended after landing
+_orchestrator · 2026-11-19 · Brent's decision, built in T-011 (3f38205):_ AC-2 now reads: "Once shown, the controls stay visible while paused …; pausing or reaching the end brings them back. Entering landscape, by rotating or by opening the player already in landscape, always starts hidden."

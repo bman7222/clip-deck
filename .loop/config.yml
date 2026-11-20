@@ -10,6 +10,7 @@ max_fix_rounds: 3
 default_branch: main
 models:
   builders: sonnet            # sonnet | opus (override: run --opus, or model: in a task)
+  ask_on_sonnet_fail: true    # after a failed Sonnet round, ask: retry on Sonnet or switch to Opus
 commands:
   build: "./scripts/build-ipa.sh"
   test: "./scripts/test-ios.sh"
