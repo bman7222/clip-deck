@@ -3,7 +3,7 @@ Goal: MKV import, full-screen landscape player with resizable subtitle panel, Si
 
 | ID | Title | Lane | Depends on | Status | Round | Result |
 |----|-------|------|------------|--------|-------|--------|
-| T-001 | Watch in landscape full screen, with controls that appear on tap #1 | frontend | — | todo | | |
+| T-001 | Watch in landscape full screen, with controls that appear on tap #1 | frontend | — | testing | 1 | |
 | T-002 | Pop the subtitle list out on the right in landscape #2 | frontend | T-001 | todo | | |
 | T-011 | Drag the divider to resize the landscape subtitle panel #11 | frontend | T-002 | todo | | |
 | T-004 | Convert an MKV file into a playable MP4 inside the app #4 | backend | — | todo | | |

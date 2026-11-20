@@ -17,7 +17,7 @@ The user asked for a feel like the Nintendo 3DS home menu: clear, friendly icons
 - the big **Make a Card** button;
 - the tap-to-seek subtitle list.
 
-In landscape the list becomes a side pop-out. Boldness also goes into the library's glossy rounded-square show tiles, one bright hue each. Everything else is quiet:
+In landscape the video fills the whole screen with no navigation bar. Tapping the video shows translucent controls over it (top bar: back and title; bottom bar: scrubber, transport, Make a Card). While playing they fade after 3 s; they stay up while paused, scrubbing, in a sheet, with the subtitles dialog open, or with VoiceOver. The subtitle line moves above the bottom bar while the controls show. The list becomes a side pop-out from the subtitles button, which in landscape opens a dialog instead of a menu (its open state can be tracked, so the auto-hide never closes it). Boldness also goes into the library's glossy rounded-square show tiles, one bright hue each. Everything else is quiet:
 - a cool console-grey shell;
 - white panels;
 - no decorative gradients beyond the single top highlight on tiles.
