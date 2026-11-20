@@ -93,3 +93,38 @@
 - Done: T-001 passed in round 4 (Opus builder, an extra round Brent approved). Squashed to ab238b4 on loop/mkv-landscape-sideload. CI 44644572562 green (54/54).
 - Left: T-002 next. The T-001 Could fix (Make a Card doesn't restart the hide timer, plus a test for "Load different subtitles") was moved into T-002's Agent notes.
 - Gotchas: CI only runs on this branch through `gh workflow run`. ClipExtractorTests.cutsExactAudioAndScreenshot can time out on CI (pre-existing); re-run once. XCUITest landscape screenshots come out rotated and cropped; use the xcresult and the screen recording.
+
+## 2026-11-19 · loop-frontend · T-002 · round 1 (sonnet)
+- Done: landscape subtitle panel (75/25 split from one constant, min 180 pt), `player.panelToggle` in the top bar, `player.sidePanel`, `player.panel.makeCard`; Make a Card holds the controls up while recording; "Show subtitle list" removed from the menus; UI tests added/updated
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift, docs/DESIGN.md, docs/DEVELOPMENT.md
+- Gotchas: landscape layout now ignores the safe area as a whole and bars/panel pad by the insets themselves
+
+## 2026-11-19 19:50 · loop-tester · T-002 · round 1
+- Done: verified CI run 44646676783 (headSha afb033a): ipa green, simulator red, 55/56. The AC-6 panel test passes (25 %/75 % widths, cue tap, panel Make a Card opens the editor). All T-001 landscape tests and MiningFlowUITests pass
+- Verdict: Fail. Must fix: the new "Load different subtitles" test asserts `app.buttons["Show subtitle list"]` doesn't exist, but that query matches the panel toggle's label behind the dialog (fix applied in the test file, not run). Should fix: the trailing safe-area padding leaves ~156 pt in the panel, so the cue text column is ~48 pt (traced, not measured)
+- Files: ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift (uncommitted: assert fix + new AC-3 and AC-4 tests)
+- Gotchas: XCUITest subscript matches labels too, so with two buttons sharing a label, scope by identifier. In this run the landscape screenshots still come out rotated and cropped
+
+## 2026-11-19 · loop-frontend · T-002 · round 2 (sonnet)
+- Done: panel content width = max(25% of usable width, 180) plus the trailing inset on top; compact cue rows (time above text) only in the panel; Make a Card in a ViewThatFits with an icon-only fallback; width test now uses observed frames; card screenshot after card.save. Tester's test edits kept
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, docs/DESIGN.md
+- Gotchas: Swift files here use CRLF; edit with newline preserved
+
+## 2026-11-19 19:52 · loop-tester · T-002 · round 2
+- Done: verified CI run 44648208663 (headSha e615c89). The ipa job is green. The simulator job passed 57 of 58; the one failure is the known ClipExtractorTests timeout flake, and the permission system denied the re-run. All 12 UI tests pass, including the round-1 AC-3/AC-4 tests and the fixed dialog test. Portrait screenshots match main 42740988540 except the clock
+- Verdict: Blocked (verify-only). No Must or Should fix. The implementer's width asserts would also pass with the wrong rule. The tester tightened testSubtitlePanelOpensOnTheRight: it now asserts the exact rule max(25 % usable, 180) + inset, checks that cue.row.1 is ≥ 144 pt, and attaches frames plus debugDescription
+- Files: ios/ClipDeckUITests/PlayerLandscapeUITests.swift (uncommitted, not run yet)
+- Gotchas: this xcresult has no UI hierarchy. Frames only come out when a test attaches them (XCTAttachment(string: app.debugDescription)). The landscape app.screenshot() is still rotated and cropped
+
+## 2026-11-19 21:12 · loop-tester · T-002 · round 2 addendum
+- Done: verified CI run 44658198733 (headSha 9455f7f, the tightened test only). Both jobs green on the first attempt, 58/58. Measured frames: panel 249.3 pt (expected 249.5 = 187.5 + 62 inset), video 624.7 pt (71.5 %), cue row content 187.3 pt, so the text column is 163.3 pt (round 1: about 48). The panel's Make a Card shows its full label
+- Verdict: Pass. No Must or Should fix. Unverified for Brent: how the split feels and how long real lines read on his iPhone
+- Files: .loop/tasks/T-002-landscape-subtitle-panel.md (Round 2 addendum)
+- Gotchas: XCUIElement.screenshot() on the panel gives a correct, unrotated landscape crop, unlike app.screenshot(). An XCTAttachment(string: app.debugDescription) gives every element's frame in the xcresult, and test-ios.sh exports it as .txt
+
+## 2026-11-19 · orchestrator · T-002 · landed
+- Done: T-002 passed after round 2 plus a verify-only pass. Squashed to dbe6201. CI 44658198733 green (58/58).
+- Left: T-011 (resizable divider) is next on the landscape chain; its Agent notes carry Brent's usable-width rule.
+- Gotchas: the round-1 builder's session ended mid-task; a fresh builder resumed from the task file without trouble. The tester can't run `gh run rerun` (permission denied), so the orchestrator asks Brent before any re-run.

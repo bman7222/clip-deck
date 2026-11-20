@@ -36,6 +36,7 @@ CI only:
 Unverified for Brent: how the drag feels on his iPhone.
 
 ### Agent notes
+- From T-002 round 2 (Brent's decision): panel widths count only the usable content area (full width minus both landscape safe-area insets); the trailing inset is added on top as padding. The drag limits (180 pt minimum, 50% maximum) and the stored fraction use that same usable width. Panel rows are compact (timestamp above the text).
 - Depends on: T-002 (panel, `player.sidePanel`, `player.video`, the ratio constant).
 - Source: Brent's decision 2026-11-19: default 3/4 + 1/4 (panel at least 180 pt), customizable by dragging, remembered across launches, double-tap to reset.
 - Replace T-002's fixed constant with the stored fraction; keep 0.25 as the default constant.
