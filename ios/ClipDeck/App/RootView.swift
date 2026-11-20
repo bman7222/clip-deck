@@ -48,10 +48,12 @@ enum UITestSeeder {
     }
 
     static let mkvFixtureName = "04-nosubs-aac51.mkv"
+    /// Fixture 1: SRT + ASS tracks inside the MKV (T-005).
+    static let mkvSubtitlesFixtureName = "01-h264-bframes-aac-srt-ass.mkv"
 
     /// `-uiTestingMKV`: imports MKV fixture 4 (no subtitle tracks, AAC 5.1) from CLIPDECK_FIXTURES through the
     /// real `EpisodeImporter` (prepare, convert, move, save) as "MKV Show / Episode 1", with the sample SRT as
-    /// its subtitle file. On failure it prints why and seeds nothing, so the UI test fails at its first wait.
+    /// its subtitle file, then fixture 1 as "Episode 2" using its embedded SRT. On failure it prints why and seeds nothing, so the UI test fails at its first wait.
     static func seedMKV(context: ModelContext) async {
         guard let folder = ProcessInfo.processInfo.environment["CLIPDECK_FIXTURES"], !folder.isEmpty else {
             print("UITestSeeder: -uiTestingMKV needs CLIPDECK_FIXTURES (the folder from scripts/make-test-media.sh)")
@@ -77,6 +79,23 @@ enum UITestSeeder {
                 into: context)
         } catch {
             print("UITestSeeder: importing \(source.path(percentEncoded: false)) failed: \(error)")
+        }
+
+        // "Episode 2": fixture 1 with its embedded SRT as the subtitle file; every text track is saved, so the ASS
+        // track shows under "Load different subtitles". A failure here leaves Episode 1 in place.
+        let subtitled = URL(fileURLWithPath: folder, isDirectory: true).appending(path: mkvSubtitlesFixtureName)
+        do {
+            let importer = EpisodeImporter()
+            let prepared = try await importer.prepare(subtitled)
+            _ = try await importer.importEpisode(
+                prepared,
+                as: NewEpisodeDetails(showName: "MKV Show", title: "Episode 2", number: 2),
+                options: EpisodeImportOptions(
+                    embeddedSubtitleStreams: prepared.usableSubtitleStreamIndices,
+                    chosenSubtitleStream: prepared.subtitleTracks.first?.streamIndex),
+                into: context)
+        } catch {
+            print("UITestSeeder: importing \(subtitled.path(percentEncoded: false)) failed: \(error)")
         }
     }
 }

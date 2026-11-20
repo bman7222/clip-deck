@@ -39,8 +39,13 @@ struct FileStore {
     }
 
     /// A file/folder name that is safe on disk: no slashes or colons, never empty.
-    static func safeName(_ name: String) -> String {
-        let cleaned = name
+    nonisolated static func safeName(_ name: String) -> String {
+        // Newlines and other control characters would make odd names in the Files app and the subtitle picker.
+        var scalars = String.UnicodeScalarView()
+        for scalar in name.unicodeScalars {
+            scalars.append(CharacterSet.controlCharacters.contains(scalar) ? " " : scalar)
+        }
+        let cleaned = String(scalars)
             .replacingOccurrences(of: "/", with: "-")
             .replacingOccurrences(of: ":", with: "-")
             .replacingOccurrences(of: "\\", with: "-")

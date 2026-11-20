@@ -7,7 +7,7 @@ internal import AetherLibswresample
 
 /// Converts an MKV (or any file libavformat reads) into an MP4 that AVFoundation plays, following a
 /// `ConversionPlan`. Video is stream-copied; audio is copied or transcoded to AAC-LC stereo; subtitle streams
-/// are never written.
+/// are never written into the MP4; the text ones the plan names are written as `.srt`/`.ass` files beside it.
 ///
 /// Concurrency (spec › Concurrency): the app target defaults to MainActor and uses approachable concurrency, so
 /// a plain `nonisolated async` function would run on the caller's actor and freeze the UI. `convert` therefore
@@ -26,32 +26,57 @@ nonisolated enum MediaConverter {
         var audioPackets: Int
         /// Problems the conversion survived (empty for a clean file).
         var warnings: [Warning] = []
+        /// The subtitle files written (one per planned text track that had cues), in the plan's order.
+        var subtitleFiles: [SubtitleFile] = []
+    }
+
+    /// A subtitle track written to disk by the converter (spec › Conversion rules › Subtitles).
+    nonisolated struct SubtitleFile: Sendable, Equatable {
+        var streamIndex: Int
+        var url: URL
+        var cueCount: Int
     }
 
     nonisolated enum Warning: Sendable, Equatable {
         /// This many damaged audio packets or frames were skipped, as ffmpeg does; the sound has short gaps there.
         case skippedDamagedAudio(Int)
+        /// A planned subtitle track had no cue, so no file was written (the name is the file name it would have had).
+        case emptySubtitleTrack(String)
+        /// A subtitle track held an absurd amount of text and was dropped.
+        case oversizedSubtitleTrack(String)
+        /// A subtitle file couldn't be written (disk full, say). The video import carries on without it.
+        case subtitleNotSaved(String)
 
         var message: String {
             switch self {
             case .skippedDamagedAudio(let count):
                 "\(count) damaged audio \(count == 1 ? "frame was" : "frames were") skipped, so the sound may drop out briefly."
+            case .emptySubtitleTrack(let name):
+                "The subtitle track “\(name)” has no lines, so no file was saved for it."
+            case .oversizedSubtitleTrack(let name):
+                "The subtitle track “\(name)” is too large to read, so no file was saved for it."
+            case .subtitleNotSaved(let name):
+                "The subtitle track \u{201C}\(name)\u{201D} couldn't be saved, so it is missing from this episode's subtitle files."
             }
         }
     }
 
     /// Converts `source` into a new MP4 at `output`.
     /// - `output` must not exist yet and its folder must exist (use `makeStagingFolder()`). The converter writes
-    ///   only that file, and deletes it again if the conversion fails or is cancelled.
+    ///   only that file (plus the subtitle files below), and deletes them again if the conversion fails or is cancelled.
+    /// - `plan.subtitles` are written during the same read pass as `.srt`/`.ass` files named `fileName` in
+    ///   `subtitlesFolder` (default: the output's folder; it must exist, and the files must not). Their times are the
+    ///   MP4's times (no rebase). A track without cues writes nothing and adds a warning.
     /// - `progress` gets 0 once the output is open, then rising values at most about 10 times a second, then 1 on
     ///   success. It is called on the conversion thread: hop to the main actor yourself to update UI.
     /// - Cancelling the calling task stops the work within about a second and throws `CancellationError`.
-    static func convert(source: URL, plan: ConversionPlan, to output: URL,
+    static func convert(source: URL, plan: ConversionPlan, to output: URL, subtitlesFolder: URL? = nil,
                         progress: @escaping @Sendable (Double) -> Void = { _ in }) async throws -> Report {
         let cancel = ConversionCancelFlag()
         return try await withTaskCancellationHandler {
             try await Task.detached(priority: .userInitiated) {
-                try ConversionCore.run(source: source, plan: plan, output: output, cancel: cancel, progress: progress)
+                try ConversionCore.run(source: source, plan: plan, output: output, subtitlesFolder: subtitlesFolder,
+                                       cancel: cancel, progress: progress)
             }.value
         } onCancel: {
             cancel.cancel()
@@ -77,6 +102,8 @@ nonisolated enum MediaConversionError: Error, LocalizedError, Sendable {
     case noAACEncoder
     /// The file is damaged in a way the converter won't work around (absurd timestamps, unreadable audio).
     case damagedFile(String)
+    /// A subtitle file couldn't be written (disk full, or the name is taken).
+    case subtitleWriteFailed(String)
     case failed(FFmpegError)
 
     var errorDescription: String? {
@@ -86,6 +113,7 @@ nonisolated enum MediaConversionError: Error, LocalizedError, Sendable {
         case .sourceChanged(let detail): "The video file changed while it was being added (\(detail)). Choose it again."
         case .noAACEncoder: "This build of Clip Deck has no AAC encoder."
         case .damagedFile(let detail): "This video file looks damaged (\(detail)). Try another copy of the file."
+        case .subtitleWriteFailed(let detail): "A subtitle file couldn't be saved: \(detail)"
         case .failed(let error): "The video couldn't be converted. \(error.description)"
         }
     }
@@ -222,7 +250,7 @@ nonisolated struct DecodeErrorBudget: Sendable, Equatable {
 
 /// The synchronous core. Runs on a detached task's thread; never on the main thread.
 nonisolated enum ConversionCore {
-    static func run(source: URL, plan: ConversionPlan, output: URL, cancel: ConversionCancelFlag,
+    static func run(source: URL, plan: ConversionPlan, output: URL, subtitlesFolder: URL? = nil, cancel: ConversionCancelFlag,
                     progress: @escaping @Sendable (Double) -> Void) throws -> MediaConverter.Report {
         let ranOnMainThread = Thread.isMainThread
         let fileManager = FileManager.default
@@ -234,26 +262,66 @@ nonisolated enum ConversionCore {
         guard fileManager.fileExists(atPath: folder, isDirectory: &isFolder), isFolder.boolValue else {
             throw MediaConversionError.outputFolderMissing(folder)
         }
+        let subtitleFolder = subtitlesFolder ?? output.deletingLastPathComponent()
+        if !plan.subtitles.isEmpty {
+            let path = subtitleFolder.path(percentEncoded: false)
+            var isSubtitleFolder: ObjCBool = false
+            guard fileManager.fileExists(atPath: path, isDirectory: &isSubtitleFolder), isSubtitleFolder.boolValue else {
+                throw MediaConversionError.outputFolderMissing(path)
+            }
+            for extraction in plan.subtitles {
+                let target = subtitleFolder.appending(path: extraction.fileName).path(percentEncoded: false)
+                if fileManager.fileExists(atPath: target) { throw MediaConversionError.outputExists(extraction.fileName) }
+            }
+        }
 
         let scoped = source.startAccessingSecurityScopedResource()
         defer { if scoped { source.stopAccessingSecurityScopedResource() } }
 
         let session = ConversionSession(plan: plan, cancel: cancel, progress: progress)
+        var writtenSubtitles: [URL] = []
         do {
             // The interrupt callback holds `cancel` unretained; keep it alive for the whole run.
             try withExtendedLifetime(cancel) {
                 try session.run(sourcePath: FFmpegSupport.path(source), outputPath: FFmpegSupport.path(output))
             }
             session.close()
+            var warnings = session.warnings
+            var subtitleFiles: [MediaConverter.SubtitleFile] = []
+            for collector in session.subtitleCollectors {
+                if cancel.isCancelled { throw CancellationError() }
+                let name = collector.extraction.fileName
+                guard let file = collector.file() else {
+                    warnings.append(collector.isTooLarge ? .oversizedSubtitleTrack(name) : .emptySubtitleTrack(name))
+                    continue
+                }
+                let url = subtitleFolder.appending(path: name)
+                do {
+                    // .withoutOverwriting: never replaces a file that appeared since the check above.
+                    try Data(file.text.utf8).write(to: url, options: .withoutOverwriting)
+                } catch {
+                    // Only the track chosen as the episode's subtitle fails the import; any other track is a warning.
+                    if collector.extraction.isRequired {
+                        throw MediaConversionError.subtitleWriteFailed(error.localizedDescription)
+                    }
+                    warnings.append(.subtitleNotSaved(name))
+                    continue
+                }
+                writtenSubtitles.append(url)
+                subtitleFiles.append(MediaConverter.SubtitleFile(
+                    streamIndex: collector.extraction.streamIndex, url: url, cueCount: file.cueCount))
+            }
             return MediaConverter.Report(
                 outputURL: output,
                 ranOnMainThread: ranOnMainThread,
                 videoPackets: session.videoPackets,
                 audioPackets: session.audioPackets,
-                warnings: session.warnings)
+                warnings: warnings,
+                subtitleFiles: subtitleFiles)
         } catch {
             session.close()   // closes the output file before it is deleted
             try? fileManager.removeItem(at: output)
+            for url in writtenSubtitles { try? fileManager.removeItem(at: url) }
             if cancel.isCancelled || error is CancellationError { throw CancellationError() }
             throw error
         }
@@ -291,11 +359,17 @@ nonisolated final class ConversionSession {
     private var audioOutput = -1
     private var fixers: [TimestampFixer] = []
     private var decodeErrors = DecodeErrorBudget()
+    /// Subtitle tracks being extracted, by input stream index.
+    private var collectors: [Int: SubtitleCollector] = [:]
 
     private(set) var videoPackets = 0
     private(set) var audioPackets = 0
     var warnings: [MediaConverter.Warning] {
         decodeErrors.errors > 0 ? [.skippedDamagedAudio(decodeErrors.errors)] : []
+    }
+    /// What was collected from the planned subtitle tracks, in the plan's order.
+    var subtitleCollectors: [SubtitleCollector] {
+        plan.subtitles.compactMap { collectors[$0.streamIndex] }
     }
 
     init(plan: ConversionPlan, cancel: ConversionCancelFlag, progress: @escaping @Sendable (Double) -> Void) {
@@ -368,10 +442,22 @@ nonisolated final class ConversionSession {
             audio = try stream(input, audioPlan.streamIndex, type: AVMEDIA_TYPE_AUDIO, codec: audioPlan.codec)
             audioInput = audioPlan.streamIndex
         }
-        for index in 0..<Int(input.pointee.nb_streams) where index != videoInput && index != audioInput {
+        for extraction in plan.subtitles {
+            let subtitle = try stream(input, extraction.streamIndex, type: AVMEDIA_TYPE_SUBTITLE, codec: extraction.codec)
+            collectors[extraction.streamIndex] = SubtitleCollector(extraction: extraction, header: codecPrivateText(subtitle))
+        }
+        for index in 0..<Int(input.pointee.nb_streams) where index != videoInput && index != audioInput && collectors[index] == nil {
             input.pointee.streams[index]?.pointee.discard = AVDISCARD_ALL
         }
         return (video, audio)
+    }
+
+    /// The track's CodecPrivate (the ASS header) as text; empty when there is none.
+    private func codecPrivateText(_ stream: UnsafeMutablePointer<AVStream>) -> String {
+        guard let parameters = stream.pointee.codecpar,
+              let data = parameters.pointee.extradata, parameters.pointee.extradata_size > 0 else { return "" }
+        let bytes = UnsafeBufferPointer(start: UnsafePointer(data), count: Int(parameters.pointee.extradata_size))
+        return String(decoding: bytes, as: UTF8.self)
     }
 
     private func stream(_ context: UnsafeMutablePointer<AVFormatContext>, _ index: Int, type: AVMediaType,
@@ -520,10 +606,29 @@ nonisolated final class ConversionSession {
                     try writeCopy(packet, from: inStream, to: audioOutput, in: output)
                     audioPackets += 1
                 }
+            } else if collectors[index] != nil, let inStream = input.pointee.streams[index] {
+                collectSubtitle(packet, from: inStream, index: index)
             }
             av_packet_unref(packet)
             reportProgress(input: input, sourceSize: sourceSize)
         }
+    }
+
+    /// Keeps a subtitle packet's text and its time on the source clock (= the MP4's clock). A packet without a
+    /// usable timestamp or text is skipped.
+    private func collectSubtitle(_ packet: UnsafeMutablePointer<AVPacket>, from stream: UnsafeMutablePointer<AVStream>, index: Int) {
+        let timeBase = stream.pointee.time_base
+        let timestamp = packet.pointee.pts != FFmpegSupport.noPTS ? packet.pointee.pts : packet.pointee.dts
+        guard collectors[index]?.isTooLarge == false else { return }   // already dropped: don't decode more text
+        guard let data = packet.pointee.data, packet.pointee.size > 0,
+              timeBase.num > 0, timeBase.den > 0,
+              timestamp != FFmpegSupport.noPTS, TimestampFixer.isInRange(timestamp),
+              packet.pointee.duration >= 0, TimestampFixer.isInRange(packet.pointee.duration) else { return }
+        let milliseconds = AVRational(num: 1, den: 1000)
+        let start = av_rescale_q(timestamp, timeBase, milliseconds)
+        let duration = av_rescale_q(packet.pointee.duration, timeBase, milliseconds)
+        let text = String(decoding: UnsafeBufferPointer(start: UnsafePointer(data), count: Int(packet.pointee.size)), as: UTF8.self)
+        collectors[index]?.add(startMs: Int(start), durationMs: Int(duration), text: text)
     }
 
     private func writeCopy(_ packet: UnsafeMutablePointer<AVPacket>, from inStream: UnsafeMutablePointer<AVStream>,

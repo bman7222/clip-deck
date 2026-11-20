@@ -171,10 +171,13 @@ struct EpisodeImporter {
         throw EpisodeImportError.unsupported(firstError)
     }
 
-    nonisolated static func makePlan(_ probe: MediaProbe, audioStreamIndex: Int?,
-                                     supportsAV1: Bool) -> Result<ConversionPlan, UnsupportedMediaError> {
+    nonisolated static func makePlan(_ probe: MediaProbe, audioStreamIndex: Int?, supportsAV1: Bool,
+                                     subtitleStreams: [Int] = [],
+                                     requiredSubtitleStream: Int? = nil) -> Result<ConversionPlan, UnsupportedMediaError> {
         do {
-            let plan = try ConversionPlan.make(probe: probe, audioStreamIndex: audioStreamIndex, supportsAV1: supportsAV1)
+            let plan = try ConversionPlan.make(probe: probe, audioStreamIndex: audioStreamIndex, supportsAV1: supportsAV1,
+                                               extractingSubtitleStreams: subtitleStreams,
+                                               requiredSubtitleStream: requiredSubtitleStream)
             return .success(plan)
         } catch {
             return .failure(error)
@@ -222,13 +225,24 @@ struct EpisodeImporter {
         // Commit: move into Documents, then insert and save. Undo the moves if anything after them fails.
         var moves = [(from: staged.video, to: store.uniquePath(folder: store.videoFolderPath(show: folderShowName),
                                                               baseName: title, fileExtension: staged.videoExtension))]
+        let subtitleFolder = store.subtitleFolderPath(show: folderShowName, episode: title)
+        var takenSubtitlePaths: Set<String> = []
         var subtitlePath: String?
         if let subtitle = staged.subtitle {
-            let path = store.uniquePath(folder: store.subtitleFolderPath(show: folderShowName, episode: title),
-                                        baseName: subtitle.deletingPathExtension().lastPathComponent,
-                                        fileExtension: subtitle.pathExtension)
+            let path = reserveSubtitlePath(folder: subtitleFolder, file: subtitle, taken: &takenSubtitlePaths)
             moves.append((from: subtitle, to: path))
             subtitlePath = path
+        }
+        // Extracted built-in tracks: all of them are saved. The user's own file wins as the episode's subtitle;
+        // without one, the chosen track is.
+        var embeddedPaths: [Int: String] = [:]
+        for embedded in staged.embeddedSubtitles {
+            let path = reserveSubtitlePath(folder: subtitleFolder, file: embedded.url, taken: &takenSubtitlePaths)
+            moves.append((from: embedded.url, to: path))
+            embeddedPaths[embedded.streamIndex] = path
+        }
+        if subtitlePath == nil, let chosen = options.chosenSubtitleStream {
+            subtitlePath = embeddedPaths[chosen]
         }
         let moved = try move(moves)
 
@@ -259,7 +273,11 @@ struct EpisodeImporter {
                 progress: @escaping @MainActor (Double) -> Void = { _ in }) async throws -> EpisodeImportResult {
         let staging = try makeStagingFolder()
         defer { try? FileManager.default.removeItem(at: staging) }
-        let staged = try await stage(prepared, options: options, subtitleFile: nil, in: staging, relay: ProgressRelay(progress))
+        // A relink only replaces the video: the episode keeps its subtitle files, so none are extracted.
+        var videoOnly = options
+        videoOnly.embeddedSubtitleStreams = []
+        videoOnly.chosenSubtitleStream = nil
+        let staged = try await stage(prepared, options: videoOnly, subtitleFile: nil, in: staging, relay: ProgressRelay(progress))
         try Task.checkCancellation()
 
         let oldPath = episode.videoPath
@@ -288,7 +306,26 @@ struct EpisodeImporter {
         var video: URL
         var videoExtension: String
         var subtitle: URL?
+        /// Built-in text tracks written during the conversion (MKV only), in `staging/Embedded/`.
+        var embeddedSubtitles: [MediaConverter.SubtitleFile] = []
         var warnings: [String]
+    }
+
+    /// A free path in the episode's subtitle folder for `file`: not on disk and not already given to another
+    /// file of this import (the user's file and an extracted track can have the same name).
+    private func reserveSubtitlePath(folder: String, file: URL, taken: inout Set<String>) -> String {
+        let base = file.deletingPathExtension().lastPathComponent
+        var name = base
+        var counter = 2
+        while true {
+            let path = store.uniquePath(folder: folder, baseName: name, fileExtension: file.pathExtension)
+            if !taken.contains(path) {
+                taken.insert(path)
+                return path
+            }
+            name = "\(base) (\(counter))"
+            counter += 1
+        }
     }
 
     private func makeStagingFolder() throws -> URL {
@@ -308,6 +345,7 @@ struct EpisodeImporter {
         relay.send(0)
 
         var warnings: [String] = []
+        var embedded: [MediaConverter.SubtitleFile] = []
         let video: URL
         let videoExtension: String
         let readURL = prepared.access.readURL
@@ -315,12 +353,23 @@ struct EpisodeImporter {
             warnings += plan.warnings.map { $0.message }
             videoExtension = "mp4"
             video = staging.appending(path: "Episode.mp4")
+            let embeddedFolder = staging.appending(path: "Embedded", directoryHint: .isDirectory)
+            if !plan.subtitles.isEmpty {
+                do {
+                    try FileManager.default.createDirectory(at: embeddedFolder, withIntermediateDirectories: true)
+                } catch {
+                    throw EpisodeImportError.copyFailed(error.localizedDescription)
+                }
+            }
             let tap = onConversionProgress
-            let report = try await MediaConverter.convert(source: readURL, plan: plan, to: video, progress: { value in
+            let report = try await MediaConverter.convert(source: readURL, plan: plan, to: video,
+                                                          subtitlesFolder: plan.subtitles.isEmpty ? nil : embeddedFolder,
+                                                          progress: { value in
                 tap?(value)
                 Task { @MainActor in relay.send(value) }
             })
             warnings += report.warnings.map { $0.message }
+            embedded = report.subtitleFiles
         } else {
             videoExtension = prepared.fileExtension
             video = staging.appending(path: "Episode.\(videoExtension)")
@@ -349,7 +398,8 @@ struct EpisodeImporter {
         }
         try Task.checkCancellation()
         relay.send(1)
-        return Staged(video: video, videoExtension: videoExtension, subtitle: subtitle, warnings: warnings)
+        return Staged(video: video, videoExtension: videoExtension, subtitle: subtitle,
+                      embeddedSubtitles: embedded, warnings: warnings)
     }
 
     // MARK: Commit and rollback
@@ -418,16 +468,56 @@ nonisolated enum PrepareStage: Sendable, Equatable {
     case probing
 }
 
-/// Choices made between prepare and import. T-005 adds the built-in subtitle tracks to extract; the default stays
-/// "none", so callers that don't set it keep today's behaviour.
+/// Choices made between prepare and import. The default is "no built-in subtitles", so callers that don't set
+/// the subtitle fields keep the T-006 behaviour. All fields are ignored for MP4/MOV/M4V.
 nonisolated struct EpisodeImportOptions: Sendable, Equatable {
     /// MKV only: the audio track to keep (a `MediaProbe.Audio.streamIndex` from `PreparedVideo.audioTracks`);
-    /// nil keeps the prepared default (`PreparedVideo.defaultAudioStreamIndex`). Ignored for MP4/MOV/M4V.
+    /// nil keeps the prepared default (`PreparedVideo.defaultAudioStreamIndex`).
     var audioStreamIndex: Int?
+    /// MKV only: the built-in text subtitle tracks (`EmbeddedSubtitleTrack.streamIndex`) to save as files in the
+    /// episode's subtitle folder. Pass `PreparedVideo.usableSubtitleStreamIndices` to save them all, so the other
+    /// tracks show up under "Load different subtitles".
+    var embeddedSubtitleStreams: [Int]
+    /// MKV only: which built-in track becomes the episode's subtitle (it is extracted even if it isn't listed in
+    /// `embeddedSubtitleStreams`). nil = none. A subtitle file the user picked (`NewEpisodeDetails.subtitleFile`)
+    /// wins over it. Start from `PreparedVideo.defaultSubtitleStreamIndex`.
+    var chosenSubtitleStream: Int?
 
-    init(audioStreamIndex: Int? = nil) {
+    init(audioStreamIndex: Int? = nil, embeddedSubtitleStreams: [Int] = [], chosenSubtitleStream: Int? = nil) {
         self.audioStreamIndex = audioStreamIndex
+        self.embeddedSubtitleStreams = embeddedSubtitleStreams
+        self.chosenSubtitleStream = chosenSubtitleStream
     }
+
+    /// Every stream to extract: the listed ones plus the chosen one.
+    var subtitleStreamsToExtract: [Int] {
+        var streams = embeddedSubtitleStreams
+        if let chosenSubtitleStream, !streams.contains(chosenSubtitleStream) { streams.append(chosenSubtitleStream) }
+        return streams
+    }
+}
+
+/// One subtitle track of an MKV, for the upload sheet's "Embedded subtitles" row.
+nonisolated struct EmbeddedSubtitleTrack: Sendable, Equatable, Identifiable {
+    /// The value to use in `EpisodeImportOptions` (also the picker tag).
+    var streamIndex: Int
+    /// "jpn · Full · ASS", "eng · PGS", or "Track 2 · ASS" when the file names neither language nor title.
+    var label: String
+    var language: String?
+    var title: String?
+    /// "SRT", "ASS", "WebVTT" for text; "PGS", "VobSub", "DVB" or the codec name otherwise.
+    var formatName: String
+    /// A picture format (PGS, VobSub, DVB): the UI says "image-based, can't be used". When `isUsable` and this are
+    /// both false it is a text format Clip Deck can't write: say "format not supported".
+    var isImageBased: Bool
+    /// Flagged default in the file.
+    var isDefault: Bool
+    /// False for picture tracks (PGS, VobSub, DVB) and text formats Clip Deck can't write: show them greyed out
+    /// (picture tracks: "image-based, can't be used"; other text formats: "format not supported"; see `isImageBased`),
+    /// and never pass them in the options.
+    var isUsable: Bool
+
+    var id: Int { streamIndex }
 }
 
 /// The new episode's details from the upload sheet.
@@ -473,6 +563,34 @@ nonisolated struct PreparedVideo: Sendable {
     /// The preselected audio track's stream index (the file's default-flagged track, else the first usable one).
     var defaultAudioStreamIndex: Int? { defaultPlan?.audio?.streamIndex }
 
+    /// All subtitle tracks of the MKV (empty for MP4/MOV/M4V), usable or not, in file order.
+    var subtitleTracks: [EmbeddedSubtitleTrack] {
+        guard let probe else { return [] }
+        return probe.subtitleTracks.enumerated().map { position, track in
+            EmbeddedSubtitleTrack(
+                streamIndex: track.streamIndex,
+                label: label(for: track, position: position),
+                language: track.language,
+                title: track.title,
+                formatName: ConversionPlan.displayName(ofCodec: track.codec),
+                isImageBased: !track.isText,
+                isDefault: track.isDefault,
+                isUsable: ConversionPlan.isUsableSubtitle(track))
+        }
+    }
+
+    /// The tracks that can be saved as files (text SRT, ASS/SSA, WebVTT). Hide the "Embedded subtitles" row when
+    /// this is empty (no subtitles, or pictures only), and say nothing.
+    var usableSubtitleTracks: [EmbeddedSubtitleTrack] { subtitleTracks.filter(\.isUsable) }
+
+    /// Stream indices of `usableSubtitleTracks`: pass them as `EpisodeImportOptions.embeddedSubtitleStreams`.
+    var usableSubtitleStreamIndices: [Int] { usableSubtitleTracks.map(\.streamIndex) }
+
+    /// The preselected episode subtitle: the default-flagged text track, else the first text track, else nil ("None").
+    var defaultSubtitleStreamIndex: Int? {
+        probe.flatMap { ConversionPlan.defaultSubtitleTrack(in: $0)?.streamIndex }
+    }
+
     /// Notes for the user about the default plan (e.g. the file has no sound). Empty for a normal file.
     var warnings: [String] { defaultPlan?.warnings.map { $0.message } ?? [] }
 
@@ -495,15 +613,43 @@ nonisolated struct PreparedVideo: Sendable {
         return parts.joined(separator: " · ")
     }
 
+    /// "language · title · format", leaving out what the file doesn't say ("und" counts as unknown). With neither
+    /// language nor title it starts with "Track n" (n = position among the file's subtitle tracks, from 1).
+    private func label(for track: MediaProbe.Subtitle, position: Int) -> String {
+        var parts: [String] = []
+        if let language = track.language?.trimmingCharacters(in: .whitespacesAndNewlines),
+           !language.isEmpty, language.lowercased() != "und" {
+            parts.append(language)
+        }
+        if let title = track.title?.trimmingCharacters(in: .whitespacesAndNewlines), !title.isEmpty {
+            parts.append(title)
+        }
+        if parts.isEmpty { parts.append("Track \(position + 1)") }
+        parts.append(ConversionPlan.displayName(ofCodec: track.codec))
+        return parts.joined(separator: " · ")
+    }
+
     /// The conversion plan for these options, or nil for a file that is copied. Throws
     /// `EpisodeImportError.unsupported` when the chosen audio track can't be used; show its message and keep
     /// Add episode disabled.
     func plan(for options: EpisodeImportOptions) throws -> ConversionPlan? {
         guard let probe else { return nil }
+        let subtitleStreams = options.subtitleStreamsToExtract
         guard let audioStreamIndex = options.audioStreamIndex, audioStreamIndex != defaultAudioStreamIndex else {
-            return defaultPlan
+            guard var plan = defaultPlan else { return nil }
+            if !subtitleStreams.isEmpty {
+                do {
+                    plan.subtitles = try ConversionPlan.subtitleExtractions(
+                        in: probe, streams: subtitleStreams, required: options.chosenSubtitleStream)
+                } catch {
+                    throw EpisodeImportError.unsupported(error)
+                }
+            }
+            return plan
         }
-        switch EpisodeImporter.makePlan(probe, audioStreamIndex: audioStreamIndex, supportsAV1: supportsAV1) {
+        switch EpisodeImporter.makePlan(probe, audioStreamIndex: audioStreamIndex, supportsAV1: supportsAV1,
+                                        subtitleStreams: subtitleStreams,
+                                        requiredSubtitleStream: options.chosenSubtitleStream) {
         case .success(let plan): return plan
         case .failure(let error): throw EpisodeImportError.unsupported(error)
         }
