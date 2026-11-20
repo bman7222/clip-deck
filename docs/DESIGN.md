@@ -17,7 +17,7 @@ The user asked for a feel like the Nintendo 3DS home menu: clear, friendly icons
 - the big **Make a Card** button;
 - the tap-to-seek subtitle list.
 
-In landscape the video fills the whole screen with no navigation bar. Tapping the video shows translucent controls over it (top bar: back and title; bottom bar: scrubber, transport, Make a Card). While playing they fade after 3 s; they stay up while paused, scrubbing, in a sheet, with the subtitles dialog open, or with VoiceOver. The subtitle line moves above the bottom bar while the controls show. The list becomes a side pop-out from the subtitles button, which in landscape opens a dialog instead of a menu (its open state can be tracked, so the auto-hide never closes it). Boldness also goes into the library's glossy rounded-square show tiles, one bright hue each. Everything else is quiet:
+In landscape the video fills the whole screen with no navigation bar. Tapping the video shows translucent controls over it (top bar: back and title; bottom bar: scrubber, transport, Make a Card). While playing they fade after 3 s; they stay up while paused, scrubbing, in a sheet, with the subtitles dialog open, or with VoiceOver. The subtitle line moves above the bottom bar while the controls show. A button in the top-right of the top bar (`sidebar.right`) opens the subtitle list as a side panel: the video shrinks to the left (about 70 % on a notched iPhone) and the panel takes the right: content width is 25 % of the usable width (never under 180 pt) plus the trailing safe-area inset as padding. It holds the problem banner, a compact Make a Card (icon only if too narrow) and the cue list with compact rows (time above the text). The panel stays open when the controls fade, and its open state survives a rotation to portrait and back. The subtitles button in landscape opens a dialog ("Load different subtitles") instead of a menu, so its open state can be tracked and the auto-hide never closes it. Make a Card keeps the controls up while it records. Boldness also goes into the library's glossy rounded-square show tiles, one bright hue each. Everything else is quiet:
 - a cool console-grey shell;
 - white panels;
 - no decorative gradients beyond the single top highlight on tiles.
@@ -112,7 +112,7 @@ Motion is used only where something changes:
 - **Offset value:** animates with `.numericText()`.
 - **Buttons:** press-scale.
 - **Toasts:** slide up.
-- **Landscape side panel:** slides in.
+- **Landscape side panel:** slides in from the trailing edge with the standard spring; content 25 % of the usable width (minimum 180 pt), plus the trailing inset.
 
 Saving a card plays a success haptic. There are no ambient or entrance animations. SwiftUI's springs respect Reduce Motion.
 

@@ -74,7 +74,8 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         let menu = app.buttons["player.subtitlesMenu"]
         XCTAssertTrue(menu.waitForExistence(timeout: 2))
         menu.tap()
-        let showList = app.buttons["Show subtitle list"]
+        // The dialog's only action now is "Load different subtitles" (the list moved to the panel button, T-002).
+        let showList = app.buttons["Load different subtitles"]
         // XCUITest snapshots lag while the video plays (run 44639515011: the menu was on screen ~1.3 s
         // but not found within 2 s), so allow 5 s. With the rule broken, the menu is torn down ~1.5 s after
         // opening, so this assert or the next one fails; with it working, the menu stays open throughout.
@@ -89,7 +90,7 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         attachScreenshot(app, "landscape-06-menu-open")
     }
 
-    /// AC-5 + AC-4: the subtitle list opens from the menu in landscape; the line shows on the video;
+    /// T-002: the panel button opens the subtitle list in landscape; the line shows on the video;
     /// Make a Card works from landscape and opens the editor.
     @MainActor
     func testSubtitleListAndMakeACardInLandscape() throws {
@@ -98,14 +99,9 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
 
         tapVideo(app)
-        let menu = app.buttons["player.subtitlesMenu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 5))
-        menu.tap()
-        // Landscape: a confirmation dialog; its actions are buttons anywhere under `app`.
-        let showList = app.buttons["Show subtitle list"]
-        XCTAssertTrue(showList.waitForExistence(timeout: 5), "Menu offers the subtitle list")
-        showList.tap()
-        XCTAssertTrue(showList.waitForNonExistence(timeout: 5), "Choosing an item closes the subtitles dialog")
+        let toggle = app.buttons["player.panelToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5), "Controls offer the panel button")
+        toggle.tap()
 
         let secondLine = app.descendants(matching: .any)["cue.row.1"]
         XCTAssertTrue(secondLine.waitForExistence(timeout: 5), "Side list opens in landscape")
@@ -119,6 +115,108 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         attachScreenshot(app, "landscape-04-recording")
         XCTAssertTrue(app.buttons["card.save"].waitForExistence(timeout: 20), "Card editor opens from landscape")
         XCTAssertEqual(app.staticTexts["card.range"].label, "0:02.0 – 0:04.0")
+    }
+
+    /// T-001 carry-over: "Load different subtitles" from the landscape dialog opens the subtitle picker.
+    /// The "Show subtitle list" item is gone from the dialog (T-002 AC-5).
+    @MainActor
+    func testLoadDifferentSubtitlesFromLandscapeDialog() throws {
+        let app = openSampleEpisode()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(video(app).waitForExistence(timeout: 10))
+
+        tapVideo(app)
+        let menu = app.buttons["player.subtitlesMenu"]
+        XCTAssertTrue(menu.waitForExistence(timeout: 5))
+        menu.tap()
+        let load = app.buttons["Load different subtitles"]
+        XCTAssertTrue(load.waitForExistence(timeout: 5), "Dialog offers loading subtitles")
+        // The panel toggle behind the dialog is also labelled "Show subtitle list" (run 44646676783 matched it),
+        // so look only for a dialog action with that label.
+        let oldItem = app.buttons.matching(
+            NSPredicate(format: "label == %@ AND identifier != %@", "Show subtitle list", "player.panelToggle")
+        )
+        XCTAssertEqual(oldItem.count, 0, "The list item moved to the panel button")
+        load.tap()
+        let picker = app.navigationBars["Subtitles for Episode 1"]
+        XCTAssertTrue(picker.waitForExistence(timeout: 5), "Subtitle picker sheet opens")
+    }
+
+    /// T-002 AC-3: the panel stays open when the controls auto-hide while playing; the bars and the
+    /// subtitle line stay inside the video column (left of the panel).
+    @MainActor
+    func testPanelStaysOpenWhenControlsAutoHide() throws {
+        let app = openSampleEpisode()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(video(app).waitForExistence(timeout: 10))
+
+        tapVideo(app)
+        let toggle = app.buttons["player.panelToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        toggle.tap()
+        let panel = app.descendants(matching: .any)["player.sidePanel"]
+        XCTAssertTrue(panel.waitForExistence(timeout: 5), "Panel opens")
+        XCTAssertTrue(waitForLabel(toggle, "Hide subtitle list", timeout: 3), "Open panel: the button offers to hide it")
+        waitUntilSettled(video(app))
+
+        let videoFrame = video(app).frame
+        XCTAssertLessThanOrEqual(videoFrame.maxX, panel.frame.minX + 1, "Video column sits left of the panel")
+        XCTAssertLessThanOrEqual(toggle.frame.maxX, videoFrame.maxX + 1, "Top bar stays inside the video area")
+        XCTAssertLessThanOrEqual(app.buttons["player.makeCard"].frame.maxX, videoFrame.maxX + 1,
+                                 "Bottom bar stays inside the video area")
+
+        let playPause = app.buttons["player.playPause"]
+        playPause.tap()
+        let back = app.buttons["player.back"]
+        XCTAssertTrue(back.waitForNonExistence(timeout: 5), "Playing: controls hide on their own")
+        XCTAssertTrue(panel.exists, "Panel stays open when the controls auto-hide")
+        XCTAssertTrue(app.descendants(matching: .any)["cue.row.1"].exists, "Panel still lists the lines")
+        let subtitle = app.textViews["player.subtitle"]
+        if subtitle.waitForExistence(timeout: 2) {
+            XCTAssertLessThanOrEqual(subtitle.frame.maxX, videoFrame.maxX + 1, "Subtitle line stays inside the video area")
+        }
+        attachScreenshot(app, "landscape-08-panel-autohidden")
+    }
+
+    /// T-002 AC-4: rotating to portrait shows the portrait screen; rotating back restores the panel's state;
+    /// the button closes the panel and the video returns to full width.
+    @MainActor
+    func testPanelClosesAndSurvivesRotation() throws {
+        let app = openSampleEpisode()
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(video(app).waitForExistence(timeout: 10))
+
+        tapVideo(app)
+        let toggle = app.buttons["player.panelToggle"]
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertEqual(toggle.label, "Show subtitle list")
+        toggle.tap()
+        let panel = app.descendants(matching: .any)["player.sidePanel"]
+        XCTAssertTrue(panel.waitForExistence(timeout: 5), "Panel opens")
+
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 5), "Portrait shows the navigation bar")
+        XCTAssertTrue(panel.waitForNonExistence(timeout: 5), "No side panel in portrait")
+        XCTAssertTrue(app.buttons["player.makeCard"].waitForExistence(timeout: 5), "Portrait controls are shown")
+
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(panel.waitForExistence(timeout: 5), "Rotating back restores the open panel")
+
+        tapVideo(app)
+        XCTAssertTrue(toggle.waitForExistence(timeout: 5))
+        XCTAssertTrue(waitForLabel(toggle, "Hide subtitle list", timeout: 3))
+        toggle.tap()
+        XCTAssertTrue(panel.waitForNonExistence(timeout: 5), "Second tap closes the panel")
+        waitUntilSettled(video(app))
+        let window = app.windows.firstMatch.frame
+        XCTAssertEqual(video(app).frame.width, window.width, accuracy: 2, "Closed: the video is full width again")
+
+        XCUIDevice.shared.orientation = .portrait
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForExistence(timeout: 5))
+        XCUIDevice.shared.orientation = .landscapeLeft
+        XCTAssertTrue(video(app).waitForExistence(timeout: 10))
+        XCTAssertTrue(app.navigationBars.firstMatch.waitForNonExistence(timeout: 5))
+        XCTAssertFalse(panel.waitForExistence(timeout: 2), "Rotating back keeps a closed panel closed")
     }
 
     /// AC-6: in portrait, tapping the video still plays and pauses.
@@ -169,6 +267,19 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         let predicate = NSPredicate(format: "label == %@", label)
         let expectation = XCTNSPredicateExpectation(predicate: predicate, object: element)
         return XCTWaiter().wait(for: [expectation], timeout: timeout) == .completed
+    }
+
+    /// Waits until the element's frame stops changing (the panel's 0.3 s spring), up to 3 s.
+    @MainActor
+    private func waitUntilSettled(_ element: XCUIElement) {
+        var last = element.frame
+        let deadline = Date().addingTimeInterval(3)
+        repeat {
+            RunLoop.current.run(until: Date().addingTimeInterval(0.25))
+            let now = element.frame
+            if now == last { return }
+            last = now
+        } while Date() < deadline
     }
 
     @MainActor
