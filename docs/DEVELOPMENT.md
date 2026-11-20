@@ -86,6 +86,11 @@ with the sample SRT as its subtitle file. The app finds the fixture through `CLI
   (run `scripts/make-test-media.sh build/fixtures` first).
 If the variable or the file is missing, the app prints why to the console and the library stays empty.
 
+To try the install-expiry reminder (shown from 48 hours before a sideloaded install expires), add
+`-uiTestingExpiry <ISO-8601 date>` (Debug), e.g. `xcrun simctl launch booted dev.brent.clipdeck -uiTesting -uiTestingExpiry 2026-11-21T14:02:00Z`.
+Simulator, TestFlight and App Store builds have no signing profile, so without the flag no banner appears. Dismissing
+hides it for the rest of the local day; `-uiTestingKeepExpiryDismissal` keeps that dismissal across a relaunch.
+
 To test syncing from the simulator, use `http://localhost:8765` in Anki settings while Anki runs on the same Mac.
 
 With Claude Code, the `ios-simulator-skill` skill can drive the running app. It taps and types by accessibility identifier, takes screenshots, and switches dark mode and text size. Identifiers follow `feature.element`:
