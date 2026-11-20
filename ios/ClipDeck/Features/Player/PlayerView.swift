@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 /// Episode player. Portrait is laid out like a 3DS: video is the "top screen", and the controls
-/// plus the subtitle list form the "bottom screen". In landscape the list is a side pop-out.
+/// plus the subtitle list form the "bottom screen". In landscape the list is a side panel (a quarter of the screen).
 struct PlayerView: View {
     @Bindable var episode: Episode
     @Environment(\.modelContext) private var context
@@ -29,12 +29,17 @@ struct PlayerView: View {
 
     private let store = FileStore.live
 
+    /// Share of the screen width the landscape subtitle panel takes (T-011 makes this draggable).
+    private static let panelFraction: CGFloat = 0.25
+    /// The panel is never narrower than this many points.
+    private static let panelMinWidth: CGFloat = 180
+
     var body: some View {
         Group {
             if let model {
                 GeometryReader { geometry in
                     if geometry.size.width > geometry.size.height {
-                        landscape(model, insets: geometry.safeAreaInsets)
+                        landscape(model, size: geometry.size, insets: geometry.safeAreaInsets)
                     } else {
                         portrait(model)
                     }
@@ -131,61 +136,92 @@ struct PlayerView: View {
         }
     }
 
-    private func landscape(_ model: PlayerModel, insets: EdgeInsets) -> some View {
+    private func landscape(_ model: PlayerModel, size: CGSize, insets: EdgeInsets) -> some View {
         let shown = controlsShown
+        // Work in full-screen widths: the whole layout ignores the safe area and the bars and the panel
+        // pad their own content by the insets, so 75 % / 25 % is of the real screen width.
+        // Panel content = max(25 % of the usable width, 180 pt); the trailing inset is added on top as padding.
+        let totalWidth = size.width + insets.leading + insets.trailing
+        let usableWidth = size.width
+        let panelWidth = showSidePanel ? max(usableWidth * Self.panelFraction, Self.panelMinWidth) + insets.trailing : 0
+        let videoWidth = totalWidth - panelWidth
+        let barInsets = EdgeInsets(
+            top: insets.top, leading: insets.leading,
+            bottom: insets.bottom, trailing: showSidePanel ? 0 : insets.trailing
+        )
         return HStack(spacing: 0) {
             ZStack {
                 videoScreen(
                     model,
-                    subtitleBottomPadding: shown ? bottomBarHeight + insets.bottom + Spacing.s : Spacing.m + insets.bottom,
-                    badgeTopPadding: shown ? topBarHeight + insets.top + Spacing.s : insets.top,
-                    edgeInsets: EdgeInsets(
-                        top: 0, leading: insets.leading,
-                        bottom: 0, trailing: showSidePanel ? 0 : insets.trailing
-                    ),
+                    subtitleBottomPadding: shown ? bottomBarHeight + Spacing.s : Spacing.m + insets.bottom,
+                    badgeTopPadding: shown ? topBarHeight + Spacing.s : insets.top,
+                    edgeInsets: EdgeInsets(top: 0, leading: barInsets.leading, bottom: 0, trailing: barInsets.trailing),
                     onTap: toggleControls
                 )
-                .ignoresSafeArea(edges: showSidePanel ? [.vertical, .leading] : .all)
 
                 // Rendered only while shown, so the accessibility tree matches the screen.
                 if shown {
                     VStack(spacing: 0) {
-                        topBar
+                        topBar(insets: barInsets)
                             .measuredHeight($topBarHeight)
                         Spacer(minLength: 0)
-                        bottomBar(model)
+                        bottomBar(model, insets: barInsets)
                             .measuredHeight($bottomBarHeight)
                     }
                     .environment(\.colorScheme, .dark)
                     .transition(.opacity)
                 }
             }
+            .frame(width: videoWidth)
+            .clipped()
             .animation(.easeInOut(duration: 0.2), value: shown)
             if showSidePanel {
-                VStack(spacing: 0) {
-                    if let subtitleProblem {
-                        ErrorBanner(message: subtitleProblem, actionTitle: "Choose subtitles") { showSubtitlePicker = true }
-                            .padding(Spacing.s)
-                    }
-                    CuePanel(model: model)
-                }
-                .frame(width: 320)
-                .background(Theme.panel)
-                .transition(.move(edge: .trailing))
+                sidePanel(model, width: panelWidth, insets: insets)
+                    .transition(.move(edge: .trailing))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .clipped()
+        .ignoresSafeArea()
         .animation(.spring(duration: 0.3), value: showSidePanel)
         // Landscape uses a dialog, not a Menu: gestures on a Menu don't fire on iOS 26, so an open Menu
         // can't be tracked and the auto-hide would tear it down. The dialog's binding clears on any dismissal.
         .confirmationDialog("Subtitles", isPresented: $subtitleDialogOpen, titleVisibility: .hidden) {
             Button("Load different subtitles") { showSubtitlePicker = true }
-            Button(showSidePanel ? "Hide subtitle list" : "Show subtitle list") { showSidePanel.toggle() }
             Button("Cancel", role: .cancel) {}
         }
     }
 
-    /// Landscape top bar: back, episode title, and an empty trailing slot (filled by the panel button later).
-    private var topBar: some View {
+    /// The landscape subtitle panel: problem banner, a compact Make a Card, then the cue list.
+    /// It stays open when the overlay controls auto-hide. Its background runs to the screen edge.
+    private func sidePanel(_ model: PlayerModel, width: CGFloat, insets: EdgeInsets) -> some View {
+        VStack(spacing: 0) {
+            if let subtitleProblem {
+                ErrorBanner(message: subtitleProblem, actionTitle: "Choose subtitles") { showSubtitlePicker = true }
+                    .padding(Spacing.s)
+            }
+            // Full label when it fits, icon only on a very narrow panel.
+            ViewThatFits(in: .horizontal) {
+                makeCardButton(model, fullWidth: true, identifier: "player.panel.makeCard")
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                makeCardButton(model, fullWidth: true, iconOnly: true, identifier: "player.panel.makeCard")
+            }
+            .padding(.horizontal, Spacing.s)
+            .padding(.vertical, Spacing.xs)
+            CuePanel(model: model, compact: true)
+        }
+        .padding(.top, insets.top)
+        .padding(.bottom, insets.bottom)
+        .padding(.trailing, insets.trailing)
+        .frame(width: width)
+        .background(Theme.panel)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("player.sidePanel")
+    }
+
+    /// Landscape top bar: back, episode title, and the button that opens or closes the subtitle panel.
+    private func topBar(insets: EdgeInsets) -> some View {
         HStack(spacing: Spacing.s) {
             Button { dismiss() } label: { Image(systemName: "chevron.left") }
                 .buttonStyle(DeckIconButtonStyle())
@@ -196,15 +232,24 @@ struct PlayerView: View {
                 .foregroundStyle(Theme.ink)
                 .lineLimit(1)
                 .frame(maxWidth: .infinity, alignment: .leading)
-            Color.clear.frame(width: 44, height: 44)
+            Button {
+                showSidePanel.toggle()
+                restartHideTimer()
+            } label: { Image(systemName: "sidebar.right") }
+                .buttonStyle(DeckIconButtonStyle(isActive: showSidePanel))
+                .accessibilityLabel(showSidePanel ? "Hide subtitle list" : "Show subtitle list")
+                .accessibilityIdentifier("player.panelToggle")
         }
         .padding(.horizontal, Spacing.m)
         .padding(.vertical, Spacing.s)
-        .background(Color.black.opacity(0.55).ignoresSafeArea(edges: [.top, .horizontal]))
+        .padding(.top, insets.top)
+        .padding(.leading, insets.leading)
+        .padding(.trailing, insets.trailing)
+        .background(Color.black.opacity(0.55))
     }
 
     /// Landscape bottom bar: scrubber, then transport and Make a Card on one row.
-    private func bottomBar(_ model: PlayerModel) -> some View {
+    private func bottomBar(_ model: PlayerModel, insets: EdgeInsets) -> some View {
         VStack(spacing: Spacing.xs) {
             Scrubber(model: model)
             // With the side list open there is less room: fall back to an icon-only Make a Card.
@@ -218,7 +263,10 @@ struct PlayerView: View {
         }
         .padding(.horizontal, Spacing.m)
         .padding(.vertical, Spacing.s)
-        .background(Color.black.opacity(0.55).ignoresSafeArea(edges: [.bottom, .horizontal]))
+        .padding(.bottom, insets.bottom)
+        .padding(.leading, insets.leading)
+        .padding(.trailing, insets.trailing)
+        .background(Color.black.opacity(0.55))
     }
 
     private func bottomRow(_ model: PlayerModel, iconOnly: Bool) -> some View {
@@ -268,7 +316,7 @@ struct PlayerView: View {
     /// While any of these hold, the controls never auto-hide.
     private var keepsControlsUp: Bool {
         voiceOverOn || showOffset || showSubtitlePicker || subtitleDialogOpen || draft != nil
-            || !(model?.isPlaying ?? false) || (model?.isScrubbing ?? false)
+            || miningRange != nil || !(model?.isPlaying ?? false) || (model?.isScrubbing ?? false)
     }
 
     private func toggleControls() {
@@ -334,7 +382,6 @@ struct PlayerView: View {
         } else {
             Menu {
                 Button("Load different subtitles", systemImage: "captions.bubble") { showSubtitlePicker = true }
-                Button(showSidePanel ? "Hide subtitle list" : "Show subtitle list", systemImage: "sidebar.right") { showSidePanel.toggle() }
             } label: {
                 Image(systemName: "captions.bubble.fill")
                     .font(.system(size: 18, weight: .bold, design: .rounded))
@@ -347,7 +394,9 @@ struct PlayerView: View {
         }
     }
 
-    private func makeCardButton(_ model: PlayerModel, fullWidth: Bool, iconOnly: Bool = false) -> some View {
+    private func makeCardButton(
+        _ model: PlayerModel, fullWidth: Bool, iconOnly: Bool = false, identifier: String = "player.makeCard"
+    ) -> some View {
         Button {
             Task { await makeCard(model) }
         } label: {
@@ -358,7 +407,7 @@ struct PlayerView: View {
         .accessibilityLabel(miningRange == nil ? "Make a Card" : "Recording")
         .buttonStyle(DeckPrimaryButtonStyle())
         .disabled(miningRange != nil || model.track.isEmpty)
-        .accessibilityIdentifier("player.makeCard")
+        .accessibilityIdentifier(identifier)
     }
 
     // MARK: Actions
@@ -514,6 +563,8 @@ private struct Scrubber: View {
 /// Every subtitle line in order; the current one is highlighted. Tap a line to jump to it.
 struct CuePanel: View {
     let model: PlayerModel
+    /// Compact rows (time above the text, tighter padding) for the narrow landscape panel.
+    var compact = false
 
     var body: some View {
         if model.track.isEmpty {
@@ -527,7 +578,7 @@ struct CuePanel: View {
                 ScrollView {
                     LazyVStack(spacing: 2) {
                         ForEach(model.track.cues) { cue in
-                            CueRow(cue: cue, offsetMs: model.offsetMs, isCurrent: cue.id == model.currentCueIndex)
+                            CueRow(cue: cue, offsetMs: model.offsetMs, isCurrent: cue.id == model.currentCueIndex, compact: compact)
                                 .id(cue.id)
                                 .onTapGesture { model.seek(to: cue) }
                                 // One element per line (time + text), so VoiceOver and UI tests see a single button.
@@ -551,25 +602,42 @@ private struct CueRow: View {
     let cue: SubtitleCue
     let offsetMs: Int
     let isCurrent: Bool
+    var compact = false
+
+    private var timeText: some View {
+        Text(TimeFormat.clock(cue.startMs + offsetMs))
+            .font(.deckTime)
+            .foregroundStyle(isCurrent ? .white.opacity(0.85) : Theme.inkSoft)
+    }
+
+    private var lineText: some View {
+        Text(cue.text)
+            .font(.deckBody)
+            .foregroundStyle(isCurrent ? .white : Theme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Spacing.m) {
-            Text(TimeFormat.clock(cue.startMs + offsetMs))
-                .font(.deckTime)
-                .foregroundStyle(isCurrent ? .white.opacity(0.85) : Theme.inkSoft)
-                .frame(width: 56, alignment: .leading)
-            Text(cue.text)
-                .font(.deckBody)
-                .foregroundStyle(isCurrent ? .white : Theme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if compact {
+                VStack(alignment: .leading, spacing: 2) {
+                    timeText
+                    lineText
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.m) {
+                    timeText.frame(width: 56, alignment: .leading)
+                    lineText
+                }
+            }
         }
-        .padding(.horizontal, Spacing.m)
-        .padding(.vertical, Spacing.s)
+        .padding(.horizontal, compact ? Spacing.s : Spacing.m)
+        .padding(.vertical, compact ? Spacing.xs : Spacing.s)
         .background(
             isCurrent ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Color.clear),
             in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
         )
-        .padding(.horizontal, Spacing.s)
+        .padding(.horizontal, compact ? Spacing.xs : Spacing.s)
         .contentShape(Rectangle())
     }
 }
