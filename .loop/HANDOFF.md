@@ -181,3 +181,50 @@
 - Done: T-011 passed in round 4 (an extra round on Opus that Brent approved). Squashed to 3f38205. CI 44672073767 green (62/62). The landscape chain T-001 → T-002 → T-011 is complete.
 - Left: open Could fix items for a future test pass: assert the skips are gone and video width = window − panel at the maximum; attach a player.video element screenshot.
 - Gotchas: new rule (Brent): after any failed Sonnet round, ask him whether to retry on Sonnet or switch to Opus (models.ask_on_sonnet_fail).
+
+## 2026-11-19 · loop-backend · T-012 · round 1 (sonnet)
+- Done: FFmpegBuild 3.16.0 pinned in project.yml; make-test-media.sh (5 fixtures); test-ios.sh exports TEST_RUNNER_CLIPDECK_FIXTURES; CI installs ffmpeg; FFmpegInspector + FFmpegFixtureTests; LICENSE, THIRD_PARTY_NOTICES.md and bundled `Licenses/*.txt`; check-ipa-notices.sh in the ipa job; docs
+- Left: CI run (nothing compiled); frontend builds the About screen (AC-7) from the `Licenses/` resources (contract in the task file)
+- Files: ios/project.yml, scripts/{make-test-media,check-ipa-notices,test-ios,bootstrap}.sh, .github/workflows/ios-simulator.yml, ios/ClipDeck/Services/Media/FFmpegInspector.swift, ios/ClipDeckTests/FFmpegFixtureTests.swift, ios/ClipDeck/Resources/Licenses/, LICENSE, THIRD_PARTY_NOTICES.md, docs
+- Gotchas: avcodec/avformat load AetherLibdav1d and AetherLibzvbi at launch, so six products are linked, not four; the binaries are committed in the package git repo (no checksums); only the native `aac` encoder exists (no aac_at)
+
+## 2026-11-19 · loop-frontend · T-012 · round 1 (sonnet)
+- Done: About and licences screen (`settings.about` row, `AboutView`, `LicenceText` loader with "Licence text missing" fallback), AboutUITests (`about-01-licences`), DESIGN.md row
+- Left: CI run (nothing compiled)
+- Files: ios/ClipDeck/Features/Settings/{AboutView,LicenceText,AnkiSettingsView}.swift, ios/ClipDeckUITests/AboutUITests.swift, docs/DESIGN.md
+- Gotchas: row lives in the Anki settings sheet; XCUI may expose the 26 KB LGPL label oddly
+
+## 2026-11-19 23:45 · loop-tester · T-012 · round 1
+- Done: verified CI 44674913642 (headSha 4ba67bc). Both jobs green; 69/69 tests, including the 6 FFmpegFixtureTests and AboutUITests. All 5 fixtures were generated in CI (brew ffmpeg 9.0.2). The IPA holds the 6 frameworks plus Licenses/ (451,955 → 4,618,295 B). The notice check works in CI and against 7 synthetic IPAs. LICENSE wording matches Brent's choice. The LGPL text is identical to FFmpeg's
+- Verdict: Fail. Should fix: DEVELOPMENT.md lacks CLIPDECK_FIXTURES and the ffmpeg prerequisite (AC-8; still says "no environment variables"). The notices have no FFmpeg/libzvbi copyright line (LGPL-2.1 §6; FFmpeg's is "Copyright (c) 2000-2026 the FFmpeg developers"). Could fix: deprecation warning FFmpegInspector.swift:112; pre-existing Info.plist says 1.0, not MARKETING_VERSION 0.1.0
+- Files: ios/ClipDeckUITests/AboutUITests.swift (new testSourceLinksAreShownAndOpenInSafari), ios/ClipDeckTests/FFmpegFixtureTests.swift (fixture-3 audio 1.5 ±0.05 s): uncommitted, not run yet
+- Gotchas: the about-01 test's `app.links[...]` scroll has no assert and ended at the list top, so links in a List may not be `links`; the new test queries descendants(.any) by identifier. Swift Testing passes record no measured values, so use tight bounds
+
+## 2026-11-19 · loop-backend · T-012 · round 2 (opus)
+- Done: all 4 round-1 findings. DEVELOPMENT.md: ffmpeg test prerequisite, env-var table (SIM_NAME, CLIPDECK_FIXTURES, TEST_RUNNER_CLIPDECK_FIXTURES), Fixtures paragraph. Copyright lines verified upstream: FFmpeg "2000-2026 the FFmpeg developers", dav1d 1.5.4 "2018-2025, VideoLAN and dav1d authors" (was 2018-2019), libzvbi v0.2.46 src/* holders + FFmpegBuild stub. FFmpegInspector deprecation fixed; Info.plist now uses MARKETING_VERSION / CURRENT_PROJECT_VERSION
+- Left: CI run (nothing compiled); tester's link/Safari test and fixture-3 bounds run for the first time
+- Files: docs/DEVELOPMENT.md, THIRD_PARTY_NOTICES.md, ios/ClipDeck/Resources/Licenses/{FFmpeg-NOTICE,Other-Components}.txt, ios/ClipDeck/Services/Media/FFmpegInspector.swift, ios/project.yml
+- Gotchas: SIMCTL_CHILD_CLIPDECK_FIXTURES not documented (no code reads it in the app). FFmpegBuild's dav1d licence copy has an outdated year
+
+## 2026-11-20 00:08 · loop-tester · T-012 · round 2
+- Done: all 4 round-1 findings verified fixed. Copyright strings checked upstream (FFmpeg 2000-2026; dav1d 2018-2025 diff-identical; zvbi src/* + DVB + ure.c match). The cString warning is gone from both jobs. The IPA Info.plist says 0.1.0/1; check-ipa-notices passed. The tests passed in 44677264701 (UI launches 18 to 19, so the links/Safari test ran)
+- Verdict: Blocked (verify-only). The simulator job went red only because the artifact upload hit a GitHub timeout, so there are no screenshots/xcresult. On-screen 0.1.0 and ©/ñ/í were not observable
+- Files: ios/ClipDeckUITests/AboutUITests.swift (+testAboutShowsVersionAndNoticeTextIntact), ios/ClipDeckTests/FFmpegFixtureTests.swift (+missingFileErrorCarriesFFmpegMessage): uncommitted, not run
+- Gotchas: a failed upload-artifact step makes the job red even when the tests pass; check the step list before reading it as a test failure
+
+## 2026-11-20 00:25 · loop-tester · T-012 · round 2 addendum
+- Done: read CI 44679269822 (ac3ba1a). The product is right on every point. About shows "Clip Deck, 0.1.0" (tree + screenshot). The links open Safari (about-02/03/04). The FFmpeg copyright line is shown. The Other-Components label is byte-identical to the UTF-8 file (©/ñ/í intact). describe() returns "No such file or directory". The fixture-3 bounds pass
+- Verdict: Blocked (verify-only again). My new About test failed on two test defects: the LabeledContent label is the combined "Clip Deck, 0.1.0", and the element screenshot of the tall Text fails to render. The known ClipExtractor timeout flake also hit
+- Files: ios/ClipDeckUITests/AboutUITests.swift (fixed predicate; app.screenshot instead of the element screenshot): uncommitted, not run
+- Gotchas: on iOS 26 a LabeledContent row in a List is one StaticText labelled "<title>, <value>"; XCUIElement.screenshot() of a very tall Text fails ("Rendering screen failed"). xcresult attachments are plain PNG/text files in Data/data.<payloadRefId>
+
+## 2026-11-20 00:39 · loop-tester · T-012 · round 2 addendum 2
+- Done: CI 44681060076 (cb9c452) fully green: 72/72 tests, 0 issues, including the fixed About version/notice test, the links/Safari test, the describe() message test and the fixture-3 bounds. The ClipExtractor flake passed. The about-06 screenshot shows the © rendered correctly; check-ipa-notices passed
+- Verdict: Pass. All ACs proven; no Must/Should fix open. Could fix: THIRD_PARTY_NOTICES.md ure.* copyright cell lists only CRL
+- Files: none changed in this pass (the test fix was committed by the orchestrator in cb9c452)
+- Left for Brent: Sideloadly install with the six frameworks; About at large Dynamic Type and dark mode
+
+## 2026-11-20 · orchestrator · T-012 · landed
+- Done: T-012 passed (round 2 on Opus + 2 verify-only passes). Squashed to 1489506. CI 44681060076 green (72/72). The FFmpeg libraries, CI fixtures, LICENSE and About screen are in.
+- Left: T-004 (converter, model: opus) is next. Could fix: THIRD_PARTY_NOTICES.md libzvbi ure.* cell should also list Iñaki García Etxebarrria and Michael H. Schimek.
+- Gotchas: Brent's backup fork bman7222/FFmpegBuild exists (tag 3.16.0 = 7de456f). The app still uses upstream. iOS 26 merges a row's label and value into one StaticText ("Clip Deck, 0.1.0"). XCUIElement.screenshot() of a very tall Text fails with "Rendering screen failed".

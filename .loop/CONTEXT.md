@@ -41,3 +41,6 @@ subtitles, turn a subtitle line into an Anki card (audio clip, screenshot, sente
 - `ClipExtractorTests.cutsExactAudioAndScreenshot` can time out on CI (pre-existing flake); `gh run rerun <id> --failed` once before treating it as a failure.
 - Landscape UI evidence: `XCUIElement.screenshot()` of a single element comes out unrotated and correct, and attaching `app.debugDescription` as text records every element's frame. Use these instead of `app.screenshot()`.
 - Landscape panel width rule (Brent): panel content = max(25% of the usable width, 180 pt) + trailing inset, where usable width = full width − both insets. Panel rows are compact (time above the text).
+- CI's "Upload screenshots and test results" step can fail with a GitHub `CreateArtifact ... Request timeout`. That is infrastructure, not code: re-dispatch the workflow (the tests themselves passed if test-ios printed "Tests passed").
+- XCUITest on iOS 26: a List row's label and value are one StaticText ("Clip Deck, 0.1.0"). `XCUIElement.screenshot()` of a very tall Text fails with "Rendering screen failed"; use `app.screenshot()` there.
+- FFmpeg: use `FFmpegInspector` (Services/Media) as the only libav* entry point. Test fixtures come from `scripts/make-test-media.sh` into build/fixtures (env CLIPDECK_FIXTURES / TEST_RUNNER_CLIPDECK_FIXTURES).
