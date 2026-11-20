@@ -1,0 +1,504 @@
+# Handoff log
+<!-- Append-only. One entry per agent run, newest at the bottom. Format: references/state-format.md -->
+
+## 2026-11-19 17:39 · loop-planner · T-001..T-008 · round 0
+- Done: planned T-001..T-008 (GitHub issues #1-#8); wrote spec .loop/specs/mkv-import.md (Proposed: convert MKV to MP4 on import with an LGPL FFmpeg build)
+- Left: T-001, T-002, T-003 are todo. T-004..T-006 blocked on MKV spec approval; T-007 on the paid Apple account decision; T-008 on whether Brent wants an expiry reminder
+- Files: .loop/specs/mkv-import.md, .loop/tasks/T-001..T-008, .loop/BOARD.md
+- Gotchas: landscape panel ratio chosen as 75/25 (1/8 ≈ 106 pt is too narrow); arthenica/ffmpeg-kit is retired, don't use it; landscape UI tests must reset orientation in tearDown; ios-simulator.yml only runs on non-main branches via `gh workflow run`
+
+## 2026-11-19 18:05 · loop-planner · T-001..T-011 · replan
+- Done: applied Brent's decisions. MKV spec Accepted (option A + all defaults), so T-004/T-005/T-006 are now todo. T-003 rewritten as a SideStore on-device refresh guide (docs/INSTALL_ON_IPHONE.md). T-008 unblocked (shown at most once a day from 48 h before expiry, X + swipe, refresh in SideStore). New: T-009 GitHub Release of the IPA (#9), T-010 SideStore source apps.json (#10, blocked), T-011 drag-to-resize landscape panel (#11)
+- Left: T-010 blocked because the repo is PRIVATE (public repo vs separate public release repo); T-007 blocked on a paid account (future path)
+- Files: .loop/specs/mkv-import.md, .loop/tasks/T-002,T-003,T-004,T-007,T-008 (edited), T-009..T-011 (new), .loop/BOARD.md; issues #2-#8 edited/commented, #9-#11 created
+- Gotchas: a new workflow_dispatch workflow can't be started until it's on main, so test release.yml with a `v*` tag push on the loop branch and delete the test release afterwards; SideStore labels, VPN app name and URL scheme are unconfirmed, so cite docs.sidestore.io or the SideStore source
+
+## 2026-11-19 18:20 · loop-planner · T-004,T-005,T-006,T-009,T-010 · replan 2
+- Done: built-in MKV subtitles are now optional and delivered last. T-004 gained AC-6 (an MKV with no subtitle tracks, or only picture ones, converts with no error or warning; tested). T-006 no longer depends on T-005 and uses the normal subtitle-file import. T-005 is now fullstack, depends on T-006, and owns the Embedded subtitles picker. Spec updated to match. T-010 unblocked: Brent chose to make the repo public
+- Left: only T-007 is blocked (paid account). The orchestrator makes the repo public, after a secret scan and Brent's final confirmation, before T-010 is tested
+- Files: .loop/specs/mkv-import.md, .loop/tasks/T-004, T-005, T-006, T-009, T-010, .loop/BOARD.md; issues #4, #5, #6, #9, #10 edited (+ comments on #4, #5, #6, #10)
+- Gotchas: T-005's frontmatter title is quoted because it contains a colon; T-006 should shape EpisodeImporter so T-005 can add subtitle-extraction options without changing its callers much
+
+## 2026-11-19 · loop-frontend · T-001 · round 1
+- Done: landscape full-screen player with tap-to-show overlay controls, 3 s auto-hide, `player.back`, `player.video`; new PlayerLandscapeUITests
+- Left: CI compile + UI tests (nothing compiled locally); T-002 fills the empty trailing slot in `topBar`
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, docs/DESIGN.md, docs/DEVELOPMENT.md
+- Gotchas: overlay is kept in the hierarchy at opacity 0 (not removed) so Menus survive auto-hide; controls hidden = accessibilityHidden
+
+## 2026-11-19 18:45 · loop-planner · T-012,T-004,T-006,T-005 · arch-review revision
+- Done: resolved all 9 /architecture-review findings (review at 7f76886). Saved the review as .loop/specs/mkv-import.review.md with a "Resolved in" line per finding. Revised the spec (package FFmpegBuild 3.16.0, @concurrent core, timeline rule, allow-list, staging + launch sweep, idle timer, iCloud/space, LGPL in-app notices, 5 Homebrew-generated fixtures). Split T-004: new T-012 (#12, fullstack: package, CI fixtures, notices, About screen) comes before T-004 (converter, opus). T-006 and T-005 revised; issues #4, #5, #6 edited and commented
+- Left: open question for Brent: app licence before the repo goes public (recommended MIT); blocks making the repo public, so T-010 testing. T-009 still needs a release-notes link to the FFmpegBuild source tag (its file was outside this revision's scope)
+- Files: .loop/specs/mkv-import.md, .loop/specs/mkv-import.review.md, .loop/tasks/T-012 (new), T-004, T-005, T-006, .loop/BOARD.md
+- Gotchas: SWIFT_APPROACHABLE_CONCURRENCY makes nonisolated async run on the caller's actor, so use @concurrent; OSAllocatedUnfairLock, not Atomic/Mutex (iOS 18); fixtures reach tests through TEST_RUNNER_CLIPDECK_FIXTURES and reach the app through launchEnvironment; T-012 must not touch the PlayerLandscape* UI tests (T-001 is in test)
+
+## 2026-11-19 · orchestrator · T-009
+- Done: added AC-7 (release notes link the FFmpegBuild source tag + THIRD_PARTY_NOTICES.md) from architecture review finding 8
+- Left: Brent to choose the app licence before the repo goes public (gates T-010 testing)
+
+## 2026-11-19 18:20 · loop-tester · T-001 · round 1
+- Done: verified CI run 44635551739 (headSha 135af0e): ipa green, simulator red. `PlayerLandscapeUITests` fails at "Controls start hidden". Unit tests + MiningFlowUITests pass. Portrait screenshots are pixel-identical to main run 42740988540 except the clock
+- Verdict: Fail. Must fix: overlay kept with opacity 0 + accessibilityHidden is still visible to XCUITest (even the always-hidden trailing spacer shows in the tree). Render it only while shown. Should fix: menu-open not in keepsControlsUp; portrait chip +8 pt; landscape chip/subtitle ignore horizontal safe area
+- Files: ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift (new, uncommitted), ios/ClipDeckUITests/PlayerLandscapeUITests.swift (tearDown MainActor + screenshot before assert, uncommitted)
+- Gotchas: the xcresult screen recording (.mp4) can be read on Windows with headless Chrome drawing frames to a canvas (no ffmpeg here). XCUITest ignores SwiftUI accessibilityHidden for existence queries in this setup
+
+## 2026-11-19 · loop-frontend · T-001 · round 2
+- Done: overlay now removed from the view tree when hidden (XCUITest fix); subtitles menu open keeps controls up; portrait chip padding restored; landscape chip and subtitle respect safe-area insets; icon-only Make a Card when the side list is open
+- Left: CI run; nothing compiled locally
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift
+- Gotchas: menu-open flag relies on a simultaneous tap gesture on the Menu; it clears on menu action, next video tap, or rotation
+
+## 2026-11-19 19:00 · loop-planner · T-012,T-010 · licence + stereo decisions
+- Done: Brent's licence (all rights reserved + LGPL-2.1 §6 clause) went into T-012 as AC-5: a plain-words root LICENSE flagged as not legal advice, bundled in the app. The IPA check (AC-6) and the About screen (AC-7) include it; docs are now AC-8. T-010 depends on T-009 and T-012: LICENSE first, then the secret scan, Brent's confirmation, and making the repo public. Spec and review record both decisions; stereo downmix is marked decided by Brent
+- Left: T-009 still needs the release-notes FFmpegBuild source link (orchestrator's edit)
+- Files: .loop/tasks/T-012, T-010, .loop/specs/mkv-import.md, .loop/specs/mkv-import.review.md, .loop/BOARD.md; issues #12, #10 edited, comments on #12, #10, #4
+- Gotchas: T-012's AC numbers shifted (check script is now AC-6, About screen AC-7, docs AC-8); the review file references the new numbers
+
+## 2026-11-19 18:45 · loop-tester · T-001 · round 2
+- Done: verified CI run 44637588062 (headSha be4118f): ipa green, simulator red, 52/53 pass. All round-1 findings fixed; AC-7 test passes now and failed on round-1 code (revert evidence). Portrait screenshots identical to main except the clock
+- Verdict: Fail. Should fix: when the episode plays to its end, PlayerModel.isPlaying stays true (only set in the periodic tick), so landscape controls never return and would auto-hide while stopped. Could fix: subtitleMenuOpen sticks if the menu is dismissed by tapping outside
+- Files: ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift (uncommitted: new menu-open test; end-of-video asserts now follow AC-2 wording)
+- Gotchas: in landscape, XCUITest app.screenshot() is rotated and cropped to the leftmost ~400 pt; use the failing test's screen recording. Headless Chrome renders one recording frame per run reliably (fresh --user-data-dir, --timeout=10000, no virtual-time-budget)
+
+## 2026-11-19 · loop-frontend · T-001 · round 3
+- Done: PlayerModel observes didPlayToEndTime so isPlaying turns false at the end of the video (controls return in landscape, button shows Play)
+- Left: CI run; menu-dismissed-by-outside-tap still keeps controls up until next video tap (documented)
+- Files: ios/ClipDeck/Features/Player/PlayerModel.swift
+- Gotchas: nothing compiled locally; observer token removed in tearDown
+
+## 2026-11-19 18:48 · loop-tester · T-001 · round 3
+- Done: verified CI run 44639515011 (headSha 11ee5f0): ipa green, simulator red, 53/54 pass. End-of-video fix works (controls return on their own, Play shown, stay up). Portrait screenshots identical to main except the clock
+- Verdict: Fail. Should fix: the subtitles menu's simultaneous TapGesture never fires on iOS 26, so while playing the controls auto-hide 3 s after play under the open menu, and the menu then closes (recording DC2CAA09….mp4, t=13.2–15.0 s). AC-2 menu-open case fails
+- Files: ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift (uncommitted: menu appearance wait 2 s → 5 s; XCUITest snapshots lag during playback)
+- Gotchas: Chrome --screenshot fires at page load, before a video seek finishes; extract recording frames over CDP instead (aiohttp + Runtime.evaluate returning canvas data URLs). Gestures attached to a SwiftUI Menu (and to the bar around it) don't fire on iOS 26
+
+## 2026-11-19 · loop-frontend · T-001 · round 4 (opus)
+- Done: landscape subtitles control is now a Button plus `confirmationDialog(isPresented:)`, and its presented state is counted in keepsControlsUp. Portrait keeps its original Menu. Removed the subtitleMenuOpen and TapGesture hacks and the bar restart gestures. The skip buttons call restartHideTimer() directly
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift (tester's 5 s wait kept, plus a dialog-closes assert), docs/DESIGN.md
+- Gotchas: the dialog is attached to the landscape root, not inside the ViewThatFits rows or the removable overlay. Its actions are found with app.buttons[label]
+
+## 2026-11-19 19:14 · loop-tester · T-001 · round 4
+- Done: verified CI run 44642425777 (headSha 60e2fed). Attempt 1: ipa green, simulator 53/54 (ClipExtractorTests timed out in TestMediaFactory, a pre-existing flake). Attempt 2 (re-run of the failed job): 54/54, run-ios green. Portrait identical to main except the clock; the portrait Menu is textually identical to base
+- Verdict: Blocked. The landscape dialog opens and survives the 3 s mark while playing (round-3 symptom gone), but the dialog sits on the root and the 6 s sample ends before the screenshot, so CI has not yet shown the controls staying up. No Must/Should fix found. Could fix: Make a Card no longer restarts the countdown
+- Files: ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift (uncommitted: the menu test now watches player.back while the dialog is open; not run yet)
+- Gotchas: XCUITest keeps screen recordings only for failing tests. The xcresult database.sqlite3 (Activities/TestCaseRuns tables) gives per-step timestamps and per-test results on Windows without xcresulttool
+
+## 2026-11-19 19:23 · loop-tester · T-001 · round 4 addendum
+- Done: verified CI run 44644572562 (headSha 4e13857, stricter menu test only). Both jobs green on the first attempt: 54/54 tests, run-ios passed
+- Verdict: Pass. With the dialog open and the video playing, player.back stayed present at 825.7, 826.8 and 827.7 s, after the 3 s mark (~825.0) and before the sample ended (~828.0). No Must/Should fix. Could fix: Make a Card does not restart the countdown; the dialog's "Load different subtitles" has no test
+- Files: .loop/tasks/T-001-landscape-fullscreen-player.md (Round 4 addendum)
+- Gotchas: XCUITest can see the bar elements behind the landscape confirmationDialog
+
+## 2026-11-19 · orchestrator · T-001 · landed
+- Done: T-001 passed in round 4 (Opus builder, an extra round Brent approved). Squashed to ab238b4 on loop/mkv-landscape-sideload. CI 44644572562 green (54/54).
+- Left: T-002 next. The T-001 Could fix (Make a Card doesn't restart the hide timer, plus a test for "Load different subtitles") was moved into T-002's Agent notes.
+- Gotchas: CI only runs on this branch through `gh workflow run`. ClipExtractorTests.cutsExactAudioAndScreenshot can time out on CI (pre-existing); re-run once. XCUITest landscape screenshots come out rotated and cropped; use the xcresult and the screen recording.
+
+## 2026-11-19 · loop-frontend · T-002 · round 1 (sonnet)
+- Done: landscape subtitle panel (75/25 split from one constant, min 180 pt), `player.panelToggle` in the top bar, `player.sidePanel`, `player.panel.makeCard`; Make a Card holds the controls up while recording; "Show subtitle list" removed from the menus; UI tests added/updated
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift, docs/DESIGN.md, docs/DEVELOPMENT.md
+- Gotchas: landscape layout now ignores the safe area as a whole and bars/panel pad by the insets themselves
+
+## 2026-11-19 19:50 · loop-tester · T-002 · round 1
+- Done: verified CI run 44646676783 (headSha afb033a): ipa green, simulator red, 55/56. The AC-6 panel test passes (25 %/75 % widths, cue tap, panel Make a Card opens the editor). All T-001 landscape tests and MiningFlowUITests pass
+- Verdict: Fail. Must fix: the new "Load different subtitles" test asserts `app.buttons["Show subtitle list"]` doesn't exist, but that query matches the panel toggle's label behind the dialog (fix applied in the test file, not run). Should fix: the trailing safe-area padding leaves ~156 pt in the panel, so the cue text column is ~48 pt (traced, not measured)
+- Files: ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift (uncommitted: assert fix + new AC-3 and AC-4 tests)
+- Gotchas: XCUITest subscript matches labels too, so with two buttons sharing a label, scope by identifier. In this run the landscape screenshots still come out rotated and cropped
+
+## 2026-11-19 · loop-frontend · T-002 · round 2 (sonnet)
+- Done: panel content width = max(25% of usable width, 180) plus the trailing inset on top; compact cue rows (time above text) only in the panel; Make a Card in a ViewThatFits with an icon-only fallback; width test now uses observed frames; card screenshot after card.save. Tester's test edits kept
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, docs/DESIGN.md
+- Gotchas: Swift files here use CRLF; edit with newline preserved
+
+## 2026-11-19 19:52 · loop-tester · T-002 · round 2
+- Done: verified CI run 44648208663 (headSha e615c89). The ipa job is green. The simulator job passed 57 of 58; the one failure is the known ClipExtractorTests timeout flake, and the permission system denied the re-run. All 12 UI tests pass, including the round-1 AC-3/AC-4 tests and the fixed dialog test. Portrait screenshots match main 42740988540 except the clock
+- Verdict: Blocked (verify-only). No Must or Should fix. The implementer's width asserts would also pass with the wrong rule. The tester tightened testSubtitlePanelOpensOnTheRight: it now asserts the exact rule max(25 % usable, 180) + inset, checks that cue.row.1 is ≥ 144 pt, and attaches frames plus debugDescription
+- Files: ios/ClipDeckUITests/PlayerLandscapeUITests.swift (uncommitted, not run yet)
+- Gotchas: this xcresult has no UI hierarchy. Frames only come out when a test attaches them (XCTAttachment(string: app.debugDescription)). The landscape app.screenshot() is still rotated and cropped
+
+## 2026-11-19 21:12 · loop-tester · T-002 · round 2 addendum
+- Done: verified CI run 44658198733 (headSha 9455f7f, the tightened test only). Both jobs green on the first attempt, 58/58. Measured frames: panel 249.3 pt (expected 249.5 = 187.5 + 62 inset), video 624.7 pt (71.5 %), cue row content 187.3 pt, so the text column is 163.3 pt (round 1: about 48). The panel's Make a Card shows its full label
+- Verdict: Pass. No Must or Should fix. Unverified for Brent: how the split feels and how long real lines read on his iPhone
+- Files: .loop/tasks/T-002-landscape-subtitle-panel.md (Round 2 addendum)
+- Gotchas: XCUIElement.screenshot() on the panel gives a correct, unrotated landscape crop, unlike app.screenshot(). An XCTAttachment(string: app.debugDescription) gives every element's frame in the xcresult, and test-ios.sh exports it as .txt
+
+## 2026-11-19 · orchestrator · T-002 · landed
+- Done: T-002 passed after round 2 plus a verify-only pass. Squashed to dbe6201. CI 44658198733 green (58/58).
+- Left: T-011 (resizable divider) is next on the landscape chain; its Agent notes carry Brent's usable-width rule.
+- Gotchas: the round-1 builder's session ended mid-task; a fresh builder resumed from the task file without trouble. The tester can't run `gh run rerun` (permission denied), so the orchestrator asks Brent before any re-run.
+
+## 2026-11-19 · loop-frontend · T-011 · round 1 (sonnet)
+- Done: draggable divider handle (`player.panelHandle`, 44 pt, own DragGesture) resizing the landscape panel between 180 pt and 50 % of the usable width; fraction stored with @AppStorage (default 0.25), saved on drag end; double-tap/VoiceOver reset; drag holds the controls up
+- Left: CI run (nothing compiled locally); the UI test `testPanelHandleResizesRemembersAndResets` is the first real check that press-and-drag drives the handle
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, docs/DESIGN.md, docs/DEVELOPMENT.md
+- Gotchas: the test leaves the stored width at the default; UserDefaults survive between UI-test launches
+
+## 2026-11-19 21:25 · loop-tester · T-011 · round 1
+- Done: checked CI run 44660105956 (headSha 11b22d7). ipa green; simulator red because the UI test target doesn't compile (raw newlines in a string literal, PlayerLandscapeUITests.swift:229-231), so 0 tests ran. The drag, relaunch, reset and T-002 regressions are all unproven
+- Verdict: Fail. Must fix: compile error (tester fixed it in the working tree, not run). Should fix: the handle's 44 pt hit area covers the panel's leading 32 pt for its full height, so taps there don't reach cue rows or Make a Card, and list scrolls that start there resize the panel instead. Could fix: a cancelled drag leaves the live state set (use @GestureState); a handle-test failure cascades into the T-002 width test
+- Files: ios/ClipDeckUITests/PlayerLandscapeUITests.swift (uncommitted: compile fix, AC-5 label/value asserts, far-left 50 % max assert)
+- Gotchas: an empty screenshots manifest plus TestCaseRuns = 0 in the xcresult means the test build failed. Read --log-failed before looking for attachments
+
+## 2026-11-19 · loop-frontend · T-011 · round 2 (sonnet)
+- Done: kept tester's compile fix and AC-5/AC-2 asserts; handle hit area moved 32 pt over the video (bars get 32 pt trailing padding while the panel is open); drag is @GestureState-based, minimumDistance 8, horizontal only; -uiTesting launches reset player.panelFraction unless -uiTestingKeepPanelWidth; new test for a cue-row tap 16 pt from the edge
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeck/App/ClipDeckApp.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift
+- Gotchas: GestureState needs `= nil` for an optional; the resize test's relaunch passes -uiTestingKeepPanelWidth
+
+## 2026-11-19 22:05 · loop-tester · T-011 · round 2
+- Done: verified CI run 44661143691 (headSha c0da745). ipa green; simulator 59/60. All round-1 findings are fixed. press(forDuration:thenDragTo:) drives the handle live on iOS 26.5 (recording: the edge moves 625 → 584 → 520 → 507). +120 pt gives content 307.3 pt (expected 307.5). The toggle and the bar's Make a Card are 12 pt clear of the handle. T-002's exact width holds (249.33 vs 249.5) even after the failed test left 0.41 stored, which proves the -uiTesting reset
+- Verdict: Fail. Should fix: the grip capsule moved with the hit area and now sits 10 pt left of the panel edge, over the video, in a dark 35 % ink (AC-1). The handle test failed at the relaunch because of a test defect: when the player opens already in landscape the controls start up, and tapVideo hid them. The tester fixed this in the test file. Persistence, the 180/50 % limits and the reset are still unshown
+- Files: ios/ClipDeckUITests/PlayerLandscapeUITests.swift (uncommitted: conditional tapVideo in launchWithPanelOpen; bar-clearance asserts plus landscape-05-panel-max attachments at 50 %)
+- Gotchas: frames from the XCUITest recording work through headless Chrome CDP if Chrome opens the .mp4 URL directly (a file:// video from about:blank fails to load). The pre-existing T-001 behaviour: opening the player in landscape shows controls; rotating in hides them
+
+## 2026-11-19 · loop-frontend · T-011 · round 3 (sonnet)
+- Done: grip moved back onto the panel's leading edge (white capsule, dark outline + shadow); drag direction decided once per drag (origin + latch) so a resize is always saved; single tap on the handle toggles the controls (double-tap still resets)
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift
+- Gotchas: handle stays one accessibility element, so no separate grip identifier; tester's test edits kept
+
+## 2026-11-19 22:22 · loop-tester · T-011 · round 3
+- Done: checked CI run 44665692227 (headSha 639a612). ipa green; simulator 59/60. Grip centre at 504.33 vs panel.minX 504.67 (recording frame). Width survives the relaunch (±4). The 180 pt minimum and 50 % maximum asserts pass. All three drags work with the new .onChanged. The round-2 relaunch fix works
+- Verdict: Fail. Must fix: at the 50 % maximum the icon-only bottom row needs 464.3 pt (because of the 32 pt handle clearance) but the video column is 437.7 pt. The ZStack overflows, so the video and bars shift 13.67 pt left and the picture is cropped about 13.7 pt per side (PlayerLandscapeUITests.swift:187, video minX −13.67). This starts above about 46 % on this device. Could fix: the live and save drag latches disagree; the single tap on the handle has no test. AC-4's reset from a non-default width is still unshown
+- Files: .loop/tasks/T-011-resizable-landscape-panel.md (Test report round 3); no test edits
+- Gotchas: video crop can be measured from recording frames: picture height × 16/9 against the column width. A ZStack with one overflowing child (a bar) re-centres every layer, including the video
+
+## 2026-11-19 23:04 · loop-frontend · T-011 · round 4 (opus)
+- Done: the bars are now an overlay on the fixed-width video (leading-aligned, clipped), so they can never widen or shift the column. The bottom row has a third ViewThatFits option without the ±5 s skips (about 242 pt; the row gets about 320 pt at 50 %). A single drag latch (decided in onChanged) drives both the live resize and the save. New tests: a single tap on the handle toggles the controls, and controls start hidden when the player opens in landscape. Controls show on a real pause only (true → false), so landscape always starts hidden
+- Left: CI run (nothing compiled locally)
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlayerLandscapeUITests.swift, docs/DESIGN.md
+- Gotchas: launchWithPanelOpen now asserts the controls are hidden for 2 s and then always taps. An overlay sized by its base view can't resize that view, unlike a ZStack sibling
+
+## 2026-11-19 23:16 · loop-tester · T-011 · round 4
+- Done: verified CI 44672073767 (headSha 35dba5d). Both jobs green, 62/62, run-ios green. At 50 %: video {0,0,437,402} (the full column), back minX 74 (inset + 12), toggle and Make a Card maxX 393 vs handle 405, no ±5 s skips (still present at 41 %). The reset from 50 % runs and passes. The new single-tap and starts-hidden tests pass. A real pause (clip end) still brings the controls back with no tap
+- Verdict: Pass. No Must or Should fix. Could fix: assert that the skips are gone at the max; attach a player.video element screenshot. T-001 AC-2's "stay visible while paused" should be reworded to "once shown …; entering landscape starts hidden"
+- Files: .loop/tasks/T-011-resizable-landscape-panel.md (Test report round 4); no test edits
+- Gotchas: all-green runs keep no screen recordings. Use the -frames attachments and the Activities timestamps
+
+## 2026-11-19 · orchestrator · T-011 · landed
+- Done: T-011 passed in round 4 (an extra round on Opus that Brent approved). Squashed to 3f38205. CI 44672073767 green (62/62). The landscape chain T-001 → T-002 → T-011 is complete.
+- Left: open Could fix items for a future test pass: assert the skips are gone and video width = window − panel at the maximum; attach a player.video element screenshot.
+- Gotchas: new rule (Brent): after any failed Sonnet round, ask him whether to retry on Sonnet or switch to Opus (models.ask_on_sonnet_fail).
+
+## 2026-11-19 · loop-backend · T-012 · round 1 (sonnet)
+- Done: FFmpegBuild 3.16.0 pinned in project.yml; make-test-media.sh (5 fixtures); test-ios.sh exports TEST_RUNNER_CLIPDECK_FIXTURES; CI installs ffmpeg; FFmpegInspector + FFmpegFixtureTests; LICENSE, THIRD_PARTY_NOTICES.md and bundled `Licenses/*.txt`; check-ipa-notices.sh in the ipa job; docs
+- Left: CI run (nothing compiled); frontend builds the About screen (AC-7) from the `Licenses/` resources (contract in the task file)
+- Files: ios/project.yml, scripts/{make-test-media,check-ipa-notices,test-ios,bootstrap}.sh, .github/workflows/ios-simulator.yml, ios/ClipDeck/Services/Media/FFmpegInspector.swift, ios/ClipDeckTests/FFmpegFixtureTests.swift, ios/ClipDeck/Resources/Licenses/, LICENSE, THIRD_PARTY_NOTICES.md, docs
+- Gotchas: avcodec/avformat load AetherLibdav1d and AetherLibzvbi at launch, so six products are linked, not four; the binaries are committed in the package git repo (no checksums); only the native `aac` encoder exists (no aac_at)
+
+## 2026-11-19 · loop-frontend · T-012 · round 1 (sonnet)
+- Done: About and licences screen (`settings.about` row, `AboutView`, `LicenceText` loader with "Licence text missing" fallback), AboutUITests (`about-01-licences`), DESIGN.md row
+- Left: CI run (nothing compiled)
+- Files: ios/ClipDeck/Features/Settings/{AboutView,LicenceText,AnkiSettingsView}.swift, ios/ClipDeckUITests/AboutUITests.swift, docs/DESIGN.md
+- Gotchas: row lives in the Anki settings sheet; XCUI may expose the 26 KB LGPL label oddly
+
+## 2026-11-19 23:45 · loop-tester · T-012 · round 1
+- Done: verified CI 44674913642 (headSha 4ba67bc). Both jobs green; 69/69 tests, including the 6 FFmpegFixtureTests and AboutUITests. All 5 fixtures were generated in CI (brew ffmpeg 9.0.2). The IPA holds the 6 frameworks plus Licenses/ (451,955 → 4,618,295 B). The notice check works in CI and against 7 synthetic IPAs. LICENSE wording matches Brent's choice. The LGPL text is identical to FFmpeg's
+- Verdict: Fail. Should fix: DEVELOPMENT.md lacks CLIPDECK_FIXTURES and the ffmpeg prerequisite (AC-8; still says "no environment variables"). The notices have no FFmpeg/libzvbi copyright line (LGPL-2.1 §6; FFmpeg's is "Copyright (c) 2000-2026 the FFmpeg developers"). Could fix: deprecation warning FFmpegInspector.swift:112; pre-existing Info.plist says 1.0, not MARKETING_VERSION 0.1.0
+- Files: ios/ClipDeckUITests/AboutUITests.swift (new testSourceLinksAreShownAndOpenInSafari), ios/ClipDeckTests/FFmpegFixtureTests.swift (fixture-3 audio 1.5 ±0.05 s): uncommitted, not run yet
+- Gotchas: the about-01 test's `app.links[...]` scroll has no assert and ended at the list top, so links in a List may not be `links`; the new test queries descendants(.any) by identifier. Swift Testing passes record no measured values, so use tight bounds
+
+## 2026-11-19 · loop-backend · T-012 · round 2 (opus)
+- Done: all 4 round-1 findings. DEVELOPMENT.md: ffmpeg test prerequisite, env-var table (SIM_NAME, CLIPDECK_FIXTURES, TEST_RUNNER_CLIPDECK_FIXTURES), Fixtures paragraph. Copyright lines verified upstream: FFmpeg "2000-2026 the FFmpeg developers", dav1d 1.5.4 "2018-2025, VideoLAN and dav1d authors" (was 2018-2019), libzvbi v0.2.46 src/* holders + FFmpegBuild stub. FFmpegInspector deprecation fixed; Info.plist now uses MARKETING_VERSION / CURRENT_PROJECT_VERSION
+- Left: CI run (nothing compiled); tester's link/Safari test and fixture-3 bounds run for the first time
+- Files: docs/DEVELOPMENT.md, THIRD_PARTY_NOTICES.md, ios/ClipDeck/Resources/Licenses/{FFmpeg-NOTICE,Other-Components}.txt, ios/ClipDeck/Services/Media/FFmpegInspector.swift, ios/project.yml
+- Gotchas: SIMCTL_CHILD_CLIPDECK_FIXTURES not documented (no code reads it in the app). FFmpegBuild's dav1d licence copy has an outdated year
+
+## 2026-11-20 00:08 · loop-tester · T-012 · round 2
+- Done: all 4 round-1 findings verified fixed. Copyright strings checked upstream (FFmpeg 2000-2026; dav1d 2018-2025 diff-identical; zvbi src/* + DVB + ure.c match). The cString warning is gone from both jobs. The IPA Info.plist says 0.1.0/1; check-ipa-notices passed. The tests passed in 44677264701 (UI launches 18 to 19, so the links/Safari test ran)
+- Verdict: Blocked (verify-only). The simulator job went red only because the artifact upload hit a GitHub timeout, so there are no screenshots/xcresult. On-screen 0.1.0 and ©/ñ/í were not observable
+- Files: ios/ClipDeckUITests/AboutUITests.swift (+testAboutShowsVersionAndNoticeTextIntact), ios/ClipDeckTests/FFmpegFixtureTests.swift (+missingFileErrorCarriesFFmpegMessage): uncommitted, not run
+- Gotchas: a failed upload-artifact step makes the job red even when the tests pass; check the step list before reading it as a test failure
+
+## 2026-11-20 00:25 · loop-tester · T-012 · round 2 addendum
+- Done: read CI 44679269822 (ac3ba1a). The product is right on every point. About shows "Clip Deck, 0.1.0" (tree + screenshot). The links open Safari (about-02/03/04). The FFmpeg copyright line is shown. The Other-Components label is byte-identical to the UTF-8 file (©/ñ/í intact). describe() returns "No such file or directory". The fixture-3 bounds pass
+- Verdict: Blocked (verify-only again). My new About test failed on two test defects: the LabeledContent label is the combined "Clip Deck, 0.1.0", and the element screenshot of the tall Text fails to render. The known ClipExtractor timeout flake also hit
+- Files: ios/ClipDeckUITests/AboutUITests.swift (fixed predicate; app.screenshot instead of the element screenshot): uncommitted, not run
+- Gotchas: on iOS 26 a LabeledContent row in a List is one StaticText labelled "<title>, <value>"; XCUIElement.screenshot() of a very tall Text fails ("Rendering screen failed"). xcresult attachments are plain PNG/text files in Data/data.<payloadRefId>
+
+## 2026-11-20 00:39 · loop-tester · T-012 · round 2 addendum 2
+- Done: CI 44681060076 (cb9c452) fully green: 72/72 tests, 0 issues, including the fixed About version/notice test, the links/Safari test, the describe() message test and the fixture-3 bounds. The ClipExtractor flake passed. The about-06 screenshot shows the © rendered correctly; check-ipa-notices passed
+- Verdict: Pass. All ACs proven; no Must/Should fix open. Could fix: THIRD_PARTY_NOTICES.md ure.* copyright cell lists only CRL
+- Files: none changed in this pass (the test fix was committed by the orchestrator in cb9c452)
+- Left for Brent: Sideloadly install with the six frameworks; About at large Dynamic Type and dark mode
+
+## 2026-11-20 · orchestrator · T-012 · landed
+- Done: T-012 passed (round 2 on Opus + 2 verify-only passes). Squashed to 1489506. CI 44681060076 green (72/72). The FFmpeg libraries, CI fixtures, LICENSE and About screen are in.
+- Left: T-004 (converter, model: opus) is next. Could fix: THIRD_PARTY_NOTICES.md libzvbi ure.* cell should also list Iñaki García Etxebarrria and Michael H. Schimek.
+- Gotchas: Brent's backup fork bman7222/FFmpegBuild exists (tag 3.16.0 = 7de456f). The app still uses upstream. iOS 26 merges a row's label and value into one StaticText ("Clip Deck, 0.1.0"). XCUIElement.screenshot() of a very tall Text fails with "Rendering screen failed".
+
+## 2026-11-20 02:31 · loop-backend · T-004 · round 1 (opus)
+- Done: MediaProber/MediaProbe (AC-1); pure ConversionPlan with typed UnsupportedMediaError (AC-2); MediaConverter.convert (AC-3/AC-4): Task.detached sync core, an OSAllocatedUnfairLock cancel flag read by AVIOInterruptCB and the packet loop, throttled progress, edit lists, the remux.c pattern, hvc1, AAC-LC stereo transcode via swresample and an audio FIFO. ARCHITECTURE concurrency and timeline rules (AC-8). Pure plan/helper tests plus fixture tests: playable, tracks, duration, edit lists, hvc1, ClipExtractor, colour/beep sync, off-main, heartbeat, cancel
+- Left: CI run (nothing compiled). T-006 builds EpisodeImporter on the contract in the task notes
+- Files: ios/ClipDeck/Services/Media/{FFmpegSupport,MediaProbe,ConversionPlan,MediaConverter}.swift, ios/ClipDeckTests/{ConversionPlanTests,MediaConverterTests}.swift, docs/ARCHITECTURE.md
+- Gotchas: these FFmpeg 8 headers have no avcodec_profile_name (use av_get_profile_name). The DOVI config is in codecpar->coded_side_data. The mp4 muxer has AVFMT_TS_NEGATIVE, so timestamps are kept and movenc writes the edit lists. mux.c rejects unset or non-increasing DTS (hence TimestampFixer). The tests take a fixture's "second 0" from the probe's video start
+
+## 2026-11-20 02:50 · loop-tester · T-004 · round 1
+- Done: read CI 44695949361 (1ecf97a). The ipa job is green: all 4 new Media files compiled for the device. The app target also compiled clean for the simulator (0 errors, 0 new warnings). The test target failed on 1 error, so 0 tests ran
+- Verdict: Fail. Must fix: MediaConverterTests.swift:82 `allSatisfy(\.isText)` inside #expect ("call can throw, but it is not marked with 'try'"). Should fix: trapping Int64 `+` in TimestampFixer and nextAudioPTS (MediaConverter.swift:122,131-132,140,609) lets a malformed MKV crash the app. Should fix: ARCHITECTURE.md lost its `## Decisions` heading. Could fix: an audio decode error aborts the import; the probe can't be cancelled
+- Files: ios/ClipDeckTests/MediaConverterTests.swift:82 (tester's fix `allSatisfy { $0.isText }`, uncommitted), .loop/tasks/T-004-mkv-converter.md (Test report round 1)
+- Gotchas: a key-path argument inside #expect(x.allSatisfy(\.k)) doesn't compile; use a trailing closure. Removing `use_editlist` is not a useful mutation (movenc already defaults to 1); use `use_editlist=0`. xcresult Data/ files are zstd: `zstd -d` them, then grep the build log
+
+## 2026-11-20 · loop-backend · T-004 · round 2 (opus)
+- Done: all 5 round-1 findings.
+  - Kept the tester's line-82 test fix.
+  - TimestampFixer rejects |ts| > 2^60 as `.damagedFile`, finds the median by comparison and uses `&+`; the audio anchor is bounded too. Overflow tests cover .max/.min twice in a row.
+  - `## Decisions` heading restored.
+  - Audio decode errors are skipped like ffmpeg (DecodeErrorBudget: give up past 50 errors that are also over 10 % of packets) and reported in `Report.warnings`.
+  - MediaProber.load is cancellable (shared `ConversionCancelFlag.interruptCallback()`), with 2 tests.
+- Left: CI run (nothing compiled)
+- Files: ios/ClipDeck/Services/Media/{MediaConverter,MediaProbe}.swift, ios/ClipDeckTests/{ConversionPlanTests,MediaConverterTests}.swift, docs/ARCHITECTURE.md
+- Gotchas: the rebase mutation is `use_editlist=0`, not leaving the option out (movenc's default is already 1). Keep `#expect` free of top-level calls with key-path arguments, and of `inout` or mutating calls.
+
+## 2026-11-20 03:25 · loop-tester · T-004 · round 2
+- Done: read CI 44698930097 (60857c0, scope=tests). The simulator job is green: 144/144 test runs Success, 0 issues, 0 skips. Every T-004 test ran, including convertsToAPlayableMP4 × 4, both sync tests, the fixture-3 edit lists, the heartbeat, cancel, the overflow tests and probe cancel. All 5 round-1 findings are fixed
+- Verdict: Pass. No Must or Should fix. Could fix: 3 test warnings ("conditional cast always succeeds", ConversionPlanTests.swift:39/216/345); no test isolates the AVIOInterruptCB (aSetCancelFlagStopsTheProbe also passes via the post-check at MediaProbe.swift:359); passing runs record no measured values
+- Files: .loop/tasks/T-004-mkv-converter.md (Test report round 2); no test edits
+- Gotchas: the xcresult has a `database.sqlite3`. Query TestCaseRuns/TestCases/TestIssues/Arguments with Python's sqlite3 to list every test and its arguments on Windows. Swift Testing passes keep no values, but per-test durations give upper bounds (the cancel test took 0.012 s in total)
+
+## 2026-11-20 · orchestrator · T-004 · landed
+- Done: T-004 passed in round 2 (Opus). Squashed to a2483ee. CI 44698930097 (scope=tests, 144/144) + 44702732605 (scope=ipa) green. The repo went public today, and the loop now runs in ci.mode: conservative.
+- Left: T-006 (upload flow, fullstack, model: opus) is next. Could fix: remove the redundant `as?` casts at ConversionPlanTests :39/:216/:345; add a test proving the interrupt callback fires (ConversionCore.run with the flag already set); record measured values with Attachment.record so green runs keep them.
+- Gotchas: deviations kept by default (Brent can override): H.264 yuvj420p allowed; an MKV with no audio converts video-only with a .noAudioTrack warning.
+
+## 2026-11-20 03:48 · loop-backend · T-006 · round 1 (opus, backend half)
+- Done: `EpisodeImporter`. Prepare: extension, iCloud start + a coordinated read held by `SourceAccess`, free space ≥ size + max(10 %, 200 MB), probe + default plan. Import/relink: stage in tmp/Converting/<uuid>, convert or copy, move with uniquePath, insert + save, roll back moved files/folders/models on failure. Launch sweep in ClipDeckApp; `-uiTesting -uiTestingMKV` seeds fixture 4 through the real importer; 20 unit tests; ARCHITECTURE "Importing episodes"; flag docs in CLAUDE.md/DEVELOPMENT.md
+- Left: the frontend wires UploadEpisodeView and MissingFileView to the CONTRACT in the task file (pickers, audio picker, progress/Cancel, idle timer, background task), writes the MKV UI test and the rest of the AC-8 docs. Nothing compiled yet (CI only)
+- Files: ios/ClipDeck/Services/{EpisodeImporter,SourceAccess}.swift, ios/ClipDeck/App/{ClipDeckApp,RootView}.swift, ios/ClipDeckTests/EpisodeImporterTests.swift, docs/ARCHITECTURE.md, docs/DEVELOPMENT.md, CLAUDE.md
+- Gotchas: progress is a `@MainActor (Double) -> Void`; to cancel, cancel the task (CancellationError, nothing added, PreparedVideo stays open for a retry); call `prepared.close()` when the user picks another file. Tests hold a conversion with `EpisodeImporter.onConversionProgress` + `ConverterGate`
+
+## 2026-11-20 09:06 · loop-frontend · T-006 · round 1 (opus, frontend half)
+- Done: added `VideoImportModel`. It prepares the picked file in a kept task, holds the audio choice and checks its plan, and runs the import with the idle timer off, a background task and the J-5 expiry message. Added `ImportProgressView`. UploadEpisodeView and MissingFileView now go through `EpisodeImporter`: pickers use `[.movie, .item]`, with `upload.audioTrack`, `upload.preparing` and `upload.progress`/`upload.cancelConvert` (and the matching `missing.*` identifiers). Added MKVImportUITests (`mkv-01-player`, `mkv-02-card`) and updated DESIGN, PRODUCT_SPEC, README and DEVELOPMENT
+- Left: CI run (nothing compiled)
+- Files: ios/ClipDeck/Features/Library/{VideoImportModel,ImportProgressView,UploadEpisodeView,SubtitleBrowserView,LibraryView}.swift, ios/ClipDeck/Services/FileStore.swift (removed the unused videoExtensions), ios/ClipDeckUITests/MKVImportUITests.swift, docs/{DESIGN,PRODUCT_SPEC,DEVELOPMENT}.md, README.md
+- Gotchas: a relink starts by itself once prepare is ready (default audio track). Import warnings show in an alert before the sheet closes. A refused pick replaces the previous file
+
+## 2026-11-20 09:35 · loop-tester · T-006 · round 1
+- Done: read CI 44750491956 (b0e466c, scope=all). ipa job green: everything compiles, with no new warnings. 162/165 test runs passed, including all 19 EpisodeImporterTests, both MKVImportUITests (mkv-01/mkv-02 look right), MiningFlowUITests and LaunchUITests. Reviewed the diff (paths, security scope, continuations, docs): no Must or Should fix
+- Verdict: Blocked (verify-only). 3 UI tests the diff doesn't touch failed on taps/timing: AboutUITests/testAboutShowsVersionAndNoticeTextIntact, and in PlayerLandscapeBehaviourUITests ControlsStay… and OpenSubtitlesMenu…. All three passed in 44698930097. I added model tests for AC-3 to AC-6, which need one run
+- Files: ios/ClipDeckTests/VideoImportModelTests.swift (new, 7 tests, not run yet), .loop/tasks/T-006-mkv-upload-flow.md (Test report round 1)
+- Gotchas: those UI flakes aren't in Learned yet. No fixture has 2+ audio tracks, so the upload.audioTrack picker has never been rendered. Every mutation check costs a dispatch in conservative mode, so none were run
+
+## 2026-11-20 10:02 · loop-tester · T-006 · round 1 addendum
+- Done: read CI 44755434228 (41bf53a, scope=tests): simulator green, 172/172 Success, 0 issues. All 7 VideoImportModelTests passed (extension, picker types, space → Add disabled, idle timer on/restored, cancel/failure add nothing, relink via the model), which closes the model-level parts of AC-3 to AC-6
+- Verdict: Pass. No Must or Should fix. Could fix: the coordinated read is held while the sheet sits idle; the ErrorBanner "Try again" may not be a separate VoiceOver button
+- Files: .loop/tasks/T-006-mkv-upload-flow.md (Round 1 addendum); no test edits in this pass
+- Gotchas (Learned candidates): AboutUITests/testAboutShowsVersionAndNoticeTextIntact and PlayerLandscapeBehaviourUITests testControlsStayWhilePausedAndAutoHideWhilePlaying / testOpenSubtitlesMenuKeepsControlsUpWhilePlaying failed once on taps/timing (44750491956) and passed on the re-run with no code change, so they're flaky
+
+## 2026-11-20 · orchestrator · T-006 · landed
+- Done: T-006 passed (1 round on Opus + 1 verify-only pass). Squashed to 428e97c. MKV import works end to end in CI: pick, convert, play, make a card.
+- Left: T-005 (optional built-in subtitles) is held until last, as the spec says. Next in auto mode: T-003 (SideStore guide), then T-009, T-010, T-008. Could fix: the coordinated read is held while the sheet sits idle (check on a device); ErrorBanner hides "Try again" from VoiceOver as its own button.
+
+## 2026-11-20 · loop-backend · T-003 · round 1 (sonnet)
+- Done: wrote docs/INSTALL_ON_IPHONE.md (iloader + LocalDevVPN + SideStore, daily Shortcuts automation with LocalDevVPN "Enable" then SideStore "Refresh All Apps", expiry/data rules, limits, update-in-place) and pointers in README, DEVELOPMENT, ARCHITECTURE
+- Left: tester checks the links; Brent confirms the unconfirmed labels listed at the end of the guide
+- Files: docs/INSTALL_ON_IPHONE.md, README.md, docs/DEVELOPMENT.md, docs/ARCHITECTURE.md, .loop/tasks/T-003-install-past-7-days-guide.md
+- Gotchas: docs-only, no CI needed. Facts sourced from SideStore-Docs @7e441d3, SideStore @4f3d18d, LocalDevVPN @17740a2 (see task notes)
+
+## 2026-11-20 10:11 · loop-tester · T-003 · round 1
+- Done: checked docs/INSTALL_ON_IPHONE.md against AC-1..AC-8 and the sources at the cited SHAs. All links return 200, and only doc files changed. The iloader, LocalDevVPN, trust, Developer Mode, "7 DAYS" and pairing-file steps match the docs
+- Verdict: Fail. Must fix:
+  1. The Shortcuts steps at :51-56 don't match Apple's guide. On iOS 27 you add the trigger via Edit > Automation and allow unattended runs via Privacy > Allow Running When Locked. On iOS 17-26, Run Immediately comes before Next.
+  2. SideStore adds the team ID to the bundle ID by default (OperationContexts.swift:291). A Sideloadly copy is never refreshed, and the SideStore copy starts empty. README:87 invites that path.
+- Should fix: :45 says nothing (Refresh All includes SideStore); the latest green run at :35 has no ClipDeck-ipa; recovery at :65 stops at the reinstall; the computer warning isn't prominent; T-010 isn't mentioned; the Refresh, Missed and Updating sections have no doc links
+- Files: .loop/tasks/T-003-install-past-7-days-guide.md (Test report round 1); no test files
+- Gotchas: "Refresh All" is confirmed in MyAppsViewController.swift:1980. The source tarballs are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-003-r1. Python's `-I` flag ignores PYTHONIOENCODING, so call sys.stdout.reconfigure(encoding='utf-8')
+
+## 2026-11-20 10:27 · loop-backend · T-003 · round 2 (opus)
+- Done: rewrote docs/INSTALL_ON_IPHONE.md.
+  - Shortcuts steps split into iOS 17-26 and iOS 27 from Apple's guide (Allow Running When Locked, optional Wait).
+  - SideStore bundle ID is `dev.brent.clipdeck.<team ID>`, so the Sideloadly copy is separate. New "Moving from Sideloadly to SideStore" section; the app has no library export/import.
+  - Added the SideStore-expired recovery path and a bold warning near the top.
+  - README now recommends SideStore with Sideloadly as the alternative, and lists the guide under Documentation. Updated DEVELOPMENT (new "two icons" row) and ARCHITECTURE.
+- Left: Brent's confirm list (Shortcuts labels on his iOS, overnight run while locked, one copy or two). Recommend a follow-up task "Export and import the library".
+- Files: docs/INSTALL_ON_IPHONE.md, README.md, docs/DEVELOPMENT.md, docs/ARCHITECTURE.md, .loop/tasks/T-003-install-past-7-days-guide.md
+- Gotchas: iloader's "Install SideStore (Stable)" installs `releases/latest` = 0.7.0-alpha, not develop. Code facts were checked at 4f3d18d, 0.7.0-alpha and 0.6.3. Apple's iOS 26 guide says "Ask Before Running › Don't Ask", not "Run Immediately".
+
+## 2026-11-20 10:36 · loop-tester · T-003 · round 2
+- Done: every round-1 finding (2 Must, 6 Should, all Could) is fixed, with evidence. I re-checked:
+  - Apple's iOS 26 and iOS 27 Shortcuts pages, fetched today: they match :62-80.
+  - SideStore 0.7.0-alpha (`releases/latest`, the one iloader Stable installs; sideload.rs:126-130) and 4f3d18d: team-ID suffix, Refresh All includes SideStore last, the + button, .ipa share-in.
+  - Links: 16/16 return 200. Anchors: 15/15 resolve. Only docs changed.
+- Verdict: Fail.
+  - Must fix: the Moving section says the Sideloadly copy "still expires 7 days after" its install. iloader ("Maximum certificates reached … will revoke your existing certificates", en.json:78-79) and SideStore (free account = 1 cert, CodeSignValidator.swift:19) say setup can revoke Sideloadly's certificate, so that copy stops opening right away. Sync cards and write the list before setup step 1.
+  - Should fix: warn that an iOS update can break the pairing file while Brent is away (install.mdx), and handle the case where only one Clip Deck icon appears in the Moving steps.
+- Files: .loop/tasks/T-003-install-past-7-days-guide.md (Test report round 2); no test files
+- Gotchas: the 0.7.0-alpha tag object is 193ae6e and its commit is 6032424. The tarball and the iloader files are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-003-r2-test
+
+## 2026-11-20 10:55 · loop-backend · T-003 · round 3 (opus)
+- Done: rewrote "Moving from Sideloadly to SideStore" short.
+  - Sync until "Everything is in Anki." before setup step 1, and expect the old copy to stop opening (one certificate per free account).
+  - Re-add the episode in the SideStore copy. Delete the old copy only if there are two icons and the new one plays.
+  - Added the iloader "Maximum certificates reached" note at step 4, a bold "iOS updates can break the pairing file" warning (top + refresh section) and the could-fix wording.
+  - README "Pick one" and DEVELOPMENT :12/:69/:176 now say the two tools revoke each other's certificate on one Apple ID.
+- Left: Brent's confirm list. The orchestrator can drop the export/import follow-up (Brent declined it).
+- Files: docs/INSTALL_ON_IPHONE.md, README.md, docs/DEVELOPMENT.md, docs/ARCHITECTURE.md, .loop/tasks/T-003-install-past-7-days-guide.md
+- Gotchas: Clip Deck's empty sync state reads "Everything is in Anki." (SyncView.swift:23), not "0 waiting". The Bash tool's heredocs choke on some multi-line text here, so write files with Write and then `cat >>`.
+
+## 2026-11-20 10:44 · loop-tester · T-003 · round 3
+- Done: all round-2 findings are fixed, with evidence. M1: sync before setup step 1 via :9 and Moving step 1, and the old copy is expected to stop opening. S1: an iOS-update warning at :7 and :52 that quotes install.mdx:73. S2: one icon means delete nothing. All the Could fix items are done too. The literal walk-through checks out: cards can't be lost, the only copy can't be deleted, and the iOS-update risk is warned about before a trip. "Everything is in Anki." is at SyncView.swift:23, and it counts pending and failed cards. Links: 15/15 return 200. Anchors: 18/18 resolve. Only docs changed.
+- Verdict: Pass. No Must or Should fix. Could fix:
+  - C1: no fallback if the Sideloadly copy has already expired at step 1.
+  - C2: check that the source video and subtitles exist before setup.
+  - C3: the flat "each revokes the other" (README:93, DEV:12/:176, guide :129) vs the guide's "will likely". The Sideloadly direction is only inferred.
+  - C4: quote the "random times" half of install.mdx:73, and give the Automatic Updates path.
+  - C5: the old copy uses an app slot.
+- Files: .loop/tasks/T-003-install-past-7-days-guide.md (Test report round 3); no test files
+- Gotchas: the iloader en.json and today's live install/faq pages are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-003-r3-test
+
+## 2026-11-20 · orchestrator · T-003 · landed
+- Done: T-003 passed in round 3 (round 1 sonnet, rounds 2-3 opus; Brent chose Opus after the Sonnet fail). Squashed to 9a66a4a. Docs only, so no CI.
+- Left: T-009 is next and carries T-003's Could fix items C1-C5. Brent declined an export/import task (he has 1 episode and will re-upload it).
+- Gotchas: SideStore installs Clip Deck as dev.brent.clipdeck.<teamID>, and setting it up with the same free Apple ID revokes Sideloadly's certificate.
+
+## 2026-11-20 · loop-backend · T-009 · round 1 (sonnet)
+- Done: release.yml (tag v* / dispatch, validated version via env, notices check, plist check, sha256, notes with FFmpeg tag link, gh release create), build-ipa.sh optional version env vars, Getting the IPA now points to Releases, new "Cutting a release" section, T-003 C1-C5
+- Left: tester runs the rc tag from the loop branch, cleans up with gh release delete --cleanup-tag
+- Files: .github/workflows/release.yml, scripts/build-ipa.sh, docs/INSTALL_ON_IPHONE.md, README.md, docs/DEVELOPMENT.md
+- Gotchas: prerelease versions (with -) are not marked latest; YAML and bash only syntax-checked locally
+
+## 2026-11-20 10:53 · loop-tester · T-009 · round 1
+- Done: checked release.yml run 44767085601 (tag v0.1.1-rc1, success). I downloaded the release, with and without auth. The IPA plist has 0.1.1-rc1, build 1 and dev.brent.clipdeck, the sha256 matches, the notes link FFmpegBuild 3.16.0, THIRD_PARTY_NOTICES and LICENSE (all 200), and the notices check passed in the log
+- Done: ran the workflow's own run: blocks locally. Version validation, 16 cases. Overwrite refusal against the real repo ("Release v0.1.1-rc1 already exists"). --latest vs --prerelease flags. The plist check catches wrong values. build-ipa.sh against stub xcodebuild: unchanged args without the vars
+- Verdict: Pass. Could fix only: GH_TOKEN at job level plus a persisted checkout token, a misleading "push the tag" hint, raw input in ::error::, leading zeros accepted, checkout not SHA-pinned
+- Left: the orchestrator deletes release v0.1.1-rc1 (--cleanup-tag). A real workflow_dispatch can only run after merge. Brent installs from Safari with SideStore
+- Files: .loop/tasks/T-009-github-release-ipa.md (Test report round 1); no repo test files (stub harnesses in %LOCALAPPDATA%\Temp\clip-deck-loop\T-009-r1)
+- Gotchas: rc tags are published as pre-releases, so /releases/latest stays 404 until a plain vX.Y.Z tag is pushed. `gh release view --json` has no isLatest field
+
+## 2026-11-20 · orchestrator · T-009 · landed
+- Done: T-009 passed in round 1 (sonnet). Squashed to e6138e1. Release run 44767085601 on test tag v0.1.1-rc1 green; the test release and tag were deleted afterwards.
+- Left: T-010 (SideStore source) is next and carries T-009's workflow hardening. No real release exists yet: Brent cuts the first one (e.g. v0.2.0) once the branch is merged, or the loop can tag one when he asks.
+
+## 2026-11-20 · loop-backend · T-010 · round 1 (sonnet)
+- Done: scripts/make-source-json.py (+ scripts/test-make-source-json.py), release.yml step that regenerates and uploads apps.json for stable releases, T-009 hardening (token scoping, persist-credentials, message, newline-safe error, no leading zeros), install guide section for the source
+- Left: tester needs a stable-looking tag run to exercise the apps.json step; repo is public
+- Files: scripts/make-source-json.py, scripts/test-make-source-json.py, .github/workflows/release.yml, scripts/build-ipa.sh, docs/INSTALL_ON_IPHONE.md
+- Gotchas: SideStore links updates via installedApp.storeApp (set only when installed from the source), not by bundle ID, so the team-ID suffix is harmless but a file-imported copy never sees updates. Release notes now carry "Build number: N", which the script needs. /releases/latest/download/apps.json 404s until a non-pre-release exists.
+
+## 2026-11-20 12:53 · loop-tester · T-010 · round 1
+- Done: verified the real release v0.2.0 (run 44786901731, green; the apps.json step ran). The release is latest, not a pre-release, has 3 assets, and its notes start "Build number: 2". All links return 200 without auth
+- Done: the anonymous apps.json passes json.tool and --check. The IPA's bytes, sha256, version 0.2.0, build 2 and dev.brent.clipdeck all equal apps.json, so SideStore's VerifyAppOperation checks (4f3d18d :56-163) would pass. The log confirms the hardening: GH_TOKEN on 3 steps only, auth removed after checkout. The local test script passes and catches all 4 mutations
+- Verdict: Pass. Could fix only:
+  - versions are sorted by publish date, not by version
+  - no documented recovery if the apps.json step fails (a re-run is refused)
+  - the in-app version notes tell you to share the IPA
+  - checkout@v4 Node 20 warning
+- Left: Brent checks on the phone: add the source, install from it over the current copy, get the update on the next release
+- Files: .loop/tasks/T-010-sidestore-source.md (Test report round 1); no test files
+- Gotchas: a SideStore source without a top-level "version" key is v1, so it needs no appPermissions. Adding "version": 2 would require declaring NSLocalNetworkUsageDescription. Scratch files are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-010-r1
+
+## 2026-11-20 · orchestrator · T-010 · landed
+- Done: T-010 passed (1 round, sonnet). Squashed to 46fa8aa. First real release **v0.2.0** published (Brent's choice), with tag v0.2.0 pointing at the pre-squash commit 8d21225 (same tree). Source URL: https://github.com/bman7222/clip-deck/releases/latest/download/apps.json
+- Left: T-008 (expiry banner) is next, then optional T-005. Open follow-ups (Could fix, no task yet): make-source-json.py should sort versions by semver rather than published_at; document the apps.json recovery (or attach it in gh release create); reword the version notes shown inside SideStore; actions/checkout v5.
+
+## 2026-11-20 · loop-backend · T-008 · round 1 (sonnet, backend half)
+- Done: `InstallExpiry` (profile parser, 48 h decision, Debug `-uiTestingExpiry`, banner/settings strings) and `ExpiryReminderStore` (last-dismissed local day in UserDefaults), 24 unit tests, `LSApplicationQueriesSchemes: [sidestore]` in project.yml
+- Left: frontend banner, Anki settings row, UI test, docs for the launch flag
+- Files: ios/ClipDeck/Services/InstallExpiry.swift, ios/ClipDeckTests/InstallExpiryTests.swift, ios/project.yml
+- Gotchas: `sidestore://` confirmed in SideStore@4f3d18d AltStore/Info.plist; nothing compiled locally (CI only); UI-test launches must use the "uiTesting" defaults suite for the store; certificate expiry skipped (not cheap)
+
+## 2026-11-20 · loop-frontend · T-008 · round 1 (sonnet, frontend half)
+- Done: ExpiryBanner (X, swipe, Open SideStore with failure message), library wiring (read once, re-eval on scenePhase active), Anki settings expiry line, 3 UI tests, `-uiTestingKeepExpiryDismissal` flag, docs
+- Left: CI run; tester to check element queries and screenshots; Brent taps Open SideStore once on device
+- Files: ios/ClipDeck/Features/Library/ExpiryBanner.swift, LibraryView.swift, Features/Settings/AnkiSettingsView.swift, App/ClipDeckApp.swift, ios/ClipDeckUITests/ExpiryBannerUITests.swift, CLAUDE.md, docs/DEVELOPMENT.md
+- Gotchas: new files need xcodegen (sources are folder-based, CI runs it); the suite-clearing in ClipDeckApp keeps the dismissal key only with the new flag
+
+## 2026-11-20 13:31 · loop-tester · T-008 · round 1
+- Done: read run 44788627149. The ipa job is green, and the IPA plist has LSApplicationQueriesSchemes ['sidestore'] and no profile. Simulator: 197 pass, 2 fail, both test-side: the launch wait was 10 s but sample seeding took about 17 s, and the Settings row is below the fold of a lazy Form. All 24 InstallExpiryTests passed, and every existing UI suite passed, including the known flakes.
+- Verdict: Fail. S1: at AX-L the "Open SideStore" label truncates to "Open SideS..." (ExpiryBanner.swift:30-40), so AC-7's "wraps" is not met. Could fix C1-C6 are in the task file.
+- Tests: fixed ExpiryBannerUITests (60 s launch wait, scroll to settings.expiry, @MainActor helpers, a relaunch without the flag shows the banner). Added swipe and open-fails tests. Next run: only_testing=ClipDeckUITests/ExpiryBannerUITests, scope=tests.
+- Files: ios/ClipDeckUITests/ExpiryBannerUITests.swift, .loop/tasks/T-008-install-expiry-reminder.md
+- Gotchas: the xcresult can be read on Windows through its database.sqlite3 (TestIssues, Activities, Attachments) plus screenshots/ui-tests/manifest.json. RootView's "Preparing sample episode…" can last about 17 s on CI, so wait at least 30 s after a seeded launch.
+
+## 2026-11-20 · loop-frontend · T-008 · round 2 (sonnet)
+- Done: banner wraps at accessibility sizes (icon and X in a top row, full-width message, wrapping "Open SideStore" label), scaled X glyph, removed LSApplicationQueriesSchemes from project.yml
+- Left: CI rerun; tester re-checks expiry-02-large-text; C2/C4/C5/C6 not done
+- Files: ios/ClipDeck/Features/Library/ExpiryBanner.swift, ios/project.yml
+- Gotchas: no canOpenURL anywhere; failure of openURL is handled by its completion handler
+
+## 2026-11-20 14:31 · loop-tester · T-008 · round 2
+- Done: read run 44796687521 (scope=all, 8439051). Both jobs are green, and 201/201 tests pass with 0 issues, including all 5 ExpiryBannerUITests (relaunch reset, swipe, open-failed, settings scroll) and every earlier suite with the known flakes. The IPA plist has no LSApplicationQueriesSchemes and no profile.
+- Screenshots: expiry-02-large-text shows the AX layout with "Open SideStore" fully visible and the toolbar clear, so S1 is fixed. expiry-03-open-failed shows the error text under the button.
+- Verdict: Pass. Could fix only: C7 (the large-text test can't detect truncation; AX5 would show the button label wrap), plus C2/C4/C5/C6 from round 1.
+- Files: .loop/tasks/T-008-install-expiry-reminder.md (Test report round 2); no test files changed
+- Gotchas: scratch files are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-008-r2. The xcresult database.sqlite3 (TestCaseRuns, Activities) gives per-test results on Windows.
+
+## 2026-11-20 · orchestrator · T-008 · landed
+- Done: T-008 passed in round 2 (sonnet). Squashed to 0adca02. CI 44796687521 green (201/201). Every required task is now done; only optional T-005 and blocked T-007 remain.
+- Left: v0.2.0 was released before T-008, so the expiry banner reaches the phone only in the next release (e.g. v0.3.0). Open Could fix: C7 (a test that catches a cut-off label at AX5), C2, C4-C6.
+
+## 2026-11-20 · loop-backend · T-005 · round 1 (sonnet, backend half)
+- Done: Swift .srt/.ass writer (`SubtitleFileWriter`) fed by the converter's packet loop, `ConversionPlan` subtitle rules (default track, names, picture tracks unusable), importer options (`embeddedSubtitleStreams`, `chosenSubtitleStream`), `PreparedVideo.subtitleTracks`, staging in `Embedded/`, rollback with the video, about 40 tests
+- Left: frontend upload row (`upload.embeddedSubtitle`), seed Episode 2, UI test, PRODUCT_SPEC; the contract is in the task file
+- Files: ios/ClipDeck/Services/Media/SubtitleFileWriter.swift, ConversionPlan.swift, MediaConverter.swift, Services/EpisodeImporter.swift, FileStore.swift (safeName nonisolated), ios/ClipDeckTests/EmbeddedSubtitleTests.swift, docs/ARCHITECTURE.md
+- Gotchas: nothing compiled (CI only); assumes Matroska ASS packets are ReadOrder,Layer,... and WebVTT packets are identifier, settings, payload lines; fixture cue times are checked as source + the video's first-frame time
+
+## 2026-11-20 · loop-frontend · T-005 · round 1 (sonnet, frontend half)
+- Done: `upload.embeddedSubtitle` picker + greyed unusable tracks + footer note, model options pass all usable streams, seed Episode 2 (fixture 1), UI test for embedded cues and picker list, docs
+- Left: CI run; tester checks compile of `Int?` Picker tags and the new UI test; Brent checks a real MKV
+- Files: ios/ClipDeck/Features/Library/UploadEpisodeView.swift, VideoImportModel.swift, ios/ClipDeck/App/RootView.swift, ios/ClipDeckUITests/MKVImportUITests.swift, docs/DESIGN.md, docs/PRODUCT_SPEC.md, CLAUDE.md
+- Gotchas: ASS file name in the picker isn't hardcoded in the test (matches `2 *.ass`); nothing compiled
+
+## 2026-11-20 15:00 · loop-tester · T-005 · round 1
+- Done: read CI 44806223525 (61bb9a4). Both jobs fail to compile with parse errors only, at ConversionPlan.swift:95-96: the WebVTT doc comment holds real line breaks where `\n` was meant. No test ran. I traced the rest by hand and found no other compile error
+- Done: FFmpeg n8.1 source shows Matroska ASS packets are ReadOrder,Layer,... (assumption 1 is right). WebVTT packets are the payload only, with identifier and settings in side data (assumption 3 is wrong → S1, 3+-line cues lose 2 lines)
+- Verdict: Fail. M1 the parse error. S1 WebVTT. S2 unbounded language / byte length of the file name fails the whole import. C1-C5 are in the task file
+- Tests: added ios/ClipDeckTests/EmbeddedSubtitleTesterTests.swift (AC-6 model, WebVTT payload, name limit and containment, fixture 3 on the MP4's AVFoundation clock). The WebVTT and name-limit tests fail until S1/S2 are fixed
+- Gotchas: Swift stops at parse errors, so a clean parse may expose type errors CI hasn't shown. Next run should be scope=all (nothing has run yet). Scratch is in %LOCALAPPDATA%\Temp\clip-deck-loop\T-005-r1
+
+## 2026-11-20 · loop-backend · T-005 · round 2 (sonnet)
+- Done: fixed the parse error (webVTT doc comment), WebVTT packets kept as payload, subtitle file names capped (16-char language, 200 bytes), a failed write of a non-chosen track is now a warning, C1-C4 (stop decoding dropped tracks, safeName strips control characters, "format not supported" wording, DESIGN parenthesis)
+- Left: CI run; tester re-checks all ACs (nothing ran in round 1)
+- Files: Services/Media/ConversionPlan.swift, MediaConverter.swift, SubtitleFileWriter.swift, Services/EpisodeImporter.swift, FileStore.swift, Features/Library/UploadEpisodeView.swift (wording), ClipDeckTests/EmbeddedSubtitleTests.swift, docs/DESIGN.md
+- Gotchas: the round-1 parse error came from a `\n` in a Python edit script; chosen-track write failure still fails the import by design
+
+## 2026-11-20 16:07 · loop-tester · T-005 · round 2
+- Done: read CI 44812195849 (5a71053). It compiles for the first time: the ipa job is green, and the simulator passes 245/246. Every T-005 test passes, including all tester tests (WebVTT payload, name limits, folder containment, AC-6 model, fixture 3 on the MP4 clock), MKVImportUITests embedded test (mkv-03 shows the 3 Japanese cues; mkv-04 lists `1 jpn SRT.srt` and `2 jpn Full.ass`), and all known flakes
+- Done: M1, S1, S2 (names) and C1-C5 are fixed. The S2 warning path is traced only
+- Verdict: Blocked, NEEDED: verify-only pass. The only failure is the builder's stale `EmbeddedSubtitleRuleTests.webVTTPacketsAreWrittenLikeSubRipWithEveryLine` expectation (it still expected the pre-S1 dropped lines). I fixed it in the test file. Run scope=tests only_testing=ClipDeckTests/EmbeddedSubtitleRuleTests
+- Could fix: C6 safeName's controlCharacters includes Cf (ZWJ/ZWNJ/soft hyphen), which can orphan existing folders whose names contain them. C7 the chosen track is still "required" when the user's own file wins. C8 no test for `.subtitleNotSaved`
+- Files: ios/ClipDeckTests/EmbeddedSubtitleTests.swift (expectation), .loop/tasks/T-005-mkv-embedded-subtitles.md
+- Gotchas: scratch files are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-005-r2. A full scope=all simulator run takes about 33 min
+
+## 2026-11-20 16:18 · loop-tester · T-005 · round 2 addendum
+- Done: verify-only run 44817982486 (141d94f, scope=tests, only EmbeddedSubtitleRuleTests) is green: 19/19 pass with 0 issues, including the deciding `webVTTPacketsAreWrittenLikeSubRipWithEveryLine`. The commit changes only that test file
+- Verdict: Pass. AC-1..AC-7 are met using 44812195849 (ipa green, 245/246) plus this run
+- Left: C6 (safeName strips Cf format characters), C7 and C8 go to the orchestrator's loose-ends pass. Brent checks a real MKV with ASS Full/Signs tracks
+- Files: .loop/tasks/T-005-mkv-embedded-subtitles.md (Round 2 addendum)
+- Gotchas: an only_testing run of one unit suite takes about 6 min end to end
+
+## 2026-11-20 · orchestrator · T-005 · landed; T-013 planned
+- Done: T-005 passed (2 sonnet rounds + 1 verify-only pass). Squashed to ee09056. Every feature task is done.
+- Left: T-013 (tidy up loose ends, written by the orchestrator at Brent's request) is next. Then update CLAUDE.md status, ask Brent about merging to main, release v0.3.0, and give him the phone instructions.
+
+## 2026-11-20 · loop-backend · T-013 · round 1 (sonnet)
+- Done: AC-1..AC-8 (safeName Cc only, picked subtitle file makes chosen track non-required, semver ordering + SideStore notes + recovery doc, checkout@v5, ErrorBanner a11y, test tidy-ups + interrupt-callback test, notices row)
+- Left: CI run for the Swift changes (nothing compiled locally); `python scripts/test-make-source-json.py` passes
+- Files: FileStore.swift, EpisodeImporter.swift, Components.swift, 3 test files, make-source-json.py (+test), 2 workflows, INSTALL_ON_IPHONE.md, THIRD_PARTY_NOTICES.md
+- Gotchas: `PreparedVideo.plan(for:userPickedSubtitleFile:)` new param; a later hotfix release would become GitHub "latest"
+
+## 2026-11-20 17:45 · loop-tester · T-013 · round 1
+- Done: read CI 44819926161 (28ad26f, scope=all). Both jobs are green: 251/251 pass with 0 issues, including the 5 new tests and every known flake. The 3 `as?` "always succeeds" warnings are gone, and there are no Swift warnings. The 06-sync banner screenshot matches the previous run pixel for pixel. The documented recovery generate+check commands work against the live repo, and SideStore shows the notes with a tappable link
+- Verdict: Fail. S1: ios-simulator.yml still gives the Node 20 warning, from actions/upload-artifact@v4 (:60, :91); bump it to @v6. C1-C3 are in the task file
+- Tests: test-make-source-json.py (v0.10.0 published before v0.3.0, check_source numeric order); MiningFlowUITests AC-6 assertion (the banner action is its own button), not run yet
+- Files: scripts/test-make-source-json.py, ios/ClipDeckUITests/MiningFlowUITests.swift, .loop/tasks/T-013-tidy-up-loose-ends.md
+- Gotchas: drive C: was at 0 MB free during this run (about 160 MB after I removed my own scratch). This run's simulator-results artifact is only 13.5 MB zipped, and the xcresult database.sqlite3 has per-test results
+
+## 2026-11-20 · loop-backend · T-013 · round 2 (sonnet)
+- Done: upload-artifact@v4 to @v6 (both jobs), check_source rejects non-X.Y.Z versions (+test), python3 note in the recovery doc
+- Left: CI run to confirm the Node 20 warning is gone and the AC-6 UI assertion passes; C3 not done
+- Files: .github/workflows/ios-simulator.yml, scripts/make-source-json.py, scripts/test-make-source-json.py, docs/INSTALL_ON_IPHONE.md
+- Gotchas: tester's edits in test-make-source-json.py and MiningFlowUITests.swift kept
+
+## 2026-11-20 18:22 · loop-tester · T-013 · round 2
+- Done: read CI 44833382185 (356f2e7, scope=all). Both jobs are green: 251/251 pass with 0 issues and 0 skips, including every known flake and the round-1 tester's MiningFlowUITests AC-6 assertion (the xcresult activities show the button wait, the StaticText check, the tap and settings.url)
+- Done: S1 is fixed. Neither job has a Node 20 annotation (capacity notice only), and both jobs run upload-artifact@v6 (node24). The local make-source-json test passes, and removing the new version check makes it fail
+- Verdict: Pass. One Could fix: the version regex's `$` accepts a trailing newline
+- Files: .loop/tasks/T-013-tidy-up-loose-ends.md (Test report round 2)
+- Gotchas: run logs only become available after the whole run finishes. The simulator-results artifact is about 15 MB
+
+## 2026-11-20 · orchestrator · T-013 · landed; goal complete
+- Done: T-013 passed (2 sonnet rounds). All 12 buildable tasks are done; T-007 stays blocked (paid account). CLAUDE.md "Current status" updated.
+- Left: Brent decides whether to merge loop/mkv-landscape-sideload into main, then release v0.3.0. Open Could fix: make-source-json.py version regex accepts a trailing newline (use re.fullmatch).

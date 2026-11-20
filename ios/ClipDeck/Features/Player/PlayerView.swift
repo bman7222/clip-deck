@@ -2,7 +2,7 @@ import SwiftData
 import SwiftUI
 
 /// Episode player. Portrait is laid out like a 3DS: video is the "top screen", and the controls
-/// plus the subtitle list form the "bottom screen". In landscape the list is a side pop-out.
+/// plus the subtitle list form the "bottom screen". In landscape the list is a side panel (a quarter of the screen).
 struct PlayerView: View {
     @Bindable var episode: Episode
     @Environment(\.modelContext) private var context
@@ -17,15 +17,44 @@ struct PlayerView: View {
     @State private var miningError: String?
     @State private var draft: CardDraft?
     @State private var toast: String?
+    @State private var isLandscape = false
+    @State private var controlsVisible = false
+    @State private var hideTask: Task<Void, Never>?
+    @State private var topBarHeight: CGFloat = 60
+    @State private var bottomBarHeight: CGFloat = 100
+    /// Landscape subtitles dialog. A presented state SwiftUI clears itself, so it can hold the controls up.
+    @State private var subtitleDialogOpen = false
+    /// The panel width the user chose, as a fraction of the usable width (screen width minus both insets).
+    @AppStorage("player.panelFraction") private var storedPanelFraction: Double = Double(PlayerView.panelFraction)
+    /// The handle drag in progress (where it started and its horizontal translation). A GestureState resets
+    /// itself when the gesture ends or is cancelled, so a cancelled drag can't leave the panel or the auto-hide stuck.
+    @GestureState private var panelDrag: PanelDrag? = nil
+    /// The one direction latch for a handle drag: where the drag started, and whether its first event was
+    /// mostly horizontal (a resize). Decided once, in `onChanged`. The live resize (`liveResizeX`) and the
+    /// save in `onEnded` both read it, so a drag that resizes live is always saved and one that doesn't never moves the panel.
+    @State private var panelDragOrigin: CGPoint?
+    @State private var panelDragResizes = false
+    @Environment(\.dismiss) private var dismiss
+    @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverOn
 
     private let store = FileStore.live
+
+    /// Default share of the usable width the landscape subtitle panel takes.
+    private static let panelFraction: CGFloat = 0.25
+    /// The panel can be dragged up to this share of the usable width.
+    private static let panelMaxFraction: CGFloat = 0.5
+    /// The handle's 44 pt touch area reaches this far over the video, so the bars keep this much trailing
+    /// padding while the panel is open and the toggle and Make a Card stay clear of it.
+    private static let panelHandleClearance: CGFloat = 32
+    /// The panel is never narrower than this many points.
+    private static let panelMinWidth: CGFloat = 180
 
     var body: some View {
         Group {
             if let model {
                 GeometryReader { geometry in
                     if geometry.size.width > geometry.size.height {
-                        landscape(model)
+                        landscape(model, size: geometry.size, insets: geometry.safeAreaInsets)
                     } else {
                         portrait(model)
                     }
@@ -35,10 +64,34 @@ struct PlayerView: View {
                     .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
-        .background(Theme.shell)
+        .background(isLandscape ? Color.black : Theme.shell)
+        .background {
+            GeometryReader { proxy in
+                Color.clear.onChange(of: proxy.size, initial: true) { _, size in
+                    let landscape = size.width > size.height
+                    guard landscape != isLandscape else { return }
+                    isLandscape = landscape
+                    // Entering or leaving landscape always starts with the controls hidden.
+                    controlsVisible = false
+                    subtitleDialogOpen = false
+                    hideTask?.cancel()
+                }
+            }
+        }
         .navigationTitle(episode.title)
         .navigationBarTitleDisplayMode(.inline)
         .toolbarBackground(Theme.shell, for: .navigationBar)
+        .toolbar(isLandscape ? .hidden : .automatic, for: .navigationBar)
+        .statusBarHidden(isLandscape && !controlsShown)
+        .persistentSystemOverlays(isLandscape ? .hidden : .automatic)
+        .onChange(of: model?.isPlaying) { wasPlaying, playing in
+            // Pausing (or a finished clip) brings the controls back; playing starts the countdown.
+            // Only a real pause counts (true -> false). The model appearing paused (nil -> false) does not, so
+            // landscape always starts with the controls hidden, also when the player opens already in landscape.
+            if isLandscape, wasPlaying == true, playing == false { controlsVisible = true }
+            restartHideTimer()
+        }
+        .onChange(of: keepsControlsUp) { restartHideTimer() }
         .onAppear(perform: setUp)
         .onDisappear {
             if let model {
@@ -83,7 +136,7 @@ struct PlayerView: View {
 
     private func portrait(_ model: PlayerModel) -> some View {
         VStack(spacing: 0) {
-            videoScreen(model)
+            videoScreen(model, onTap: { model.togglePlay() })
                 .aspectRatio(16 / 9, contentMode: .fit)
             VStack(spacing: 0) {
                 controls(model)
@@ -100,43 +153,275 @@ struct PlayerView: View {
         }
     }
 
-    private func landscape(_ model: PlayerModel) -> some View {
-        HStack(spacing: 0) {
-            VStack(spacing: 0) {
-                videoScreen(model)
-                controls(model)
-                    .padding(.horizontal, Spacing.m)
-                    .padding(.vertical, Spacing.s)
-                    .background(Theme.panel)
-            }
-            if showSidePanel {
-                VStack(spacing: 0) {
-                    if let subtitleProblem {
-                        ErrorBanner(message: subtitleProblem, actionTitle: "Choose subtitles") { showSubtitlePicker = true }
-                            .padding(Spacing.s)
+    private func landscape(_ model: PlayerModel, size: CGSize, insets: EdgeInsets) -> some View {
+        let shown = controlsShown
+        // Work in full-screen widths: the whole layout ignores the safe area and the bars and the panel
+        // pad their own content by the insets, so 75 % / 25 % is of the real screen width.
+        // Panel content = max(25 % of the usable width, 180 pt); the trailing inset is added on top as padding.
+        let totalWidth = size.width + insets.leading + insets.trailing
+        let usableWidth = size.width
+        let baseFraction = clampedPanelFraction(CGFloat(storedPanelFraction), usable: usableWidth)
+        let fraction = liveResizeX.map { draggedPanelFraction(base: baseFraction, translation: $0, usable: usableWidth) }
+            ?? baseFraction
+        let panelWidth = showSidePanel ? max(usableWidth * fraction, Self.panelMinWidth) + insets.trailing : 0
+        let videoWidth = totalWidth - panelWidth
+        let barInsets = EdgeInsets(
+            top: insets.top, leading: insets.leading,
+            bottom: insets.bottom, trailing: showSidePanel ? Self.panelHandleClearance : insets.trailing
+        )
+        return HStack(spacing: 0) {
+            videoScreen(
+                model,
+                subtitleBottomPadding: shown ? bottomBarHeight + Spacing.s : Spacing.m + insets.bottom,
+                badgeTopPadding: shown ? topBarHeight + Spacing.s : insets.top,
+                edgeInsets: EdgeInsets(top: 0, leading: barInsets.leading, bottom: 0, trailing: barInsets.trailing),
+                onTap: toggleControls
+            )
+            .frame(width: videoWidth)
+            // The bars lie over the fixed-width video and take its width as a hard limit, so they can never
+            // widen or re-centre the video column. If a bar still can't fit, it keeps its leading edge (the back
+            // button stays inside the safe area) and is clipped on the trailing side.
+            .overlay(alignment: .leading) {
+                // Rendered only while shown, so the accessibility tree matches the screen.
+                if shown {
+                    VStack(alignment: .leading, spacing: 0) {
+                        topBar(insets: barInsets)
+                            .measuredHeight($topBarHeight)
+                        Spacer(minLength: 0)
+                        bottomBar(model, insets: barInsets)
+                            .measuredHeight($bottomBarHeight)
                     }
-                    CuePanel(model: model)
+                    .frame(width: videoWidth, alignment: .leading)
+                    .clipped()
+                    .environment(\.colorScheme, .dark)
+                    .transition(.opacity)
                 }
-                .frame(width: 320)
-                .background(Theme.panel)
-                .transition(.move(edge: .trailing))
+            }
+            .clipped()
+            .animation(.easeInOut(duration: 0.2), value: shown)
+            if showSidePanel {
+                sidePanel(model, width: panelWidth, insets: insets)
+                    .overlay(alignment: .leading) { panelHandle(usable: usableWidth, fraction: fraction) }
+                    .transition(.move(edge: .trailing))
             }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .leading)
+        .clipped()
+        .ignoresSafeArea()
         .animation(.spring(duration: 0.3), value: showSidePanel)
+        // Landscape uses a dialog, not a Menu: gestures on a Menu don't fire on iOS 26, so an open Menu
+        // can't be tracked and the auto-hide would tear it down. The dialog's binding clears on any dismissal.
+        .confirmationDialog("Subtitles", isPresented: $subtitleDialogOpen, titleVisibility: .hidden) {
+            Button("Load different subtitles") { showSubtitlePicker = true }
+            Button("Cancel", role: .cancel) {}
+        }
     }
 
-    private func videoScreen(_ model: PlayerModel) -> some View {
+    /// A handle drag in progress: where it started and how far it has moved sideways.
+    private struct PanelDrag: Equatable {
+        var start: CGPoint
+        var x: CGFloat
+    }
+
+    /// The live translation of the handle drag, only while the latch judged that drag a resize.
+    private var liveResizeX: CGFloat? {
+        guard let drag = panelDrag, panelDragResizes, panelDragOrigin == drag.start else { return nil }
+        return drag.x
+    }
+
+    /// Keeps a panel fraction between 180 pt and 50 % of the usable width.
+    private func clampedPanelFraction(_ value: CGFloat, usable: CGFloat) -> CGFloat {
+        guard usable > 0 else { return Self.panelFraction }
+        let lower = min(Self.panelMinWidth / usable, Self.panelMaxFraction)
+        return min(max(value, lower), Self.panelMaxFraction)
+    }
+
+    /// Dragging left widens the panel: content width = start width - translation.
+    private func draggedPanelFraction(base: CGFloat, translation: CGFloat, usable: CGFloat) -> CGFloat {
+        guard usable > 0 else { return Self.panelFraction }
+        return clampedPanelFraction((base * usable - translation) / usable, usable: usable)
+    }
+
+    private func resetPanelWidth() {
+        withAnimation(.spring(duration: 0.3)) { storedPanelFraction = Double(Self.panelFraction) }
+        restartHideTimer()
+    }
+
+    /// Drag handle on the divider: a grip with a 44 pt wide touch area that sits mostly over the video
+    /// (only 12 pt overlap the panel, which is the cue rows' own padding).
+    /// It has its own DragGesture (gestures on bars don't fire on iOS 26), so the video's tap and the cue
+    /// list's scrolling are untouched. Double-tap resets; VoiceOver gets an adjustable control.
+    private func panelHandle(usable: CGFloat, fraction: CGFloat) -> some View {
+        Color.clear
+            .frame(width: 44)
+            .frame(maxHeight: .infinity)
+            .contentShape(Rectangle())
+            .overlay(alignment: .leading) {
+                // The grip is centred on the panel's leading edge: the area reaches 32 pt over the video.
+                // Light with a thin dark outline, so it reads over both the dark video and the light panel.
+                Capsule()
+                    .fill(Color.white)
+                    .overlay(Capsule().stroke(Color.black.opacity(0.5), lineWidth: 1))
+                    .shadow(color: Color.black.opacity(0.35), radius: 1.5)
+                    .frame(width: 5, height: 40)
+                    .padding(.leading, Self.panelHandleClearance - 2.5)
+            }
+            .offset(x: -Self.panelHandleClearance)
+            .gesture(
+                DragGesture(minimumDistance: 8, coordinateSpace: .global)
+                    .updating($panelDrag) { value, state, _ in
+                        // Only tracks the drag; whether it resizes is the latch's call (see `liveResizeX`).
+                        state = PanelDrag(start: value.startLocation, x: value.translation.width)
+                    }
+                    .onChanged { value in
+                        // The latch: decided by the first event of each drag (a new start location), never revised.
+                        // Only a mostly horizontal start resizes; a vertical start is left alone.
+                        if panelDragOrigin != value.startLocation {
+                            panelDragOrigin = value.startLocation
+                            panelDragResizes = abs(value.translation.width) > abs(value.translation.height)
+                        }
+                    }
+                    .onEnded { value in
+                        // Same latch as the live resize, so what moved live is what gets saved.
+                        let resizes = panelDragOrigin == value.startLocation && panelDragResizes
+                        panelDragOrigin = nil
+                        panelDragResizes = false
+                        if resizes {
+                            let base = clampedPanelFraction(CGFloat(storedPanelFraction), usable: usable)
+                            storedPanelFraction = Double(
+                                draggedPanelFraction(base: base, translation: value.translation.width, usable: usable))
+                        }
+                        restartHideTimer()
+                    }
+            )
+            .onTapGesture(count: 2) { resetPanelWidth() }
+            // The handle covers the video's rightmost 32 pt, so a single tap there still shows or hides the controls.
+            .onTapGesture { toggleControls() }
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Subtitle panel width")
+            .accessibilityValue("\(Int((fraction * 100).rounded())) percent")
+            .accessibilityAdjustableAction { direction in
+                let step: CGFloat = direction == .increment ? 0.05 : -0.05
+                storedPanelFraction = Double(clampedPanelFraction(fraction + step, usable: usable))
+                restartHideTimer()
+            }
+            .accessibilityAction(named: "Reset subtitle panel width") { resetPanelWidth() }
+            .accessibilityIdentifier("player.panelHandle")
+    }
+
+    /// The landscape subtitle panel: problem banner, a compact Make a Card, then the cue list.
+    /// It stays open when the overlay controls auto-hide. Its background runs to the screen edge.
+    private func sidePanel(_ model: PlayerModel, width: CGFloat, insets: EdgeInsets) -> some View {
+        VStack(spacing: 0) {
+            if let subtitleProblem {
+                ErrorBanner(message: subtitleProblem, actionTitle: "Choose subtitles") { showSubtitlePicker = true }
+                    .padding(Spacing.s)
+            }
+            // Full label when it fits, icon only on a very narrow panel.
+            ViewThatFits(in: .horizontal) {
+                makeCardButton(model, fullWidth: true, identifier: "player.panel.makeCard")
+                    .fixedSize(horizontal: false, vertical: true)
+                    .lineLimit(1)
+                makeCardButton(model, fullWidth: true, iconOnly: true, identifier: "player.panel.makeCard")
+            }
+            .padding(.horizontal, Spacing.s)
+            .padding(.vertical, Spacing.xs)
+            CuePanel(model: model, compact: true)
+        }
+        .padding(.top, insets.top)
+        .padding(.bottom, insets.bottom)
+        .padding(.trailing, insets.trailing)
+        .frame(width: width)
+        .background(Theme.panel)
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("player.sidePanel")
+    }
+
+    /// Landscape top bar: back, episode title, and the button that opens or closes the subtitle panel.
+    private func topBar(insets: EdgeInsets) -> some View {
+        HStack(spacing: Spacing.s) {
+            Button { dismiss() } label: { Image(systemName: "chevron.left") }
+                .buttonStyle(DeckIconButtonStyle())
+                .accessibilityLabel("Back")
+                .accessibilityIdentifier("player.back")
+            Text(episode.title)
+                .font(.deckHeadline)
+                .foregroundStyle(Theme.ink)
+                .lineLimit(1)
+                .frame(maxWidth: .infinity, alignment: .leading)
+            Button {
+                showSidePanel.toggle()
+                restartHideTimer()
+            } label: { Image(systemName: "sidebar.right") }
+                .buttonStyle(DeckIconButtonStyle(isActive: showSidePanel))
+                .accessibilityLabel(showSidePanel ? "Hide subtitle list" : "Show subtitle list")
+                .accessibilityIdentifier("player.panelToggle")
+        }
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, Spacing.s)
+        .padding(.top, insets.top)
+        .padding(.leading, insets.leading)
+        .padding(.trailing, insets.trailing)
+        .background(Color.black.opacity(0.55))
+    }
+
+    /// Landscape bottom bar: scrubber, then transport and Make a Card on one row.
+    private func bottomBar(_ model: PlayerModel, insets: EdgeInsets) -> some View {
+        VStack(spacing: Spacing.xs) {
+            Scrubber(model: model)
+            // With the side list open there is less room: fall back to an icon-only Make a Card, and with the
+            // panel near its 50 % maximum also drop the ±5 s skips (the scrubber still seeks). The last row needs
+            // about 245 pt; at 50 % on an 874 pt wide iPhone the row gets about 320 pt (column 438 minus insets and padding).
+            ViewThatFits(in: .horizontal) {
+                bottomRow(model, iconOnly: false)
+                bottomRow(model, iconOnly: true)
+                bottomRow(model, iconOnly: true, skips: false)
+            }
+            if let miningError {
+                ErrorBanner(message: miningError)
+            }
+        }
+        .padding(.horizontal, Spacing.m)
+        .padding(.vertical, Spacing.s)
+        .padding(.bottom, insets.bottom)
+        .padding(.leading, insets.leading)
+        .padding(.trailing, insets.trailing)
+        .background(Color.black.opacity(0.55))
+    }
+
+    private func bottomRow(_ model: PlayerModel, iconOnly: Bool, skips: Bool = true) -> some View {
+        HStack(spacing: Spacing.s) {
+            transportButtons(model, landscape: true, skips: skips)
+            Spacer(minLength: Spacing.s)
+            makeCardButton(model, fullWidth: false, iconOnly: iconOnly)
+        }
+    }
+
+    /// The video with its subtitle line. `onTap` differs by orientation: play/pause or show/hide controls.
+    private func videoScreen(
+        _ model: PlayerModel,
+        subtitleBottomPadding: CGFloat = Spacing.m,
+        badgeTopPadding: CGFloat = 0,
+        edgeInsets: EdgeInsets = EdgeInsets(),
+        onTap: @escaping () -> Void
+    ) -> some View {
         ZStack(alignment: .bottom) {
             PlayerLayerView(player: model.player)
-                .onTapGesture { model.togglePlay() }
+                .accessibilityIdentifier("player.video")
+                .onTapGesture(perform: onTap)
             if let cue = model.currentCue {
                 SelectableText(text: cue.text, textStyle: .title3, weight: .bold, color: .white, outlined: true, identifier: "player.subtitle")
                     .padding(.horizontal, Spacing.l)
-                    .padding(.bottom, Spacing.m)
+                    .padding(.leading, edgeInsets.leading)
+                    .padding(.trailing, edgeInsets.trailing)
+                    .padding(.bottom, subtitleBottomPadding)
+                    .animation(.easeInOut(duration: 0.2), value: subtitleBottomPadding)
             }
             if let miningRange {
                 RecordingBadge(range: miningRange)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.top, badgeTopPadding)
+                    .padding(.leading, edgeInsets.leading)
                     .padding(Spacing.s)
             }
         }
@@ -144,57 +429,110 @@ struct PlayerView: View {
         .clipped()
     }
 
+    // MARK: Overlay timing
+
+    private var controlsShown: Bool { controlsVisible || voiceOverOn }
+
+    /// While any of these hold, the controls never auto-hide.
+    private var keepsControlsUp: Bool {
+        voiceOverOn || showOffset || showSubtitlePicker || subtitleDialogOpen || draft != nil
+            || miningRange != nil || panelDrag != nil || !(model?.isPlaying ?? false) || (model?.isScrubbing ?? false)
+    }
+
+    private func toggleControls() {
+        controlsVisible.toggle()
+        restartHideTimer()
+    }
+
+    private func restartHideTimer() {
+        hideTask?.cancel()
+        hideTask = nil
+        guard isLandscape, controlsVisible, !keepsControlsUp else { return }
+        hideTask = Task {
+            try? await Task.sleep(for: .seconds(3))
+            guard !Task.isCancelled else { return }
+            controlsVisible = false
+        }
+    }
+
     private func controls(_ model: PlayerModel) -> some View {
         VStack(spacing: Spacing.s) {
             Scrubber(model: model)
             HStack(spacing: Spacing.s) {
-                Button { model.skip(byMs: -5_000) } label: { Image(systemName: "gobackward.5") }
-                    .buttonStyle(DeckIconButtonStyle())
-                    .accessibilityLabel("Back 5 seconds")
-                Button { model.togglePlay() } label: { Image(systemName: model.isPlaying ? "pause.fill" : "play.fill") }
-                    .buttonStyle(DeckIconButtonStyle(isActive: true))
-                    .accessibilityLabel(model.isPlaying ? "Pause" : "Play")
-                    .accessibilityIdentifier("player.playPause")
-                Button { model.skip(byMs: 5_000) } label: { Image(systemName: "goforward.5") }
-                    .buttonStyle(DeckIconButtonStyle())
-                    .accessibilityLabel("Forward 5 seconds")
-                Button { showOffset = true } label: {
-                    Text(TimeFormat.offset(model.offsetMs))
-                        .font(.deckCaption)
-                        .lineLimit(1)
-                        .frame(width: 60)
-                }
-                .buttonStyle(DeckIconButtonStyle(isActive: model.offsetMs != 0))
-                .frame(width: 60)
-                .accessibilityLabel("Subtitle offset \(TimeFormat.offset(model.offsetMs))")
-                .accessibilityIdentifier("player.offset")
-                Menu {
-                    Button("Load different subtitles", systemImage: "captions.bubble") { showSubtitlePicker = true }
-                    Button(showSidePanel ? "Hide subtitle list" : "Show subtitle list", systemImage: "sidebar.right") { showSidePanel.toggle() }
-                } label: {
-                    Image(systemName: "captions.bubble.fill")
-                        .font(.system(size: 18, weight: .bold, design: .rounded))
-                        .foregroundStyle(Theme.ink)
-                        .frame(width: 44, height: 44)
-                        .background(Theme.shell, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
-                }
-                .accessibilityLabel("Subtitles")
-                .accessibilityIdentifier("player.subtitlesMenu")
+                transportButtons(model, landscape: false)
                 Spacer(minLength: 0)
             }
-            Button {
-                Task { await makeCard(model) }
-            } label: {
-                Label(miningRange == nil ? "Make a Card" : "Recording…", systemImage: "rectangle.stack.badge.plus")
-                    .frame(maxWidth: .infinity)
-            }
-            .buttonStyle(DeckPrimaryButtonStyle())
-            .disabled(miningRange != nil || model.track.isEmpty)
-            .accessibilityIdentifier("player.makeCard")
+            makeCardButton(model, fullWidth: true)
             if let miningError {
                 ErrorBanner(message: miningError)
             }
         }
+    }
+
+    /// Skip buttons restart the landscape auto-hide countdown (no-op in portrait). The other controls
+    /// already do it through state changes: play/pause, scrubbing, the offset sheet, the subtitles dialog.
+    /// `skips: false` leaves out the ±5 s buttons (the tightest landscape bar).
+    @ViewBuilder
+    private func transportButtons(_ model: PlayerModel, landscape: Bool, skips: Bool = true) -> some View {
+        if skips {
+            Button { model.skip(byMs: -5_000); restartHideTimer() } label: { Image(systemName: "gobackward.5") }
+                .buttonStyle(DeckIconButtonStyle())
+                .accessibilityLabel("Back 5 seconds")
+        }
+        Button { model.togglePlay() } label: { Image(systemName: model.isPlaying ? "pause.fill" : "play.fill") }
+            .buttonStyle(DeckIconButtonStyle(isActive: true))
+            .accessibilityLabel(model.isPlaying ? "Pause" : "Play")
+            .accessibilityIdentifier("player.playPause")
+        if skips {
+            Button { model.skip(byMs: 5_000); restartHideTimer() } label: { Image(systemName: "goforward.5") }
+                .buttonStyle(DeckIconButtonStyle())
+                .accessibilityLabel("Forward 5 seconds")
+        }
+        Button { showOffset = true } label: {
+            Text(TimeFormat.offset(model.offsetMs))
+                .font(.deckCaption)
+                .lineLimit(1)
+                .frame(width: 60)
+        }
+        .buttonStyle(DeckIconButtonStyle(isActive: model.offsetMs != 0))
+        .frame(width: 60)
+        .accessibilityLabel("Subtitle offset \(TimeFormat.offset(model.offsetMs))")
+        .accessibilityIdentifier("player.offset")
+        if landscape {
+            // Same identifier as the portrait Menu; opens the landscape dialog (see `landscape(_:insets:)`).
+            Button { subtitleDialogOpen = true } label: { Image(systemName: "captions.bubble.fill") }
+                .buttonStyle(DeckIconButtonStyle())
+                .accessibilityLabel("Subtitles")
+                .accessibilityIdentifier("player.subtitlesMenu")
+        } else {
+            Menu {
+                Button("Load different subtitles", systemImage: "captions.bubble") { showSubtitlePicker = true }
+            } label: {
+                Image(systemName: "captions.bubble.fill")
+                    .font(.system(size: 18, weight: .bold, design: .rounded))
+                    .foregroundStyle(Theme.ink)
+                    .frame(width: 44, height: 44)
+                    .background(Theme.shell, in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous))
+            }
+            .accessibilityLabel("Subtitles")
+            .accessibilityIdentifier("player.subtitlesMenu")
+        }
+    }
+
+    private func makeCardButton(
+        _ model: PlayerModel, fullWidth: Bool, iconOnly: Bool = false, identifier: String = "player.makeCard"
+    ) -> some View {
+        Button {
+            Task { await makeCard(model) }
+        } label: {
+            Label(miningRange == nil ? "Make a Card" : "Recording…", systemImage: "rectangle.stack.badge.plus")
+                .labelStyle(MakeCardLabelStyle(iconOnly: iconOnly))
+                .frame(maxWidth: fullWidth ? .infinity : nil)
+        }
+        .accessibilityLabel(miningRange == nil ? "Make a Card" : "Recording")
+        .buttonStyle(DeckPrimaryButtonStyle())
+        .disabled(miningRange != nil || model.track.isEmpty)
+        .accessibilityIdentifier(identifier)
     }
 
     // MARK: Actions
@@ -291,6 +629,29 @@ private struct RecordingBadge: View {
     }
 }
 
+private struct MakeCardLabelStyle: LabelStyle {
+    let iconOnly: Bool
+
+    func makeBody(configuration: Configuration) -> some View {
+        if iconOnly {
+            configuration.icon
+        } else {
+            Label(configuration)
+        }
+    }
+}
+
+private extension View {
+    /// Writes this view's height into `height` whenever it changes.
+    func measuredHeight(_ height: Binding<CGFloat>) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.onChange(of: proxy.size.height, initial: true) { _, value in height.wrappedValue = value }
+            }
+        }
+    }
+}
+
 private struct Scrubber: View {
     @Bindable var model: PlayerModel
     @State private var dragValue: Double = 0
@@ -327,6 +688,8 @@ private struct Scrubber: View {
 /// Every subtitle line in order; the current one is highlighted. Tap a line to jump to it.
 struct CuePanel: View {
     let model: PlayerModel
+    /// Compact rows (time above the text, tighter padding) for the narrow landscape panel.
+    var compact = false
 
     var body: some View {
         if model.track.isEmpty {
@@ -340,7 +703,7 @@ struct CuePanel: View {
                 ScrollView {
                     LazyVStack(spacing: 2) {
                         ForEach(model.track.cues) { cue in
-                            CueRow(cue: cue, offsetMs: model.offsetMs, isCurrent: cue.id == model.currentCueIndex)
+                            CueRow(cue: cue, offsetMs: model.offsetMs, isCurrent: cue.id == model.currentCueIndex, compact: compact)
                                 .id(cue.id)
                                 .onTapGesture { model.seek(to: cue) }
                                 // One element per line (time + text), so VoiceOver and UI tests see a single button.
@@ -364,25 +727,42 @@ private struct CueRow: View {
     let cue: SubtitleCue
     let offsetMs: Int
     let isCurrent: Bool
+    var compact = false
+
+    private var timeText: some View {
+        Text(TimeFormat.clock(cue.startMs + offsetMs))
+            .font(.deckTime)
+            .foregroundStyle(isCurrent ? .white.opacity(0.85) : Theme.inkSoft)
+    }
+
+    private var lineText: some View {
+        Text(cue.text)
+            .font(.deckBody)
+            .foregroundStyle(isCurrent ? .white : Theme.ink)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
 
     var body: some View {
-        HStack(alignment: .firstTextBaseline, spacing: Spacing.m) {
-            Text(TimeFormat.clock(cue.startMs + offsetMs))
-                .font(.deckTime)
-                .foregroundStyle(isCurrent ? .white.opacity(0.85) : Theme.inkSoft)
-                .frame(width: 56, alignment: .leading)
-            Text(cue.text)
-                .font(.deckBody)
-                .foregroundStyle(isCurrent ? .white : Theme.ink)
-                .frame(maxWidth: .infinity, alignment: .leading)
+        Group {
+            if compact {
+                VStack(alignment: .leading, spacing: 2) {
+                    timeText
+                    lineText
+                }
+            } else {
+                HStack(alignment: .firstTextBaseline, spacing: Spacing.m) {
+                    timeText.frame(width: 56, alignment: .leading)
+                    lineText
+                }
+            }
         }
-        .padding(.horizontal, Spacing.m)
-        .padding(.vertical, Spacing.s)
+        .padding(.horizontal, compact ? Spacing.s : Spacing.m)
+        .padding(.vertical, compact ? Spacing.xs : Spacing.s)
         .background(
             isCurrent ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Color.clear),
             in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
         )
-        .padding(.horizontal, Spacing.s)
+        .padding(.horizontal, compact ? Spacing.xs : Spacing.s)
         .contentShape(Rectangle())
     }
 }

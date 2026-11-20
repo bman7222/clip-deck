@@ -35,6 +35,13 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - File paths in SwiftData are relative to Documents (`FileStore`); never store absolute paths.
 - Card media names are fixed per card (`CardMediaNames`), so Sync retries are idempotent; keep it that way.
 - `-uiTesting` launch argument (Debug): in-memory library + generated "Sample Show". `-uiTestingNoSeed` skips the sample.
+  `-uiTesting -uiTestingMKV` instead imports MKV fixture 4 through `EpisodeImporter` as "MKV Show / Episode 1" (with the
+  sample SRT) and fixture 1 as "Episode 2" (its embedded SRT; the ASS track is saved too); it needs `CLIPDECK_FIXTURES` in the app's environment (UI tests forward it through `launchEnvironment`).
+- `-uiTestingExpiry <ISO-8601 date>` (Debug, with `-uiTesting`) overrides the install-expiry date from the signing profile,
+  so the library's expiry banner and the Anki settings expiry line can be tested. `-uiTestingKeepExpiryDismissal` keeps the
+  banner's dismissal day across a relaunch (the "uiTesting" defaults are otherwise cleared on every launch).
+- Every video import goes through `Services/EpisodeImporter.swift`: it stages in `tmp/Converting/`, moves into Documents
+  only on success and rolls back on a failed save. Don't copy videos into Documents directly.
 - The developer works on Windows with no Mac: Swift is compiled only by GitHub Actions (`.github/workflows/ios-simulator.yml`),
   which also uploads UI-test screenshots and an unsigned `ClipDeck.ipa` for Sideloadly. Check run results before claiming anything builds.
 
@@ -46,6 +53,16 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
   Release/unsigned .ipa); all unit tests pass (parsers, clip math, AnkiConnect client, syncer, files, real clip extraction);
   UI tests pass (launch; full mining flow: seek via list, Make a Card, add next line + re-record, save, 1 waiting to sync).
   Screenshots reviewed: library, show, player, card editor, sync sheet.
-- Not yet verified: on a real iPhone (Sideloadly install), real-video import from Files, sync against desktop Anki,
-  landscape layout, dark mode, large Dynamic Type.
-- Not in v1: see docs/PRODUCT_SPEC.md "Not yet implemented".
+- 2026-11-20: dev loop (`.loop/`, branch `loop/mkv-landscape-sideload`) built and **verified in CI** (last green run
+  44833382185, 251/251 tests + IPA):
+  - full-screen landscape player with tap controls; a pop-out subtitle panel (default 25% of the usable width) with a
+    resizable divider; controls always start hidden in landscape;
+  - MKV import: converted on import to MP4 with FFmpeg (FFmpegBuild 3.16.0, LGPL; backup fork bman7222/FFmpegBuild), staged and
+    rolled back by `EpisodeImporter`, plus built-in text subtitles extracted to .srt/.ass;
+  - Settings › About and licences; root LICENSE (all rights reserved + LGPL §6 exception);
+  - SideStore install guide (docs/INSTALL_ON_IPHONE.md), GitHub Releases (`release.yml` on `v*` tags) and a SideStore
+    source (`releases/latest/download/apps.json`); a daily expiry reminder banner.
+  - Repo made public 2026-11-20 (free Actions minutes). First release v0.2.0 (before the expiry banner and built-in subtitles).
+- Not yet verified on a real iPhone: SideStore install and the daily refresh, landscape and the panel, MKV import from Files
+  (incl. iCloud, multiple audio tracks, HEVC 10-bit, ASS styles), the expiry banner date, VoiceOver, sync with desktop Anki.
+- Not in v1: see docs/PRODUCT_SPEC.md "Not yet implemented". Blocked: T-007 TestFlight (needs a paid Apple Developer account).

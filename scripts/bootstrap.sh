@@ -10,6 +10,7 @@ need() { command -v "$1" >/dev/null || { echo "Missing: $1  ->  $2"; missing=1; 
 need xcodebuild "Install Xcode from the App Store, then: sudo xcode-select -s /Applications/Xcode.app/Contents/Developer"
 need xcodegen "brew install xcodegen"
 need python3 "Install Xcode command line tools: xcode-select --install"
+need ffmpeg "brew install ffmpeg   (tests only: generates the MKV fixtures)"
 
 [[ $missing -eq 0 ]] || { echo "Install the missing tools above, then re-run."; exit 1; }
 

@@ -1,7 +1,7 @@
 # Clip Deck
 
 An offline iPhone video player for language learners that works like asbplayer:
-- watch your own episodes with SRT/ASS subtitles;
+- watch your own episodes (MP4, MOV, M4V, or MKV converted to MP4 on import) with SRT/ASS subtitles;
 - turn any subtitle line into an Anki card (audio clip, screenshot and sentence);
 - send all saved cards to desktop Anki with one Sync button when you're back on your home network.
 
@@ -48,8 +48,8 @@ To build (a Mac, or the GitHub Actions macOS runner):
 - XcodeGen: `brew install xcodegen`
 
 To use on your iPhone from Windows:
-- [Sideloadly](https://sideloadly.io) and an Apple ID;
-- the `ClipDeck-ipa` artifact from a GitHub Actions run.
+- a free Apple ID and the `ClipDeck-ipa` artifact from a GitHub Actions run;
+- SideStore (set up once with iloader, iTunes from Apple and the LocalDevVPN app; see [docs/INSTALL_ON_IPHONE.md](docs/INSTALL_ON_IPHONE.md)), or [Sideloadly](https://sideloadly.io) as the alternative.
 
 To sync cards: desktop Anki with the AnkiConnect add-on (setup in [docs/DEVELOPMENT.md](docs/DEVELOPMENT.md#anki-setup)).
 
@@ -77,14 +77,20 @@ This builds the app, boots an iPhone simulator, installs and launches the app, a
 
 ## Install on your iPhone (Windows, no Mac)
 
-1. Push to GitHub. The **iOS simulator** workflow's `ipa` job uploads **ClipDeck-ipa**.
-2. Download it from the run page and unzip it to get `ClipDeck.ipa`.
-3. In Sideloadly, plug in your iPhone, drop in `ClipDeck.ipa`, and sign in with your Apple ID.
-4. On the iPhone:
+The **iOS simulator** workflow's `ipa` job uploads **ClipDeck-ipa** (kept 30 days). Download it from the run page and unzip it to get `ClipDeck.ipa`.
+
+With a free Apple ID, a sideloaded app stops opening after 7 days.
+
+**Recommended: SideStore.** You set it up once with the computer. After that, the phone refreshes Clip Deck by itself every day. See [docs/INSTALL_ON_IPHONE.md](docs/INSTALL_ON_IPHONE.md).
+
+**Alternative: Sideloadly.** It needs the computer again every 7 days.
+1. In Sideloadly, plug in your iPhone, drop in `ClipDeck.ipa`, and sign in with your Apple ID.
+2. On the iPhone:
    - turn on **Settings › Privacy & Security › Developer Mode**;
    - trust your Apple ID under **Settings › General › VPN & Device Management**.
+3. Before it expires, install it again the same way. Installing over the top keeps your library and cards.
 
-With a free Apple ID the app expires after 7 days. Re-install it the same way; your library and cards are kept.
+Pick one. If you use Sideloadly and SideStore with the same free Apple ID, setting up one will likely revoke the other's certificate, and the other copy stops opening. Clip Deck can't move its library between copies. To switch, sync your cards to Anki first: see [Moving from Sideloadly to SideStore](docs/INSTALL_ON_IPHONE.md#moving-from-sideloadly-to-sidestore).
 
 On a Mac, `./scripts/build-ipa.sh` builds the same file locally.
 
@@ -102,3 +108,4 @@ This runs the unit and UI tests in a simulator. UI test screenshots are saved to
 - [Architecture](docs/ARCHITECTURE.md): components, decisions, how parts communicate
 - [Design](docs/DESIGN.md): visual identity, tokens, screens
 - [Development](docs/DEVELOPMENT.md): environment, Anki setup, commands, simulator, troubleshooting
+- [Install on your iPhone](docs/INSTALL_ON_IPHONE.md): SideStore setup, daily refresh without the computer, updates
