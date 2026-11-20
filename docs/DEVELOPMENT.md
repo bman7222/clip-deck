@@ -32,7 +32,7 @@ Only the scripts and the tests use these:
 | Variable | Used by | Purpose | Default |
 |---|---|---|---|
 | `SIM_NAME` | `run-ios.sh`, `test-ios.sh` | Simulator to use, e.g. `iPhone 17 Pro` | booted iPhone, else the newest |
-| `CLIPDECK_FIXTURES` | `FFmpegFixtureTests` (unit-test process) | Folder with the generated MKV fixtures | `<repo>/build/fixtures` |
+| `CLIPDECK_FIXTURES` | The MKV unit tests (unit-test process); the app under `-uiTestingMKV` (Debug) | Folder with the generated MKV fixtures | `<repo>/build/fixtures` in the unit tests; none in the app |
 | `TEST_RUNNER_CLIPDECK_FIXTURES` | `test-ios.sh` exports it | `xcodebuild test` strips the `TEST_RUNNER_` prefix and passes `CLIPDECK_FIXTURES` to the test process | `<repo>/build/fixtures` |
 
 To run the fixture tests from Xcode against another folder, set `CLIPDECK_FIXTURES` in the scheme's Test action
@@ -77,6 +77,14 @@ cd ios && xcodegen generate               # after adding files or editing projec
 To try the app without importing anything, launch a Debug build with the `-uiTesting` argument. It creates "Sample Show": a generated 6-second video with a 3-line Japanese SRT, in an in-memory library.
 - In Xcode: Scheme › Run › Arguments.
 - From the command line: `xcrun simctl launch booted dev.brent.clipdeck -uiTesting`.
+
+To try an MKV episode, add `-uiTestingMKV` (with `-uiTesting`). Instead of "Sample Show", the app imports fixture 4
+(`04-nosubs-aac51.mkv`: H.264, AAC 5.1, no subtitle tracks) through the real `EpisodeImporter` as "MKV Show / Episode 1",
+with the sample SRT as its subtitle file. The app finds the fixture through `CLIPDECK_FIXTURES`:
+- UI tests: `app.launchEnvironment["CLIPDECK_FIXTURES"] = ProcessInfo.processInfo.environment["CLIPDECK_FIXTURES"]`.
+- Command line: `SIMCTL_CHILD_CLIPDECK_FIXTURES="$PWD/build/fixtures" xcrun simctl launch booted dev.brent.clipdeck -uiTesting -uiTestingMKV`
+  (run `scripts/make-test-media.sh build/fixtures` first).
+If the variable or the file is missing, the app prints why to the console and the library stays empty.
 
 To test syncing from the simulator, use `http://localhost:8765` in Anki settings while Anki runs on the same Mac.
 
@@ -134,6 +142,7 @@ CI installs `ffmpeg` and generates them fresh on every run. The tests find the f
 **UI tests (`ClipDeckUITests`):**
 - **LaunchUITests:** the empty library offers Upload, and the upload sheet stays disabled without a video.
 - **AboutUITests:** Settings › About and licences shows the Clip Deck licence and the LGPL text, and both source links open Safari.
+- **MKVImportUITests:** with `-uiTestingMKV`, the converted fixture-4 episode lists its three subtitle lines, plays line 2 and makes a card (`mkv-01-player`, `mkv-02-card`); the upload sheet offers MKV and keeps Add episode disabled without a video.
 - **MiningFlowUITests:** the full primary flow on the seeded sample:
   1. open the show, then the episode;
   2. tap line 2 in the list;
@@ -157,6 +166,10 @@ No test talks to a real Anki. Syncing with desktop Anki is checked by hand (see 
 | Sync says "model was not found" / field errors | Re-run Test connection in Anki settings and re-pick the note type and fields |
 | `ffmpeg not found` from `test-ios.sh` or `bootstrap.sh` | `brew install ffmpeg` (tests only) |
 | Fixture tests say a fixture is missing | `./scripts/make-test-media.sh` (needs `ffmpeg` with libx264 and libx265) |
-| Video won't import | Until MKV import ships, only MP4, MOV and M4V play with Apple's player. Convert MKV first, e.g. `ffmpeg -i in.mkv -c copy out.mp4` when the codecs are H.264/HEVC + AAC |
+| "“.xyz” videos aren't supported" | Only MP4, MOV, M4V and MKV are accepted. Convert other containers (AVI, WebM, TS) on a computer first |
+| An MKV is refused with a codec message | The iPhone can't play that video (H.264 10-bit "Hi10P", VP9, 4:2:2/4:4:4, 12-bit, Dolby Vision profile 5, or AV1 without AV1 hardware). Re-encode it on a computer to H.264 8-bit or HEVC, e.g. with HandBrake. Audio is never the problem unless the chosen track has no decoder: pick another track in the Audio picker |
+| "Downloading from iCloud…" never finishes | The file is still in iCloud Drive. Check the connection, or open it once in the Files app so it downloads, then choose it again |
+| "This needs about 1.6 GB free; you have 0.9 GB." | An import needs the file's size plus 10 % (at least 200 MB) free. Free space in Settings › General › iPhone Storage |
+| "Conversion stopped. Keep Clip Deck open until it finishes." | iOS ended the background time while an MKV converted. Add it again and stay in the app; nothing half-imported is kept |
 | "Video file is missing" | The file was moved or deleted in the Files app. Tap **Choose the video again** |
 | Sideloaded app won't open | Developer Mode on? Apple ID trusted under VPN & Device Management? Free-account installs expire after 7 days; re-install |

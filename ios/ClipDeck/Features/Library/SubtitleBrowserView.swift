@@ -90,12 +90,17 @@ private struct SubtitlePreviewView: View {
 }
 
 /// Shown instead of the player when an episode's video file isn't where it should be.
+/// "Choose the video again" goes through `EpisodeImporter` like the upload sheet: an MKV is converted (default
+/// audio track) with the same progress and Cancel, and `videoPath` then points at the new file (spec J-6).
 struct MissingFileView: View {
     @Bindable var episode: Episode
     @Environment(\.modelContext) private var context
     @State private var isPicking = false
+    @State private var video = VideoImportModel()
     @State private var errorMessage: String?
     @State private var relinked = false
+    /// Notes from a finished relink (e.g. damaged audio skipped), shown over the player.
+    @State private var relinkWarnings: [String] = []
     private let store = FileStore.live
 
     var body: some View {
@@ -112,36 +117,87 @@ struct MissingFileView: View {
                         } actions: {
                             Button("Choose the video again") { isPicking = true }
                                 .buttonStyle(DeckPrimaryButtonStyle())
+                                .disabled(video.isRunning || video.isPreparing)
                                 .accessibilityIdentifier("missing.relink")
                         }
-                        if let errorMessage { ErrorBanner(message: errorMessage) }
+                        if video.isPreparing {
+                            VideoPreparingRow(text: video.preparingText, identifier: "missing.preparing")
+                                .padding(Spacing.m)
+                                .frame(maxWidth: .infinity, alignment: .leading)
+                                .background(Theme.panel, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+                        }
+                        if video.isRunning {
+                            ImportProgressView(model: video, identifierPrefix: "missing")
+                                .padding(Spacing.m)
+                                .background(Theme.panel, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
+                        }
+                        if let videoError = video.videoError {
+                            ErrorBanner(message: videoError)
+                                .accessibilityIdentifier("missing.videoError")
+                        }
+                        if let errorMessage {
+                            // The file is still prepared after a failure, so offer to try again without re-picking.
+                            ErrorBanner(
+                                message: errorMessage,
+                                actionTitle: video.canImport ? "Try again" : nil,
+                                action: video.canImport ? { startRelink() } : nil
+                            )
+                            .accessibilityIdentifier("missing.error")
+                        }
                     }
                     .padding(Spacing.l)
                 }
                 .background(Theme.shell)
                 .navigationTitle(episode.title)
                 .navigationBarTitleDisplayMode(.inline)
+                .navigationBarBackButtonHidden(video.isRunning)
             }
         }
         .fileImporter(isPresented: $isPicking, allowedContentTypes: FileTypes.videos) { result in
-            Task { await relink(result) }
+            switch result {
+            case .success(let url):
+                errorMessage = nil
+                // Relinking starts as soon as the file is checked (default audio track).
+                video.pick(url) { startRelink() }
+            case .failure(let error):
+                errorMessage = "The file couldn't be opened: \(error.localizedDescription)"
+            }
         }
+        .alert("Video added", isPresented: showWarnings) {
+            Button("OK") { relinkWarnings = [] }
+                .accessibilityIdentifier("missing.warningsOK")
+        } message: {
+            Text(relinkWarnings.joined(separator: "\n\n"))
+        }
+        // Leaving (back, or the tab going away) stops a running relink and closes the picked file.
+        .onDisappear { video.leave() }
     }
 
     private var fileName: String { (episode.videoPath as NSString).lastPathComponent }
 
-    private func relink(_ result: Result<URL, Error>) async {
-        switch result {
-        case .success(let url):
-            do {
-                try await store.importFile(from: url, toRelativePath: episode.videoPath)
-                try? context.save()
+    private var showWarnings: Binding<Bool> {
+        Binding(
+            get: { !relinkWarnings.isEmpty },
+            set: { if !$0 { relinkWarnings = [] } }
+        )
+    }
+
+    private func startRelink() {
+        errorMessage = nil
+        let episode = self.episode
+        let context = self.context
+        video.run({ importer, prepared, options, progress in
+            try await importer.relink(episode, to: prepared, options: options, in: context, progress: progress)
+        }, completion: { outcome in
+            switch outcome {
+            case .added(let result):
+                relinkWarnings = result.warnings
                 relinked = true
-            } catch {
-                errorMessage = "The video couldn't be copied: \(error.localizedDescription)"
+            case .cancelled:
+                break
+            case .failed(let message):
+                errorMessage = message
             }
-        case .failure(let error):
-            errorMessage = "The file couldn't be opened: \(error.localizedDescription)"
-        }
+        })
     }
 }

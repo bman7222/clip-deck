@@ -66,6 +66,7 @@ Subtitles use the system font (Hiragino Sans for Japanese), bold, with a black o
 - `DeckIconButtonStyle`: a 44×44 rounded-square control on a panel. Active = aqua fill.
 - `PendingBadge`: a sunflower count capsule on the Sync button.
 - `ErrorBanner`: a red-tinted inline message with an optional fix action.
+- `ImportProgressView`: "Converting… n%" in bold rounded type with monospaced digits, an aqua bar and a red Cancel, plus "Keep Clip Deck open until it finishes." Shared by the upload sheet and Missing video.
 - `Toast`: a dark capsule confirmation at the bottom ("Card saved. 3 cards waiting to sync.").
 - `SelectableText`: outlined or plain selectable text for subtitles (Look Up).
 - Empty states use `ContentUnavailableView` with a single action.
@@ -97,9 +98,9 @@ Show                            ││ 1:40 前の行             ││    │ 
 | Library | Pick a show; Sync; Upload | — | "Your library is empty" + Upload episode | — |
 | Subtitles tab | Browse Subtitles/Show/Episode folders, preview lines | — | "No subtitle files here" | Parse errors shown on preview |
 | Show | Episodes; subtitle icon per row; swipe to delete | — | — | Row says "Video file missing" in red |
-| Upload sheet | Show, name, video, optional subtitles | Spinner replaces Add episode | — | Inline banner (unsupported type, copy failed) |
+| Upload sheet | Show, name, video (MP4, MOV, M4V or MKV), optional subtitles. For an MKV with two or more audio tracks, an Audio picker (`upload.audioTrack`, "jpn · Original · AAC", the file's default preselected) | After picking: a status row (`upload.preparing`) with "Downloading from iCloud…" or "Reading the video…". After Add episode: a progress section at the top, "Converting… n%" with a bar for an MKV or "Adding…" for a copy (`upload.progress`), and Cancel (`upload.cancelConvert`); the fields lock, the screen stays on, and the toolbar shows a spinner | — | Inline banner under the video (`upload.videoError`: unsupported type, unsupported video or audio track, not enough space, unreadable file; Add episode stays disabled) and at the bottom (`upload.error`: import failed, background time ran out). Cancel shows nothing and keeps the sheet. Import notes (e.g. damaged audio skipped) show in an "Episode added" alert before the sheet closes |
 | Player | Watch, offset, switch subtitles, list, Make a Card | Spinner until the player is ready | "No subtitle lines" in the list | Banner: no subtitles, missing subtitle file (with expected location), parse error |
-| Missing video | Explains which file and where; Choose the video again | — | — | — |
+| Missing video | Explains which file and where; Choose the video again (MP4, MOV, M4V or MKV; an MKV uses its default audio track) | The same status row (`missing.preparing`) and progress panel with Cancel (`missing.progress`, `missing.cancelConvert`) as the upload sheet, below the button; back is hidden while it runs | — | Banner (`missing.videoError`, `missing.error`), with Try again when the file is still open |
 | Card editor | Replay, range, re-record, fields, save | "Recording…" | — | Banner (export failed) |
 | Sync sheet | Waiting count, Sync, per-card status | "Syncing 2 of 5…" | "Everything is in Anki." | Setup problem banner; summary in red; per-card error |
 | Anki settings | Address, test, deck/note type, field map, padding, setup steps | Spinner on Test connection | Free-text fields until connected | Error text under Test connection |

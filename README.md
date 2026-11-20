@@ -1,7 +1,7 @@
 # Clip Deck
 
 An offline iPhone video player for language learners that works like asbplayer:
-- watch your own episodes with SRT/ASS subtitles;
+- watch your own episodes (MP4, MOV, M4V, or MKV converted to MP4 on import) with SRT/ASS subtitles;
 - turn any subtitle line into an Anki card (audio clip, screenshot and sentence);
 - send all saved cards to desktop Anki with one Sync button when you're back on your home network.
 

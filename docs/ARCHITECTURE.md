@@ -15,12 +15,17 @@ flowchart LR
     PM --> SP[SubtitleParser + CueTrack]
     UI --> CE[ClipExtractor: AVAssetExportSession + AVAssetImageGenerator]
     CE --> FS
-    UI --> MC[MediaProber + ConversionPlan + MediaConverter: MKV to MP4, libav*]
-    MC --> FS
+    UI --> EI[EpisodeImporter: prepare, stage in tmp/Converting, move, save, rollback]
+    EI --> MC[MediaProber + ConversionPlan + MediaConverter: MKV to MP4, libav*]
+    MC --> TMP[(tmp/Converting/uuid)]
+    EI --> TMP
+    EI --> FS
+    EI --> SD
     UI --> CS[CardSyncer]
     CS --> AC[AnkiConnectClient]
   end
-  Files[Files app] <--> FS
+  Files[Files app / iCloud Drive] <--> FS
+  Files -- picked file, coordinated read --> EI
   AC -- HTTP JSON, LAN --> Anki[Desktop Anki + AnkiConnect :8765]
   Anki --> AnkiWeb[(AnkiWeb)] --> AnkiMobile[AnkiMobile / AnkiDroid]
 ```
@@ -74,7 +79,8 @@ None. The app needs no server: the user owns all the data, and Anki is the desti
 **Files** (`Services/FileStore.swift`):
 - `Documents/Videos/<Show>/<Episode>.<ext>`;
 - `Documents/Subtitles/<Show>/<Episode>/<file>`, visible in the Files app;
-- `Library/CardMedia/clipdeck_<card-id>.m4a|.jpg`, private.
+- `Library/CardMedia/clipdeck_<card-id>.m4a|.jpg`, private;
+- `tmp/Converting/<uuid>/`, private staging for an import in progress (see "Importing episodes"). Swept at every launch.
 
 **Access control:** everything is in the app sandbox. AnkiConnect access can require the optional API key set on both sides.
 
@@ -108,7 +114,7 @@ The build has no secrets. `.env.example` and `Secrets.example.xcconfig` are unus
 
 ## FFmpeg (MKV import, in progress)
 
-The app links FFmpeg to convert MKV files to MP4 on import (spec: `.loop/specs/mkv-import.md`). T-012 added the libraries, the test fixtures and the licence notices; T-004 added the converter (below). The import flow and UI (`EpisodeImporter`, T-006) are still to come.
+The app links FFmpeg to convert MKV files to MP4 on import (spec: `.loop/specs/mkv-import.md`). T-012 added the libraries, the test fixtures and the licence notices; T-004 added the converter (below); T-006 added `EpisodeImporter` and the upload/relink flow ("Importing episodes"). Built-in subtitle extraction (T-005) is not done yet.
 
 | Item | Value |
 |---|---|
@@ -135,7 +141,7 @@ Rules:
 | `MediaProber.read(url:)` / `load(url:)` | Opens the file with libavformat and returns a `MediaProbe`: container, duration, start time; video codec, profile, pixel format, bit depth, chroma, size, Dolby Vision profile, start and offset; every audio track (codec, language, title, channels, sample rate, start and offset, default flag, decoder available); every subtitle track (codec, language, title, default, text or picture). Cover-art streams are skipped. `load` is cancellable (same cancel flag and interrupt callback as the converter) |
 | `ConversionPlan.make(probe:audioStreamIndex:supportsAV1:)` | Pure. Applies the allow-list and audio rules, or throws `UnsupportedMediaError` with a message that names the format and suggests HandBrake |
 | `MediaConverter.convert(source:plan:to:progress:)` | Writes one MP4 at the given URL (which must not exist; its folder must). Deletes it on failure or cancel. Returns a `Report` |
-| `MediaConverter.makeStagingFolder()` | Creates `tmp/Converting/<uuid>/`. The importer moves results out on success and sweeps the folder at launch (T-006) |
+| `MediaConverter.makeStagingFolder()` | Creates `tmp/Converting/<uuid>/`. `EpisodeImporter` moves results out on success and sweeps the folder at launch |
 
 Video allow-list (stream copy only): H.264 4:2:0 8-bit; HEVC Main/Main 10, 4:2:0 8/10-bit, written as `hvc1`; Dolby Vision 8.x (and any profile with a compatible base layer) as its HEVC base layer, with the Dolby Vision record dropped; AV1 4:2:0 8/10-bit only when `supportsAV1`. Everything else is rejected, including Dolby Vision 5, 4:2:2, 4:4:4, 12-bit, H.264 10-bit, VP9, MPEG-4 Part 2, MPEG-2 and VC-1.
 
@@ -145,6 +151,29 @@ Audio: one track (the user's choice, else the default-flagged one, else the firs
 
 **Timeline rule.** MP4 time t = source time t. Nothing is rebased: packets keep their source timestamps (only rescaled with `av_packet_rescale_ts`), and the mp4 muxer (`AVFMT_TS_NEGATIVE`, so `avoid_negative_ts` is off) turns a positive stream start into an empty edit and trims a negative one (AAC priming, B-frame delay) with an edit list (`use_editlist=1`). So a 1.0 s start offset and a 0.5 s audio delay survive as edit lists, and subtitle files made for the MKV stay in sync. Transcoded audio takes its clock from the first decoded frame and counts samples from there. Packets follow FFmpeg's `remux.c`: rescaled timestamps, `av_interleaved_write_frame`, and a strictly increasing DTS per stream (`TimestampFixer` repairs broken files the way the ffmpeg command line does; well-formed files pass unchanged). A timestamp beyond ±2^60 is rejected as a damaged file, and the repairs use comparisons and wrapping adds, because a Swift overflow would crash the app on a hostile file. No `+faststart`: it rewrites the whole file and doubles the I/O.
 
+### Importing episodes (`Services/EpisodeImporter.swift`, `Services/SourceAccess.swift`)
+
+Every video the user adds or re-links goes through `EpisodeImporter`, in two steps (spec › Import, files and lifecycle):
+
+1. **Prepare** (`prepare(_:onStage:)`), when the file is picked. Nothing is written.
+   - Extension check: `mp4`, `mov`, `m4v` are copied; `mkv` is converted. Anything else is refused with "“.xyz” videos aren't supported. Use MP4, MOV, M4V or MKV."
+   - iCloud: if `ubiquitousItemDownloadingStatus` isn't current, `startDownloadingUbiquitousItem`, then `onStage(.downloadingFromICloud)`.
+   - `SourceAccess` holds security-scoped access and an `NSFileCoordinator` coordinated read **from prepare until the import ends**. The coordinated read is what makes iCloud Drive (or another file provider) download the file before it is read, and keeps the file from being replaced mid-read. The coordinator only grants access inside a synchronous block, so a dedicated thread waits inside that block until `close()` (or the last reference goes away). Cancelling the prepare task cancels the coordinator.
+   - Free space: `volumeAvailableCapacityForImportantUsage` must be at least the source size + max(10 %, 200 MB) (`StorageSpaceRule`, decimal units), else "This needs about 1.6 GB free; you have 0.9 GB." Checked again when the import starts.
+   - MKV only: `onStage(.probing)`, `MediaProber.load`, and the plan for the default audio track (`ConversionPlan.defaultAudioTrack`; if that track has no decoder, the first track that works). Unsupported video is refused here with the plan's message.
+   - The result, `PreparedVideo`, lists the audio tracks and builds the plan for another choice (`plan(for: EpisodeImportOptions)`).
+2. **Import** (`importEpisode(_:as:options:into:progress:)`, or `relink(_:to:options:in:progress:)` for "Choose the video again").
+   - **Stage:** a fresh `tmp/Converting/<uuid>/`. MKV is converted there (`MediaConverter.convert`); MP4/MOV/M4V is copied there; the subtitle file is copied there with a coordinated read. Nothing in Documents changes while this runs. Progress reaches the caller on the main actor and never goes backwards (`ProgressRelay`).
+   - **Commit:** move the staged files into `Videos/<Show>/` and `Subtitles/<Show>/<Episode>/` with `FileStore.uniquePath` (a rename: tmp and Documents are on the same volume), then insert the Episode (and a new Show) or update `videoPath`, then save.
+   - **Rollback:** if a move or the SwiftData save fails, the moved files are deleted, the folders this import created are removed if empty, the inserted models are deleted (or the old `videoPath` restored), and the error is thrown. This also covers the MP4 path, where a failed save used to leave orphaned files.
+   - **Cancel:** cancelling the import task stops a conversion within about a second (`CancellationError`); the staging folder is deleted on every exit. An MP4 copy can't be interrupted, so it finishes into staging and is then deleted.
+   - **Crash or kill:** the half-written files are only ever in `tmp/Converting/`, and `ClipDeckApp` calls `EpisodeImporter.sweepStaging()` at every launch before any import can start.
+   - Success closes the `SourceAccess`; a failure keeps it open so the user can retry without picking the file again.
+- `EpisodeImportOptions` holds the choices made between the two steps (today: the audio track). T-005 adds built-in subtitle extraction to it, with "none" as the default, and stages and rolls back the extracted files the same way.
+- Screen lock and background (upload sheet and `MissingFileView`): `isIdleTimerDisabled` is on while converting, and a `beginBackgroundTask` covers short trips out of the app; when it expires, the import task is cancelled and the sheet says "Conversion stopped. Keep Clip Deck open until it finishes."
+- Possible follow-up: `BGContinuedProcessingTask` (iOS 26+) could let a conversion continue for minutes in the background. It is not used: untested on a free sideload, and the app targets iOS 17.
+- The `-uiTesting -uiTestingMKV` launch arguments (Debug) seed "MKV Show / Episode 1" by importing fixture 4 from `CLIPDECK_FIXTURES` through this same importer.
+
 ## Decisions
 
 | Area | Decision | Why | Alternatives considered |
@@ -152,7 +181,8 @@ Audio: one track (the user's choice, else the default-flagged one, else the firs
 | Frontend | Native SwiftUI, iOS 17 | iPhone-only; AVFoundation gives frame-exact seeking and audio export; Look Up is built in | Expo/React Native (needs native modules for clipping anyway; no gain) |
 | asbplayer integration | Re-implemented natively (offset, cue list, partial ranges, re-record, field mapping) | asbplayer is a browser extension/web app and can't run inside an iPhone app offline | Embedding asbplayer's web app in a WebView (no tab-audio capture on iOS; no offline file access) |
 | Audio capture | Cut audio from the file (`AVAssetExportSession`, M4A) while the segment plays on screen | Exact and independent of device volume or interruptions; same UX as asbplayer's "record" | Recording the output in real time (impossible to capture app audio without ReplayKit) |
-| Video formats | MP4/MOV/M4V via AVPlayer; MKV is converted to MP4 on import with an LGPL FFmpeg build (libraries and notices landed in T-012, converter to follow) | Native, reliable seeking and export | VLCKit for MKV (large dependency; audio export much harder) |
+| Video formats | MP4/MOV/M4V are copied and played with AVPlayer; MKV is converted to MP4 on import (`EpisodeImporter` + `MediaConverter`, LGPL FFmpeg build), keeping one audio track; the MKV itself is not kept | Native, reliable seeking and export; one player stack | VLCKit or libmpv for MKV (large dependency; audio export much harder) |
+| Import staging | Convert or copy into `tmp/Converting/<uuid>/`, move into Documents only on success, delete moved files if the save fails, sweep `tmp/Converting/` at launch | A cancel, failure, crash or kill can't leave half files or orphans in the library | Writing straight into Documents |
 | Anki | Queue on the phone, Sync via AnkiConnect to desktop | User's choice; full fidelity (audio + image + any note type) | .apkg export to AnkiMobile (future option) |
 | Dictionary | iOS Look Up + Yomitan-compatible field names | User's choice; zero extra data | Bundled Yomitan dictionaries (future) |
 | Project generation | XcodeGen | Text project file, editable from Windows | Committed .xcodeproj |

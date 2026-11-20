@@ -13,7 +13,6 @@ struct FileStore {
     static let live = FileStore(documentsURL: URL.documentsDirectory, libraryURL: URL.libraryDirectory)
 
     static let appFolderLabel = "On My iPhone › Clip Deck"
-    static let videoExtensions: Set<String> = ["mp4", "mov", "m4v"]
 
     var videosFolder: URL { documentsURL.appending(path: "Videos", directoryHint: .isDirectory) }
     var subtitlesFolder: URL { documentsURL.appending(path: "Subtitles", directoryHint: .isDirectory) }

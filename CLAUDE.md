@@ -35,6 +35,10 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - File paths in SwiftData are relative to Documents (`FileStore`); never store absolute paths.
 - Card media names are fixed per card (`CardMediaNames`), so Sync retries are idempotent; keep it that way.
 - `-uiTesting` launch argument (Debug): in-memory library + generated "Sample Show". `-uiTestingNoSeed` skips the sample.
+  `-uiTesting -uiTestingMKV` instead imports MKV fixture 4 through `EpisodeImporter` as "MKV Show / Episode 1" (with the
+  sample SRT); it needs `CLIPDECK_FIXTURES` in the app's environment (UI tests forward it through `launchEnvironment`).
+- Every video import goes through `Services/EpisodeImporter.swift`: it stages in `tmp/Converting/`, moves into Documents
+  only on success and rolls back on a failed save. Don't copy videos into Documents directly.
 - The developer works on Windows with no Mac: Swift is compiled only by GitHub Actions (`.github/workflows/ios-simulator.yml`),
   which also uploads UI-test screenshots and an unsigned `ClipDeck.ipa` for Sideloadly. Check run results before claiming anything builds.
 

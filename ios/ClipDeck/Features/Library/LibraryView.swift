@@ -73,7 +73,7 @@ struct LibraryView: View {
             ContentUnavailableView {
                 Label("Your library is empty", systemImage: "play.rectangle.on.rectangle")
             } description: {
-                Text("Upload an episode (MP4, MOV or M4V) to start watching and making cards.")
+                Text("Upload an episode (MP4, MOV, M4V or MKV) to start watching and making cards.")
             } actions: {
                 Button("Upload episode") { showUpload = true }
                     .buttonStyle(DeckPrimaryButtonStyle())
