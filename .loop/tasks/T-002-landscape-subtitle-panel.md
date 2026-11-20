@@ -37,6 +37,7 @@ CI only:
 Unverified for Brent: how the split feels on his iPhone; readability of long lines at 25 %.
 
 ### Agent notes
+- Carried over from T-001 (round-4 Could fix): Make a Card in landscape doesn't restart the 3 s hide countdown, so the bars can fade while a card is recording. Fix it here (call `restartHideTimer()` in the button, or add `miningRange != nil` to `keepsControlsUp`). Also add a UI test for "Load different subtitles" from the landscape subtitles dialog. Note: on iOS 26, tap gestures attached to a SwiftUI Menu never fire; the landscape subtitles control is a Button + confirmationDialog (see T-001 notes).
 - Depends on: T-001 (full-screen landscape, overlay controls, `player.video`).
 - Source: Brent's goal item 2 ("3/4 or 7/8 of video, last vertical slice for subtitles"). Brent confirmed 2026-11-19: default video 3/4, panel 1/4, panel at least 180 pt. Keep the ratio as one constant; T-011 makes it draggable and remembered.
 - Code: `ios/ClipDeck/Features/Player/PlayerView.swift`; reuse `CuePanel` as is. `showSidePanel` already exists.
