@@ -53,6 +53,16 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
   Release/unsigned .ipa); all unit tests pass (parsers, clip math, AnkiConnect client, syncer, files, real clip extraction);
   UI tests pass (launch; full mining flow: seek via list, Make a Card, add next line + re-record, save, 1 waiting to sync).
   Screenshots reviewed: library, show, player, card editor, sync sheet.
-- Not yet verified: on a real iPhone (Sideloadly install), real-video import from Files, sync against desktop Anki,
-  landscape layout, dark mode, large Dynamic Type.
-- Not in v1: see docs/PRODUCT_SPEC.md "Not yet implemented".
+- 2026-11-20: dev loop (`.loop/`, branch `loop/mkv-landscape-sideload`) built and **verified in CI** (last green run
+  44833382185, 251/251 tests + IPA):
+  - full-screen landscape player with tap controls; a pop-out subtitle panel (default 25% of the usable width) with a
+    resizable divider; controls always start hidden in landscape;
+  - MKV import: converted on import to MP4 with FFmpeg (FFmpegBuild 3.16.0, LGPL; backup fork bman7222/FFmpegBuild), staged and
+    rolled back by `EpisodeImporter`, plus built-in text subtitles extracted to .srt/.ass;
+  - Settings › About and licences; root LICENSE (all rights reserved + LGPL §6 exception);
+  - SideStore install guide (docs/INSTALL_ON_IPHONE.md), GitHub Releases (`release.yml` on `v*` tags) and a SideStore
+    source (`releases/latest/download/apps.json`); a daily expiry reminder banner.
+  - Repo made public 2026-11-20 (free Actions minutes). First release v0.2.0 (before the expiry banner and built-in subtitles).
+- Not yet verified on a real iPhone: SideStore install and the daily refresh, landscape and the panel, MKV import from Files
+  (incl. iCloud, multiple audio tracks, HEVC 10-bit, ASS styles), the expiry banner date, VoiceOver, sync with desktop Anki.
+- Not in v1: see docs/PRODUCT_SPEC.md "Not yet implemented". Blocked: T-007 TestFlight (needs a paid Apple Developer account).

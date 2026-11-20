@@ -472,3 +472,33 @@
 ## 2026-11-20 · orchestrator · T-005 · landed; T-013 planned
 - Done: T-005 passed (2 sonnet rounds + 1 verify-only pass). Squashed to ee09056. Every feature task is done.
 - Left: T-013 (tidy up loose ends, written by the orchestrator at Brent's request) is next. Then update CLAUDE.md status, ask Brent about merging to main, release v0.3.0, and give him the phone instructions.
+
+## 2026-11-20 · loop-backend · T-013 · round 1 (sonnet)
+- Done: AC-1..AC-8 (safeName Cc only, picked subtitle file makes chosen track non-required, semver ordering + SideStore notes + recovery doc, checkout@v5, ErrorBanner a11y, test tidy-ups + interrupt-callback test, notices row)
+- Left: CI run for the Swift changes (nothing compiled locally); `python scripts/test-make-source-json.py` passes
+- Files: FileStore.swift, EpisodeImporter.swift, Components.swift, 3 test files, make-source-json.py (+test), 2 workflows, INSTALL_ON_IPHONE.md, THIRD_PARTY_NOTICES.md
+- Gotchas: `PreparedVideo.plan(for:userPickedSubtitleFile:)` new param; a later hotfix release would become GitHub "latest"
+
+## 2026-11-20 17:45 · loop-tester · T-013 · round 1
+- Done: read CI 44819926161 (28ad26f, scope=all). Both jobs are green: 251/251 pass with 0 issues, including the 5 new tests and every known flake. The 3 `as?` "always succeeds" warnings are gone, and there are no Swift warnings. The 06-sync banner screenshot matches the previous run pixel for pixel. The documented recovery generate+check commands work against the live repo, and SideStore shows the notes with a tappable link
+- Verdict: Fail. S1: ios-simulator.yml still gives the Node 20 warning, from actions/upload-artifact@v4 (:60, :91); bump it to @v6. C1-C3 are in the task file
+- Tests: test-make-source-json.py (v0.10.0 published before v0.3.0, check_source numeric order); MiningFlowUITests AC-6 assertion (the banner action is its own button), not run yet
+- Files: scripts/test-make-source-json.py, ios/ClipDeckUITests/MiningFlowUITests.swift, .loop/tasks/T-013-tidy-up-loose-ends.md
+- Gotchas: drive C: was at 0 MB free during this run (about 160 MB after I removed my own scratch). This run's simulator-results artifact is only 13.5 MB zipped, and the xcresult database.sqlite3 has per-test results
+
+## 2026-11-20 · loop-backend · T-013 · round 2 (sonnet)
+- Done: upload-artifact@v4 to @v6 (both jobs), check_source rejects non-X.Y.Z versions (+test), python3 note in the recovery doc
+- Left: CI run to confirm the Node 20 warning is gone and the AC-6 UI assertion passes; C3 not done
+- Files: .github/workflows/ios-simulator.yml, scripts/make-source-json.py, scripts/test-make-source-json.py, docs/INSTALL_ON_IPHONE.md
+- Gotchas: tester's edits in test-make-source-json.py and MiningFlowUITests.swift kept
+
+## 2026-11-20 18:22 · loop-tester · T-013 · round 2
+- Done: read CI 44833382185 (356f2e7, scope=all). Both jobs are green: 251/251 pass with 0 issues and 0 skips, including every known flake and the round-1 tester's MiningFlowUITests AC-6 assertion (the xcresult activities show the button wait, the StaticText check, the tap and settings.url)
+- Done: S1 is fixed. Neither job has a Node 20 annotation (capacity notice only), and both jobs run upload-artifact@v6 (node24). The local make-source-json test passes, and removing the new version check makes it fail
+- Verdict: Pass. One Could fix: the version regex's `$` accepts a trailing newline
+- Files: .loop/tasks/T-013-tidy-up-loose-ends.md (Test report round 2)
+- Gotchas: run logs only become available after the whole run finishes. The simulator-results artifact is about 15 MB
+
+## 2026-11-20 · orchestrator · T-013 · landed; goal complete
+- Done: T-013 passed (2 sonnet rounds). All 12 buildable tasks are done; T-007 stays blocked (paid account). CLAUDE.md "Current status" updated.
+- Left: Brent decides whether to merge loop/mkv-landscape-sideload into main, then release v0.3.0. Open Could fix: make-source-json.py version regex accepts a trailing newline (use re.fullmatch).
