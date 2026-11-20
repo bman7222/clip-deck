@@ -64,6 +64,17 @@ final class MiningFlowUITests: XCTestCase {
         XCTAssertTrue(app.staticTexts["sync.waiting"].waitForExistence(timeout: 5))
         XCTAssertEqual(app.staticTexts["sync.waiting"].label, "1 card waiting to sync")
         attachScreenshot(app, "06-sync")
+
+        // T-013 AC-6 (tester): with an action, ErrorBanner keeps the message as one element and the action is its
+        // own button. Under the old `.combine` both were merged into one element labelled "<message>, <action>".
+        let problem = "Add your computer's AnkiConnect address in Anki settings."
+        let openSettings = app.buttons["Open Anki settings"]
+        XCTAssertTrue(openSettings.waitForExistence(timeout: 5), "the banner's action is its own button")
+        XCTAssertTrue(app.staticTexts.matching(NSPredicate(format: "label == %@", problem)).firstMatch.exists,
+                      "the banner's message is its own element, without the button's title")
+        openSettings.tap()
+        XCTAssertTrue(app.descendants(matching: .any)["settings.url"].waitForExistence(timeout: 5),
+                      "the banner's button opens Anki settings")
     }
 
     @MainActor

@@ -44,9 +44,11 @@ Language learners, Japanese learners in particular, who already mine cards with 
 
 **Add an episode:** library **+**:
 1. pick or create a show;
-2. choose the MP4/MOV/M4V file and name the episode;
-3. optionally choose SRT/ASS subtitles;
-4. tap **Add episode**.
+2. choose the MP4, MOV, M4V or MKV file (from the Files app or iCloud Drive) and name the episode. For an MKV with several audio tracks, pick the one to keep (the file's default is preselected);
+3. optionally choose SRT/ASS subtitles, or for an MKV with text subtitle tracks, pick one of them in "Embedded subtitles" (every text track is saved as an SRT/ASS file in the episode's subtitle folder, so "Load different subtitles" lists them);
+4. tap **Add episode**. An MKV is converted to MP4 on the phone, with "Converting… n%" and Cancel; keep Clip Deck open until it finishes (the screen stays on). The original MKV isn't kept.
+
+If the video can't play on iPhone (for example H.264 10-bit, VP9 or 4:2:2), or there isn't enough free space, the sheet says so and Add episode stays disabled. **Choose the video again** on a missing video accepts MKV the same way.
 
 **Assign or change subtitles:** use the subtitle icon on an episode row, or the player's subtitles menu › **Load different subtitles**. Import a file there, or pick one already in that episode's folder.
 
@@ -70,23 +72,24 @@ Nothing syncs between devices. Cards are copied to Anki on Sync.
 
 Everything in Core features and Main user flows:
 - the full primary flow, from video to queued card to Anki;
-- SRT and ASS subtitles;
-- MP4/MOV/M4V video;
+- SRT and ASS subtitles, including text subtitle tracks built into an MKV (extracted as SRT/ASS files on import);
+- MP4/MOV/M4V video, and MKV converted to MP4 on import (one audio track; H.264 8-bit, HEVC or AV1 video where the iPhone supports it);
 - light and dark mode, portrait and landscape.
 
 ## Not yet implemented
 
-- **MKV and other formats:** these need a VLC-based player. Convert to MP4 for now.
+- **Other containers** (AVI, WebM, TS) and MKV video the iPhone can't play (H.264 10-bit, VP9, 4:2:2/4:4:4, 12-bit, Dolby Vision profile 5). Convert them on a computer, for example with HandBrake.
+- **Switching the audio track** of an MKV episode after import. Add it again to keep another track.
 - **In-app Yomitan-style dictionary popups** and auto-filling Word/Definition. Use iOS Look Up and type them in.
 - **Exporting an .apkg** for AnkiMobile without a computer.
 - **Editing or re-opening a card** after saving. You can delete it from the Sync sheet.
 - **Renaming shows or episodes**, and moving an episode to another show.
-- **Embedded subtitle tracks** inside MP4 files. Use separate SRT/ASS files.
+- **Picture-based subtitle tracks** (PGS, VobSub) inside an MKV, and subtitle tracks inside MP4 files. Use separate SRT/ASS files.
 
 ## Future considerations
 
 - An AnkiMobile .apkg export path (no computer needed).
-- MKV via VLCKit, with audio extraction through its transcoder.
+- Converting in the background after leaving the app (`BGContinuedProcessingTask`, iOS 26+).
 - An offline dictionary using imported Yomitan dictionaries (JMdict) with Japanese deinflection.
 - Card thumbnails and search in the Sync sheet; batch delete.
 - iPad layout (the code is iPhone-only today: `TARGETED_DEVICE_FAMILY = 1`).

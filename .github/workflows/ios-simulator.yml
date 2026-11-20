@@ -8,6 +8,17 @@ on:
     branches: [main]
   pull_request:
   workflow_dispatch:
+    # Conservative CI (dev loop, .loop/config.yml ci.mode): run only what a change needs.
+    inputs:
+      scope:
+        description: "all = tests + ipa; tests = simulator job only; ipa = ipa job only"
+        type: choice
+        options: [all, tests, ipa]
+        default: all
+      only_testing:
+        description: "Optional xcodebuild -only-testing target, e.g. ClipDeckUITests/AboutUITests (empty = all tests)"
+        type: string
+        default: ""
 
 concurrency:
   group: ios-${{ github.ref }}
@@ -15,18 +26,20 @@ concurrency:
 
 jobs:
   simulator:
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'ipa'
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Show toolchain
         run: |
           xcodebuild -version
           xcrun simctl list runtimes | grep -i ios || true
 
-      - name: Install xcodegen
-        run: brew install xcodegen
+      - name: Install xcodegen and ffmpeg
+        # ffmpeg is a build-time tool only: scripts/make-test-media.sh uses it to generate the MKV test fixtures.
+        run: brew install xcodegen ffmpeg
 
       - name: Create local config from examples
         run: |
@@ -34,14 +47,17 @@ jobs:
           cp -n ios/Config/Secrets.example.xcconfig ios/Config/Secrets.xcconfig || true
 
       - name: Unit and UI tests
-        run: bash scripts/test-ios.sh
+        env:
+          ONLY_TESTING: ${{ inputs.only_testing }}
+        run: bash scripts/test-ios.sh ${ONLY_TESTING:+"$ONLY_TESTING"}
 
       - name: Launch in simulator and screenshot
+        if: inputs.only_testing == ''
         run: bash scripts/run-ios.sh
 
       - name: Upload screenshots and test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: simulator-results
           path: |
@@ -53,10 +69,11 @@ jobs:
   # Unsigned build for your own iPhone: download "ClipDeck-ipa" from the run page and install it
   # with Sideloadly (Windows/Mac), which signs it with your Apple ID.
   ipa:
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'tests'
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -67,8 +84,11 @@ jobs:
       - name: Build unsigned IPA
         run: bash scripts/build-ipa.sh
 
+      - name: Check licence notices are inside the IPA
+        run: bash scripts/check-ipa-notices.sh build/ipa/ClipDeck.ipa
+
       - name: Upload IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ClipDeck-ipa
           path: build/ipa/ClipDeck.ipa

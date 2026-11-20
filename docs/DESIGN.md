@@ -17,7 +17,7 @@ The user asked for a feel like the Nintendo 3DS home menu: clear, friendly icons
 - the big **Make a Card** button;
 - the tap-to-seek subtitle list.
 
-In landscape the list becomes a side pop-out. Boldness also goes into the library's glossy rounded-square show tiles, one bright hue each. Everything else is quiet:
+In landscape the video fills the whole screen with no navigation bar. The controls always start hidden, whether you rotate into landscape or open the player with the phone already in landscape. Tapping the video shows translucent controls over it (top bar: back and title; bottom bar: scrubber, transport, Make a Card). The bars lie over the video column and never widen it: with the panel wide, Make a Card goes icon only, and near the 50 % maximum the bottom row also drops the ±5 s skips. While playing they fade after 3 s; they stay up while paused, scrubbing, in a sheet, with the subtitles dialog open, or with VoiceOver. The subtitle line moves above the bottom bar while the controls show. A button in the top-right of the top bar (`sidebar.right`) opens the subtitle list as a side panel: the video shrinks to the left (about 70 % on a notched iPhone) and the panel takes the right: content width starts at 25 % of the usable width (never under 180 pt) plus the trailing safe-area inset as padding. A grip on the divider (`player.panelHandle`, 44 pt touch area) drags the panel between 180 pt and 50 % of the usable width, double-tap resets it to 25 %, a single tap shows or hides the controls like a tap on the video, and the width is remembered across launches. It holds the problem banner, a compact Make a Card (icon only if too narrow) and the cue list with compact rows (time above the text). The panel stays open when the controls fade, and its open state survives a rotation to portrait and back. The subtitles button in landscape opens a dialog ("Load different subtitles") instead of a menu, so its open state can be tracked and the auto-hide never closes it. Make a Card keeps the controls up while it records. Boldness also goes into the library's glossy rounded-square show tiles, one bright hue each. Everything else is quiet:
 - a cool console-grey shell;
 - white panels;
 - no decorative gradients beyond the single top highlight on tiles.
@@ -66,6 +66,7 @@ Subtitles use the system font (Hiragino Sans for Japanese), bold, with a black o
 - `DeckIconButtonStyle`: a 44×44 rounded-square control on a panel. Active = aqua fill.
 - `PendingBadge`: a sunflower count capsule on the Sync button.
 - `ErrorBanner`: a red-tinted inline message with an optional fix action.
+- `ImportProgressView`: "Converting… n%" in bold rounded type with monospaced digits, an aqua bar and a red Cancel, plus "Keep Clip Deck open until it finishes." Shared by the upload sheet and Missing video.
 - `Toast`: a dark capsule confirmation at the bottom ("Card saved. 3 cards waiting to sync.").
 - `SelectableText`: outlined or plain selectable text for subtitles (Look Up).
 - Empty states use `ContentUnavailableView` with a single action.
@@ -97,12 +98,13 @@ Show                            ││ 1:40 前の行             ││    │ 
 | Library | Pick a show; Sync; Upload | — | "Your library is empty" + Upload episode | — |
 | Subtitles tab | Browse Subtitles/Show/Episode folders, preview lines | — | "No subtitle files here" | Parse errors shown on preview |
 | Show | Episodes; subtitle icon per row; swipe to delete | — | — | Row says "Video file missing" in red |
-| Upload sheet | Show, name, video, optional subtitles | Spinner replaces Add episode | — | Inline banner (unsupported type, copy failed) |
+| Upload sheet | Show, name, video (MP4, MOV, M4V or MKV), optional subtitles. For an MKV with two or more audio tracks, an Audio picker (`upload.audioTrack`, "jpn · Original · AAC", the file's default preselected). For an MKV with text subtitle tracks, an Embedded subtitles picker (`upload.embeddedSubtitle`: "None" plus each text track as "language · title · format", the default-flagged or first text track preselected). Picture tracks are listed below it greyed out as "image-based, can't be used", and text formats Clip Deck can't write (for example mov_text) as "format not supported"; neither can be chosen; with no text tracks the row is hidden. A subtitle file chosen below wins, and the footer says the embedded tracks are still saved) | After picking: a status row (`upload.preparing`) with "Downloading from iCloud…" or "Reading the video…". After Add episode: a progress section at the top, "Converting… n%" with a bar for an MKV or "Adding…" for a copy (`upload.progress`), and Cancel (`upload.cancelConvert`); the fields lock, the screen stays on, and the toolbar shows a spinner | — | Inline banner under the video (`upload.videoError`: unsupported type, unsupported video or audio track, not enough space, unreadable file; Add episode stays disabled) and at the bottom (`upload.error`: import failed, background time ran out). Cancel shows nothing and keeps the sheet. Import notes (e.g. damaged audio skipped) show in an "Episode added" alert before the sheet closes |
 | Player | Watch, offset, switch subtitles, list, Make a Card | Spinner until the player is ready | "No subtitle lines" in the list | Banner: no subtitles, missing subtitle file (with expected location), parse error |
-| Missing video | Explains which file and where; Choose the video again | — | — | — |
+| Missing video | Explains which file and where; Choose the video again (MP4, MOV, M4V or MKV; an MKV uses its default audio track) | The same status row (`missing.preparing`) and progress panel with Cancel (`missing.progress`, `missing.cancelConvert`) as the upload sheet, below the button; back is hidden while it runs | — | Banner (`missing.videoError`, `missing.error`), with Try again when the file is still open |
 | Card editor | Replay, range, re-record, fields, save | "Recording…" | — | Banner (export failed) |
 | Sync sheet | Waiting count, Sync, per-card status | "Syncing 2 of 5…" | "Everything is in Anki." | Setup problem banner; summary in red; per-card error |
 | Anki settings | Address, test, deck/note type, field map, padding, setup steps | Spinner on Test connection | Free-text fields until connected | Error text under Test connection |
+| About and licences | Settings › About and licences: versions, Clip Deck licence, FFmpeg notice with source links, full LGPL-2.1 text, other components. One scrolling list; monospaced footnote text that follows Dynamic Type | — | "Licence text missing: <name>" in place of a file that is not bundled | — |
 
 ## Interaction and motion
 
@@ -112,7 +114,7 @@ Motion is used only where something changes:
 - **Offset value:** animates with `.numericText()`.
 - **Buttons:** press-scale.
 - **Toasts:** slide up.
-- **Landscape side panel:** slides in.
+- **Landscape side panel:** slides in from the trailing edge with the standard spring; content 25 % of the usable width by default (minimum 180 pt, maximum 50 %), plus the trailing inset; resizable with the divider grip, remembered as a fraction.
 
 Saving a card plays a success haptic. There are no ambient or entrance animations. SwiftUI's springs respect Reduce Motion.
 

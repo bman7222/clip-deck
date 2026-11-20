@@ -19,6 +19,7 @@ final class PlayerModel {
     var isScrubbing = false
 
     @ObservationIgnored private var timeObserver: Any?
+    @ObservationIgnored private var endObserver: NSObjectProtocol?
     @ObservationIgnored private var segmentEndMs: Int?
     @ObservationIgnored private var segmentContinuation: CheckedContinuation<Void, Never>?
 
@@ -33,6 +34,18 @@ final class PlayerModel {
         ) { [weak self] time in
             MainActor.assumeIsolated { self?.tick(time) }
         }
+        // The periodic tick stops once the player pauses at the end of the item, so listen for the end
+        // explicitly: playback has really stopped, and anything waiting on a segment can continue.
+        endObserver = NotificationCenter.default.addObserver(
+            forName: AVPlayerItem.didPlayToEndTimeNotification,
+            object: player.currentItem,
+            queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated {
+                self?.isPlaying = false
+                self?.finishSegment()
+            }
+        }
         Task { await loadDuration(resumeAt: startAtMs) }
     }
 
@@ -42,6 +55,8 @@ final class PlayerModel {
         player.pause()
         if let timeObserver { player.removeTimeObserver(timeObserver) }
         timeObserver = nil
+        if let endObserver { NotificationCenter.default.removeObserver(endObserver) }
+        endObserver = nil
     }
 
     // MARK: Subtitles

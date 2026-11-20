@@ -18,9 +18,23 @@ struct LibraryView: View {
     @State private var showSync = false
     @State private var showSettings = false
 
+    @Environment(\.scenePhase) private var scenePhase
+    /// Read once per launch; the profile can't change while the app runs.
+    @State private var expiry = InstallExpiry.currentExpiry()
+    @State private var expiryStore = ExpiryReminderStore(
+        defaults: LaunchFlags.isUITesting ? (UserDefaults(suiteName: "uiTesting") ?? .standard) : .standard)
+    @State private var bannerNow = Date()
+    @State private var showExpiryBanner = false
+
     var body: some View {
         NavigationStack {
             VStack(spacing: 0) {
+                if showExpiryBanner, let expiry {
+                    ExpiryBanner(expiry: expiry, now: bannerNow) {
+                        expiryStore.recordDismissal()
+                        showExpiryBanner = false
+                    }
+                }
                 Picker("View", selection: $tab) {
                     ForEach(Tab.allCases) { Text($0.rawValue).tag($0) }
                 }
@@ -57,7 +71,16 @@ struct LibraryView: View {
             .sheet(isPresented: $showUpload) { UploadEpisodeView() }
             .sheet(isPresented: $showSync) { SyncView() }
             .sheet(isPresented: $showSettings) { AnkiSettingsView() }
+            .onAppear(perform: refreshExpiryBanner)
+            .onChange(of: scenePhase) { _, phase in
+                if phase == .active { refreshExpiryBanner() }
+            }
         }
+    }
+
+    private func refreshExpiryBanner() {
+        bannerNow = Date()
+        showExpiryBanner = expiryStore.shouldShowBanner(now: bannerNow, expiry: expiry)
     }
 
     private var syncLabel: some View {
@@ -73,7 +96,7 @@ struct LibraryView: View {
             ContentUnavailableView {
                 Label("Your library is empty", systemImage: "play.rectangle.on.rectangle")
             } description: {
-                Text("Upload an episode (MP4, MOV or M4V) to start watching and making cards.")
+                Text("Upload an episode (MP4, MOV, M4V or MKV) to start watching and making cards.")
             } actions: {
                 Button("Upload episode") { showUpload = true }
                     .buttonStyle(DeckPrimaryButtonStyle())

@@ -10,7 +10,18 @@ struct ClipDeckApp: App {
     init() {
         let isUITesting = LaunchFlags.isUITesting
         // UI tests get a fresh in-memory library and default settings on every launch.
-        if isUITesting { UserDefaults.standard.removePersistentDomain(forName: "uiTesting") }
+        // -uiTestingKeepExpiryDismissal keeps only the expiry-banner dismissal day, so a test can relaunch the same day.
+        if isUITesting {
+            let kept = ProcessInfo.processInfo.arguments.contains("-uiTestingKeepExpiryDismissal")
+                ? UserDefaults(suiteName: "uiTesting")?.string(forKey: ExpiryReminderStore.key) : nil
+            UserDefaults.standard.removePersistentDomain(forName: "uiTesting")
+            if let kept { UserDefaults(suiteName: "uiTesting")?.set(kept, forKey: ExpiryReminderStore.key) }
+        }
+        // The landscape panel width lives in the standard defaults, which outlive a UI-test launch. Start every
+        // UI-test launch at the default width unless the test asks to keep it (-uiTestingKeepPanelWidth).
+        if isUITesting, !ProcessInfo.processInfo.arguments.contains("-uiTestingKeepPanelWidth") {
+            UserDefaults.standard.removeObject(forKey: "player.panelFraction")
+        }
         _settings = State(initialValue: isUITesting
             ? SettingsStore(defaults: UserDefaults(suiteName: "uiTesting") ?? .standard, key: "ankiSettings.uiTesting")
             : SettingsStore())
@@ -23,6 +34,9 @@ struct ClipDeckApp: App {
             fatalError("Clip Deck couldn't open its library database: \(error)")
         }
         FileStore.live.ensureFolders()
+        // An import killed mid-way (crash, force quit, iOS ending a background conversion) leaves its staging
+        // folder behind; nothing reached Documents, so it is safe to delete before any new import starts.
+        EpisodeImporter.sweepStaging()
         // Play sound even with the silent switch on, like a video app.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
     }
@@ -40,5 +54,11 @@ enum LaunchFlags {
     /// Passed by the UI tests (see ClipDeckUITests). Debug builds only seed sample media when set.
     static var isUITesting: Bool { ProcessInfo.processInfo.arguments.contains("-uiTesting") }
     /// UI tests that need an empty library pass this too.
-    static var shouldSeedSample: Bool { isUITesting && !ProcessInfo.processInfo.arguments.contains("-uiTestingNoSeed") }
+    static var shouldSeedSample: Bool {
+        isUITesting && !ProcessInfo.processInfo.arguments.contains("-uiTestingNoSeed") && !shouldSeedMKV
+    }
+    /// `-uiTesting -uiTestingMKV` (Debug): instead of "Sample Show", import MKV fixture 4 through `EpisodeImporter`
+    /// as "MKV Show / Episode 1" with the sample SRT. The fixture folder comes from the CLIPDECK_FIXTURES
+    /// environment variable (UI tests forward it through `launchEnvironment`).
+    static var shouldSeedMKV: Bool { isUITesting && ProcessInfo.processInfo.arguments.contains("-uiTestingMKV") }
 }

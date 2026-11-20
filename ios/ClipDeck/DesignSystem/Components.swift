@@ -102,10 +102,15 @@ struct ErrorBanner: View {
     var actionTitle: String?
     var action: (() -> Void)?
 
+    /// With an action, the message and the button are separate VoiceOver elements (inside one group that keeps the
+    /// caller's identifier), so the button can be activated. Without one, the banner is a single element.
+    private var hasAction: Bool { actionTitle != nil && action != nil }
+
     var body: some View {
         HStack(alignment: .top, spacing: Spacing.m) {
             Image(systemName: "exclamationmark.triangle.fill")
                 .foregroundStyle(Theme.danger)
+                .accessibilityHidden(hasAction)
             VStack(alignment: .leading, spacing: Spacing.s) {
                 Text(message)
                     .font(.deckCallout)
@@ -120,7 +125,7 @@ struct ErrorBanner: View {
         }
         .padding(Spacing.m)
         .background(Theme.danger.opacity(0.12), in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
-        .accessibilityElement(children: .combine)
+        .accessibilityElement(children: hasAction ? .contain : .combine)
     }
 }
 

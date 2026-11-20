@@ -6,6 +6,7 @@ struct AnkiSettingsView: View {
     @Environment(SettingsStore.self) private var store
     @Environment(\.dismiss) private var dismiss
     @State private var status: ConnectionStatus = .idle
+    @State private var installExpiry = InstallExpiry.currentExpiry()
 
     enum ConnectionStatus: Equatable {
         case idle, checking
@@ -73,6 +74,21 @@ struct AnkiSettingsView: View {
                 Section("Audio clip") {
                     Stepper("Start \(store.anki.audioPaddingStartMs) ms earlier", value: $store.anki.audioPaddingStartMs, in: 0...2_000, step: 100)
                     Stepper("End \(store.anki.audioPaddingEndMs) ms later", value: $store.anki.audioPaddingEndMs, in: 0...2_000, step: 100)
+                }
+
+                Section {
+                    NavigationLink {
+                        AboutView()
+                    } label: {
+                        Text("About and licences")
+                    }
+                    .accessibilityIdentifier("settings.about")
+                    if let installExpiry {
+                        Text(InstallExpiry.settingsText(expiry: installExpiry))
+                            .font(.deckCallout)
+                            .foregroundStyle(Theme.inkSoft)
+                            .accessibilityIdentifier("settings.expiry")
+                    }
                 }
 
                 Section("Set up AnkiConnect (once)") {
