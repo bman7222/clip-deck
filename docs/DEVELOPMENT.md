@@ -72,7 +72,7 @@ To test syncing from the simulator, use `http://localhost:8765` in Anki settings
 With Claude Code, the `ios-simulator-skill` skill can drive the running app. It taps and types by accessibility identifier, takes screenshots, and switches dark mode and text size. Identifiers follow `feature.element`:
 - `library.sync`, `library.upload`, `library.show.<name>`;
 - `episode.row.<title>`;
-- `cue.row.<n>`, `player.makeCard`, `player.offset`, `player.back` (landscape top bar), `player.video`, `player.panelToggle` (landscape top bar), `player.sidePanel`, `player.panel.makeCard`;
+- `cue.row.<n>`, `player.makeCard`, `player.offset`, `player.back` (landscape top bar), `player.video`, `player.panelToggle` (landscape top bar), `player.sidePanel`, `player.panelHandle`, `player.panel.makeCard`;
 - `card.save`, `card.addNext`, `card.rerecord`, `card.field.<field>`;
 - `sync.start`.
 
