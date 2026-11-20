@@ -2,7 +2,7 @@
 id: T-010
 title: Let SideStore find and install Clip Deck updates on its own
 lane: backend
-depends_on: [T-009]
+depends_on: [T-009, T-012]
 status: todo
 round: 0
 base_sha:
@@ -34,9 +34,9 @@ With releases alone, Brent still has to find the release page, download the IPA 
 Unverified for Brent: adding the source in SideStore and installing an update from it.
 
 ### Agent notes
-- Depends on: T-009 (release workflow, versioned IPA).
+- Depends on: T-009 (release workflow, versioned IPA) and T-012 (root `LICENSE`: all rights reserved + the LGPL-2.1 §6 clause, plus the FFmpeg notices inside the app).
 - Hosting: Brent chose (2026-11-19) to make `bman7222/clip-deck` public, so publish `apps.json` as a release asset of this repo: `https://github.com/bman7222/clip-deck/releases/latest/download/apps.json`. No extra repo or token.
-- The orchestrator makes the repo public, after a secret scan and a final confirmation from Brent, before T-010 is tested. Implementers and testers never change the repo's visibility.
+- The `LICENSE` file must have landed (T-012 done) before the orchestrator's secret scan, Brent's final confirmation and making the repo public. Only then is T-010 tested. The orchestrator makes the repo public, after a secret scan and a final confirmation from Brent, before T-010 is tested. Implementers and testers never change the repo's visibility.
 - Check the source format against the official docs (AltStore "Make a Source" docs; SideStore's docs on sources) and cite them in the implementation notes. Don't invent keys.
 
 ### Out of scope

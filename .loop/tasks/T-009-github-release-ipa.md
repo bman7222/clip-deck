@@ -26,6 +26,7 @@ Brent may be away from his computer for weeks. A release page he can reach from 
 - AC-4 The IPA's `Info.plist` has `CFBundleShortVersionString` equal to the version and `CFBundleVersion` equal to the run number; the bundle ID stays `dev.brent.clipdeck`.
 - AC-5 `ios-simulator.yml` is unchanged and still green.
 - AC-6 `docs/INSTALL_ON_IPHONE.md` (from T-003, or a new section if T-003 hasn't landed) explains how to cut a release (`git tag v0.2.0 && git push origin v0.2.0`) and how to install it from the phone: open the release page in Safari while signed in to GitHub, download `ClipDeck.ipa`, then Share › SideStore. While the repo is still private this needs a GitHub login; once it is public (T-010), no login is needed.
+- AC-7 The release notes include a link to the exact FFmpegBuild source tag the build uses (3.16.0 at the time of writing; read the pinned version from ios/project.yml) and point to `THIRD_PARTY_NOTICES.md` and the root `LICENSE`, as LGPL-2.1 requires for public binaries (review finding 8 in .loop/specs/mkv-import.review.md). If T-012 hasn't landed yet, the notes say "No third-party libraries bundled" instead, and this item is re-checked once T-012 lands.
 
 ### How to check
 `workflow_dispatch` only works once the workflow file is on `main`, so check it with a tag on the loop branch:

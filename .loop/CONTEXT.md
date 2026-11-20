@@ -36,3 +36,6 @@ subtitles, turn a subtitle line into an Anki card (audio clip, screenshot, sente
 
 ## Learned
 <!-- Agents append one-line facts here that the next agent needs. -->
+- iOS 26: tap gestures attached to a SwiftUI Menu (and simultaneousGesture on bars) don't fire; use Button + confirmationDialog when you need to know a menu is open.
+- XCUITest `app.screenshot()` in landscape comes out rotated and cropped to about 400 pt; check layout from the xcresult UI hierarchy and the screen recording.
+- `ClipExtractorTests.cutsExactAudioAndScreenshot` can time out on CI (pre-existing flake); `gh run rerun <id> --failed` once before treating it as a failure.
