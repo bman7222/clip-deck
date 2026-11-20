@@ -39,7 +39,7 @@ SideStore signs Clip Deck under its own bundle ID: `dev.brent.clipdeck` plus you
 
 - **From the phone (normal way):** open the [Releases page](https://github.com/bman7222/clip-deck/releases) in Safari and tap the newest release. The repo is public, so no GitHub login is needed. Download `ClipDeck.ipa` (ignore `ClipDeck.ipa.sha256`, that is only a checksum). Then either tap the download in Files and share it to **SideStore**, or in SideStore › My Apps tap **+** and pick the file (SideStore's file import).
 - **Without a release:** open the [Actions page](https://github.com/bman7222/clip-deck/actions), pick a green **iOS simulator** run that lists **ClipDeck-ipa** under Artifacts, and download it (this needs a GitHub login). The download is a zip: tap it in Files to unzip it and get `ClipDeck.ipa`. Artifacts are kept for 30 days, and runs on a `loop/…` branch are work in progress.
-- **Later (T-010):** Clip Deck will show up as a SideStore source, so SideStore can find and install updates by itself.
+- **From the SideStore source (updates on their own):** see [Installing and updating from the source](#installing-and-updating-from-the-source). Use it for the very first install too, so SideStore links the installed app to the source.
 
 ### Cutting a release (on the computer)
 
@@ -48,6 +48,28 @@ git tag v0.2.0 && git push origin v0.2.0
 ```
 
 The **Release IPA** workflow builds the unsigned IPA and publishes it as release `v0.2.0` with `ClipDeck.ipa` and `ClipDeck.ipa.sha256` (a few minutes). Or run it by hand: Actions › Release IPA › Run workflow, version `0.2.0` (no `v`; the workflow creates the tag). The version must look like `1.2.3` or `1.2.3-rc1`; a version with `-` is published as a pre-release. The number shown in the app is the version, and the build number is the workflow run number. It never overwrites: reusing an existing version fails with a clear message, so pick the next one. The release notes link to the exact FFmpeg source this build uses (read from `ios/project.yml`) and to `THIRD_PARTY_NOTICES.md` and `LICENSE`.
+
+## Installing and updating from the source
+
+Every stable release also publishes a SideStore source file, `apps.json`. Add it once and SideStore lists Clip Deck, shows when a newer version exists and installs it from the phone. No computer and no GitHub login are needed.
+
+Source address (copy this into SideStore):
+
+```
+https://github.com/bman7222/clip-deck/releases/latest/download/apps.json
+```
+
+> **This address returns 404 until the first stable release exists.** GitHub's "latest" ignores pre-releases, and a version with `-` in it (like `0.2.0-rc1`) is a pre-release. Cut a plain `v0.2.0`-style release first (see [Cutting a release](#cutting-a-release-on-the-computer)); pre-releases are never listed in the source.
+
+**Add the source (once):**
+1. Connect LocalDevVPN. In SideStore, open the **Sources** tab and tap **+** (top left), paste the address above and add it. SideStore's own page on this: [App Sources](https://docs.sidestore.io/docs/advanced/app-sources). Tapping `sidestore://source?url=https://github.com/bman7222/clip-deck/releases/latest/download/apps.json` in Safari does the same ([URL Schema](https://docs.sidestore.io/docs/advanced/url-schema)).
+2. Open the new source, tap Clip Deck and install it (**Get** or **Free**).
+
+**Update:** SideStore shows an update for Clip Deck (Sources and My Apps) once a newer stable release is out. Tap **Update**. Releases may take a minute after the workflow turns green. Pull to refresh the Sources tab if it does not show up.
+
+**Important: install from the source at least once.** SideStore links an installed app to a source only when it was installed from that source. A copy added with "+" and a file, or shared from Files, is "sideloaded" and never shows updates. If your current copy came from a file, install again from the source; it installs over the same app (same Apple ID, same ID), so your videos and cards stay. Don't delete the app first.
+
+If an install from the source fails with a size, checksum, version or bundle ID mismatch, the release's IPA and the source disagree. Don't retry in a loop; use the file import from the release page instead and tell the developer.
 
 ## Refresh on the phone
 
@@ -114,8 +136,8 @@ Apple's guide: [Add automations](https://support.apple.com/guide/shortcuts/add-a
 
 ## Updating Clip Deck
 
-1. Get the new `ClipDeck.ipa` ([Getting the IPA](#getting-the-ipa)).
-2. Connect LocalDevVPN, then in SideStore › My Apps tap **+** and pick the file.
+1. Easiest: update from the source ([Installing and updating from the source](#installing-and-updating-from-the-source)). Otherwise get the new `ClipDeck.ipa` ([Getting the IPA](#getting-the-ipa)).
+2. For the file: connect LocalDevVPN, then in SideStore › My Apps tap **+** and pick the file.
 3. As long as you use the same Apple ID, SideStore signs it with the same ID as before, installs it over the old copy and keeps your data. Don't delete the old app first. See the [FAQ](https://docs.sidestore.io/docs/faq).
 
 ## Moving from Sideloadly to SideStore
@@ -148,6 +170,7 @@ Nobody has tried these on a real phone. They are taken from SideStore's code or 
 - **That the automation refreshes overnight with the phone locked.** Check the counters the next mornings. Also check whether the 5-second Wait is needed, and whether a long refresh stops at "continue in the foreground".
 - **Does the Sideloadly copy still open after setup?** Did iloader show "Maximum certificates reached", or SideStore ask to revoke?
 - **One Clip Deck or two** after setup step 10? If you have one, does it still have your episode? SideStore's FAQ says the data stays, but its code points to a new, separate app.
+- **The source:** does adding the source address work, does Clip Deck install from it, and after a newer stable release does SideStore offer the update? (The code says the app is linked to the source at install time, so check an install from the source, not from a file. The `-rc` pre-releases are deliberately not in the source.)
 - **Installing from Files:** does sharing `ClipDeck.ipa` from the Files app offer SideStore? (The + button in My Apps is confirmed in the code.)
 - **Pairing file:** does iloader place it during the first install? The docs only describe replacing it.
 - **The LocalDevVPN action:** does it show as "Enable LocalDevVPN" on your iOS version?
