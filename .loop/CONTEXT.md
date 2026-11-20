@@ -39,3 +39,5 @@ subtitles, turn a subtitle line into an Anki card (audio clip, screenshot, sente
 - iOS 26: tap gestures attached to a SwiftUI Menu (and simultaneousGesture on bars) don't fire; use Button + confirmationDialog when you need to know a menu is open.
 - XCUITest `app.screenshot()` in landscape comes out rotated and cropped to about 400 pt; check layout from the xcresult UI hierarchy and the screen recording.
 - `ClipExtractorTests.cutsExactAudioAndScreenshot` can time out on CI (pre-existing flake); `gh run rerun <id> --failed` once before treating it as a failure.
+- Landscape UI evidence: `XCUIElement.screenshot()` of a single element comes out unrotated and correct, and attaching `app.debugDescription` as text records every element's frame. Use these instead of `app.screenshot()`.
+- Landscape panel width rule (Brent): panel content = max(25% of the usable width, 180 pt) + trailing inset, where usable width = full width − both insets. Panel rows are compact (time above the text).
