@@ -9,7 +9,7 @@ FFmpeg libraries (FFmpegBuild, see ARCHITECTURE.md).
 
 **Without a Mac** (the original setup), development works like this:
 - **Building:** GitHub Actions builds and tests on a macOS runner (`.github/workflows/ios-simulator.yml`).
-- **Installing:** the `ipa` job produces an unsigned `ClipDeck.ipa`. Install it with Sideloadly; see the README.
+- **Installing:** the `ipa` job produces an unsigned `ClipDeck.ipa`. Install it with SideStore (recommended, see [INSTALL_ON_IPHONE.md](INSTALL_ON_IPHONE.md)) or Sideloadly. Use only one per Apple ID: each revokes the other's certificate.
 - **Editing:** Swift code can be edited on Windows, but it is only compiled by the runner.
 
 Check your machine: `python3 ~/.claude/skills/iphone-app-setup-skill/scripts/env_check.py` (if the skill is installed).
@@ -66,7 +66,7 @@ To sync, keep Anki open on the computer. Have the phone on the same Wi-Fi (or th
 ./scripts/run-ios.sh                      # build, launch in a simulator, screenshot
 ./scripts/test-ios.sh                     # unit + UI tests, UI screenshots to build/screenshots/ui-tests
 ./scripts/test-ios.sh ClipDeckTests       # unit tests only
-./scripts/build-ipa.sh                    # unsigned build/ipa/ClipDeck.ipa for Sideloadly
+./scripts/build-ipa.sh                    # unsigned build/ipa/ClipDeck.ipa for SideStore or Sideloadly
 cd ios && xcodegen generate               # after adding files or editing project.yml
 ```
 
@@ -172,4 +172,5 @@ No test talks to a real Anki. Syncing with desktop Anki is checked by hand (see 
 | "This needs about 1.6 GB free; you have 0.9 GB." | An import needs the file's size plus 10 % (at least 200 MB) free. Free space in Settings › General › iPhone Storage |
 | "Conversion stopped. Keep Clip Deck open until it finishes." | iOS ended the background time while an MKV converted. Add it again and stay in the app; nothing half-imported is kept |
 | "Video file is missing" | The file was moved or deleted in the Files app. Tap **Choose the video again** |
-| Sideloaded app won't open | Developer Mode on? Apple ID trusted under VPN & Device Management? Free-account installs expire after 7 days; re-install |
+| Sideloaded app won't open | Developer Mode on? Apple ID trusted under VPN & Device Management? Free-account installs expire after 7 days: refresh in SideStore (LocalDevVPN connected, My Apps › Refresh All), see [INSTALL_ON_IPHONE.md](INSTALL_ON_IPHONE.md). Never delete the app: that deletes your data |
+| Sideloadly copy stopped opening after SideStore setup | Expected: with one free Apple ID, setting up SideStore revokes Sideloadly's certificate. Sync cards to Anki before setup. Install Clip Deck through SideStore and add the episodes again. Delete the old copy only if there are two Clip Deck icons and the new one plays your episode. See [Moving from Sideloadly to SideStore](INSTALL_ON_IPHONE.md#moving-from-sideloadly-to-sidestore) |
