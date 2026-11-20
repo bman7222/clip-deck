@@ -17,7 +17,7 @@ command -v xcodegen >/dev/null || { echo "xcodegen not found: brew install xcode
 
 VERSION_ARGS=()
 if [[ -n "${MARKETING_VERSION:-}" ]]; then
-  [[ "$MARKETING_VERSION" =~ ^[0-9]+\.[0-9]+\.[0-9]+(-[A-Za-z0-9.]+)?$ ]] \
+  [[ "$MARKETING_VERSION" =~ ^(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)(-[A-Za-z0-9.]+)?$ ]] \
     || { echo "MARKETING_VERSION '$MARKETING_VERSION' is not like 1.2.3 or 1.2.3-rc1" >&2; exit 1; }
   VERSION_ARGS+=("MARKETING_VERSION=$MARKETING_VERSION")
 fi
