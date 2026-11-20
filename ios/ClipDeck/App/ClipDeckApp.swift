@@ -11,6 +11,11 @@ struct ClipDeckApp: App {
         let isUITesting = LaunchFlags.isUITesting
         // UI tests get a fresh in-memory library and default settings on every launch.
         if isUITesting { UserDefaults.standard.removePersistentDomain(forName: "uiTesting") }
+        // The landscape panel width lives in the standard defaults, which outlive a UI-test launch. Start every
+        // UI-test launch at the default width unless the test asks to keep it (-uiTestingKeepPanelWidth).
+        if isUITesting, !ProcessInfo.processInfo.arguments.contains("-uiTestingKeepPanelWidth") {
+            UserDefaults.standard.removeObject(forKey: "player.panelFraction")
+        }
         _settings = State(initialValue: isUITesting
             ? SettingsStore(defaults: UserDefaults(suiteName: "uiTesting") ?? .standard, key: "ankiSettings.uiTesting")
             : SettingsStore())
