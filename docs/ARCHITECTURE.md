@@ -195,8 +195,9 @@ Every video the user adds or re-links goes through `EpisodeImporter`, in two ste
 ## Deployment (not yet done)
 
 - **Personal use (now):**
-  - unsigned `.ipa` from CI, installed with Sideloadly;
-  - with a free Apple ID: re-install every 7 days, 3-app limit.
+  - unsigned `.ipa` from CI, installed with SideStore (recommended) or Sideloadly;
+  - with a free Apple ID: 7-day signing, 3-app limit; SideStore refreshes on the phone (LocalDevVPN + a daily Shortcuts automation), so no computer is needed after setup, see [INSTALL_ON_IPHONE.md](INSTALL_ON_IPHONE.md);
+  - SideStore signs the app as `dev.brent.clipdeck.<team ID>`, so a Sideloadly copy is most likely a separate app with its own library. On one free Apple ID (one active certificate), the two tools revoke each other's certificate. The app has no library export/import (Brent decided 2026-11-20 not to add one).
 - **TestFlight / App Store:**
   - needs an Apple Developer account ($99/yr), a team id (`DEVELOPMENT_TEAM` in `ios/project.yml`), and signing certificates and profiles stored as GitHub secrets;
   - an `xcodebuild -exportArchive` step;
