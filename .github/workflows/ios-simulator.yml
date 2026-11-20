@@ -30,7 +30,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 45
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Show toolchain
         run: |
@@ -57,7 +57,7 @@ jobs:
 
       - name: Upload screenshots and test results
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: simulator-results
           path: |
@@ -73,7 +73,7 @@ jobs:
     runs-on: macos-latest
     timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
 
       - name: Install xcodegen
         run: brew install xcodegen
@@ -88,7 +88,7 @@ jobs:
         run: bash scripts/check-ipa-notices.sh build/ipa/ClipDeck.ipa
 
       - name: Upload IPA
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v6
         with:
           name: ClipDeck-ipa
           path: build/ipa/ClipDeck.ipa

@@ -49,6 +49,16 @@ git tag v0.2.0 && git push origin v0.2.0
 
 The **Release IPA** workflow builds the unsigned IPA and publishes it as release `v0.2.0` with `ClipDeck.ipa` and `ClipDeck.ipa.sha256` (a few minutes). Or run it by hand: Actions › Release IPA › Run workflow, version `0.2.0` (no `v`; the workflow creates the tag). The version must look like `1.2.3` or `1.2.3-rc1`; a version with `-` is published as a pre-release. The number shown in the app is the version, and the build number is the workflow run number. It never overwrites: reusing an existing version fails with a clear message, so pick the next one. The release notes link to the exact FFmpeg source this build uses (read from `ios/project.yml`) and to `THIRD_PARTY_NOTICES.md` and `LICENSE`.
 
+**If the apps.json step fails** (the release and the IPA are already published, but the last workflow step is red, so the source has no `apps.json` yet), do not redo the release. Generate the file on the computer and upload it to the same release. You need the GitHub CLI (`gh`) signed in:
+
+```bash
+python scripts/make-source-json.py --repo bman7222/clip-deck --out apps.json
+python scripts/make-source-json.py --check apps.json
+gh release upload v0.2.0 apps.json --repo bman7222/clip-deck --clobber
+```
+
+Use the tag of the release that failed. On a Mac, type `python3` instead of `python`. `--clobber` replaces an `apps.json` that is already there, so the steps are safe to repeat. The script lists the stable releases newest first by version number. Inside SideStore, each version's notes say what's new and link to its release page.
+
 ## Installing and updating from the source
 
 Every stable release also publishes a SideStore source file, `apps.json`. Add it once and SideStore lists Clip Deck, shows when a newer version exists and installs it from the phone. No computer and no GitHub login are needed.

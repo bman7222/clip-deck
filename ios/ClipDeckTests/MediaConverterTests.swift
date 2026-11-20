@@ -403,6 +403,25 @@ struct MediaConverterTests {
         #expect(probe.video?.codec == "h264")
     }
 
+    @Test func aSetCancelFlagStopsTheConverterThroughTheInterruptCallback() throws {
+        // Calls the synchronous core with the flag already set: the AVIOInterruptCB fails the first read, so
+        // the run ends with CancellationError before any progress is reported and leaves nothing behind.
+        let source = try Self.fixtureURL(Self.fixture1)
+        let probe = try MediaProber.read(url: source, cancel: ConversionCancelFlag())
+        let plan = try ConversionPlan.make(probe: probe, supportsAV1: false)
+        let folder = try MediaConverter.makeStagingFolder()
+        defer { try? FileManager.default.removeItem(at: folder) }
+        let flag = ConversionCancelFlag()
+        flag.cancel()
+        let reports = OSAllocatedUnfairLock(initialState: 0)
+        #expect(throws: CancellationError.self) {
+            _ = try ConversionCore.run(source: source, plan: plan, output: folder.appending(path: "Episode.mp4"), cancel: flag,
+                                       progress: { _ in reports.withLock { count in count += 1 } })
+        }
+        #expect(reports.withLock { count in count } == 0, "no progress is reported")
+        #expect(try Self.folderIsEmpty(folder))
+    }
+
     @Test func refusesToOverwriteAnExistingFile() async throws {
         let source = try Self.fixtureURL(Self.fixture1)
         let probe = try await MediaProber.load(url: source)

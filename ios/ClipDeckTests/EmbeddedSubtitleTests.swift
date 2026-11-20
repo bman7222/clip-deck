@@ -118,6 +118,14 @@ struct EmbeddedSubtitleRuleTests {
         #expect(FileStore.safeName("Show: 1/2") == "Show- 1-2", "normal names are unchanged")
     }
 
+    @Test func safeNameKeepsFormatCharactersAndOnlyReplacesControlCharacters() {
+        // ZWJ emoji sequence (man + ZWJ + laptop): ZWJ is a format character (Cf), so the folder name is unchanged.
+        let zwj = "Show \u{1F468}\u{200D}\u{1F4BB}"
+        #expect(FileStore.safeName(zwj) == zwj, "ZWJ is kept")
+        #expect(FileStore.safeName("a\u{200C}b\u{00AD}c\u{200E}d") == "a\u{200C}b\u{00AD}c\u{200E}d", "ZWNJ, soft hyphen and LRM are kept")
+        #expect(FileStore.safeName("Line 1\nLine 2") == "Line 1 Line 2", "a newline (Cc) becomes a space")
+    }
+
     @Test func codecsMapToFileKinds() {
         #expect(ConversionPlan.SubtitleKind(codec: "subrip") == .subRip)
         #expect(ConversionPlan.SubtitleKind(codec: "text") == .subRip)
@@ -404,6 +412,53 @@ struct EmbeddedSubtitleFixtureTests {
         #expect(Self.names(in: folder) == [plan.subtitles[1].fileName], "no video and no other subtitle file was written")
     }
 
+    /// Converts fixture 1 with both subtitle tracks into a read-only subtitle folder, so every write fails.
+    /// `requiredFirstTrack` marks the first track as the one the episode needs.
+    private func convertIntoReadOnlyFolder(requiredFirstTrack: Bool) async throws -> (report: MediaConverter.Report?, error: Error?, folder: URL) {
+        let source = try MediaConverterTests.fixtureURL(MediaConverterTests.fixture1)
+        let probe = try await MediaProber.load(url: source)
+        var plan = try ConversionPlan.make(probe: probe, supportsAV1: false,
+                                           extractingSubtitleStreams: probe.subtitleTracks.map { $0.streamIndex })
+        for index in plan.subtitles.indices { plan.subtitles[index].isRequired = false }
+        if requiredFirstTrack { plan.subtitles[0].isRequired = true }
+        let folder = try MediaConverter.makeStagingFolder()
+        let subtitles = folder.appending(path: "Embedded", directoryHint: .isDirectory)
+        try FileManager.default.createDirectory(at: subtitles, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o555], ofItemAtPath: subtitles.path(percentEncoded: false))
+        defer { try? FileManager.default.setAttributes([.posixPermissions: 0o755], ofItemAtPath: subtitles.path(percentEncoded: false)) }
+        do {
+            let report = try await MediaConverter.convert(source: source, plan: plan, to: folder.appending(path: "Episode.mp4"),
+                                                          subtitlesFolder: subtitles)
+            return (report, nil, folder)
+        } catch {
+            return (nil, error, folder)
+        }
+    }
+
+    @Test func aSubtitleThatCannotBeWrittenIsOnlyAWarningWhenNotRequired() async throws {
+        let result = try await convertIntoReadOnlyFolder(requiredFirstTrack: false)
+        defer { try? FileManager.default.removeItem(at: result.folder) }
+        let report = try #require(result.report, "the import carries on, got \(String(describing: result.error))")
+        #expect(report.subtitleFiles.isEmpty)
+        let notSaved = report.warnings.filter { warning in
+            if case .subtitleNotSaved = warning { return true }
+            return false
+        }
+        #expect(notSaved.count == 2, "one warning per track, got \(report.warnings)")
+        #expect(FileManager.default.fileExists(atPath: result.folder.appending(path: "Episode.mp4").path(percentEncoded: false)))
+    }
+
+    @Test func aRequiredSubtitleThatCannotBeWrittenFailsTheConversion() async throws {
+        let result = try await convertIntoReadOnlyFolder(requiredFirstTrack: true)
+        defer { try? FileManager.default.removeItem(at: result.folder) }
+        #expect(result.report == nil)
+        if case .subtitleWriteFailed? = result.error as? MediaConversionError {
+        } else {
+            Issue.record("expected subtitleWriteFailed, got \(String(describing: result.error))")
+        }
+        #expect(!FileManager.default.fileExists(atPath: result.folder.appending(path: "Episode.mp4").path(percentEncoded: false)))
+    }
+
     @Test func aMissingSubtitleFolderIsRefusedBeforeAnythingIsWritten() async throws {
         let source = try MediaConverterTests.fixtureURL(MediaConverterTests.fixture1)
         let probe = try await MediaProber.load(url: source)
@@ -580,6 +635,18 @@ struct EmbeddedSubtitleImportTests {
             options: options, into: context)
         #expect(result.episode.subtitlePath == "\(Self.folder)/sample.srt")
         #expect(subtitleFiles == ["MKV Show/Episode 1/1 jpn SRT.srt", "MKV Show/Episode 1/2 jpn Full.ass", "MKV Show/Episode 1/sample.srt"])
+    }
+
+    @Test func aPickedSubtitleFileMeansTheChosenTrackIsNoLongerRequired() async throws {
+        let (_, prepared) = try await prepareFixture1()
+        defer { prepared.close() }
+        let options = EpisodeImportOptions(embeddedSubtitleStreams: prepared.usableSubtitleStreamIndices,
+                                           chosenSubtitleStream: prepared.defaultSubtitleStreamIndex)
+        let own = try #require(try prepared.plan(for: options))
+        #expect(own.subtitles.contains { $0.isRequired }, "without a picked file the chosen track is required")
+        let picked = try #require(try prepared.plan(for: options, userPickedSubtitleFile: true))
+        #expect(picked.subtitles.count == own.subtitles.count, "every track is still extracted")
+        #expect(!picked.subtitles.contains { $0.isRequired }, "with a picked file none is required")
     }
 
     @Test func aPickedFileWithTheSameNameAsATrackDoesNotCollideWithIt() async throws {

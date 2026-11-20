@@ -8,6 +8,7 @@
 Which releases go in: published (not draft), NOT pre-release, tag like v1.2.3 (no leading zeros), with a
 ClipDeck.ipa asset and a "Build number: N" line in the notes (release.yml writes it). Anything else is skipped
 with a warning on stderr. Pre-releases (rc tags) are left out on purpose: they would show up as updates.
+Versions are listed newest first by version number (not by publish date).
 
 Format: SideStore (AltStore source format, "versions" list). See docs/INSTALL_ON_IPHONE.md and
 .loop/tasks/T-010-sidestore-source.md for the cited SideStore code. Python standard library only.
@@ -51,7 +52,7 @@ def fetch_releases(repo):
         page += 1
 
 
-def build_versions(releases, warn=lambda m: print(m, file=sys.stderr)):
+def build_versions(releases, warn=lambda m: print(m, file=sys.stderr), repo=DEFAULT_REPO):
     versions = []
     for rel in releases:
         tag = rel.get("tag_name") or ""
@@ -73,7 +74,10 @@ def build_versions(releases, warn=lambda m: print(m, file=sys.stderr)):
         if not rel.get("published_at"):
             warn(f"skip {tag}: no published_at")
             continue
-        notes = re.sub(r"\n{3,}", "\n\n", BUILD_RE.sub("", body)).strip()
+        # The release body is written for the GitHub page (it tells the reader to download and share the IPA).
+        # Inside SideStore the user installs from the source, so point to the release page for what's new.
+        release_url = rel.get("html_url") or f"https://github.com/{repo}/releases/tag/{tag}"
+        notes = f"Clip Deck {m.group(1)}. What's new: {release_url}"
         v = {
             "version": m.group(1),
             "buildVersion": b.group(1),
@@ -81,18 +85,21 @@ def build_versions(releases, warn=lambda m: print(m, file=sys.stderr)):
             "downloadURL": asset["browser_download_url"],
             "size": asset["size"],
             "minOSVersion": "17.0",
-            "localizedDescription": notes or f"Clip Deck {m.group(1)}",
+            "localizedDescription": notes,
         }
         sm = SHA_RE.match(asset.get("digest") or "")
         if sm:  # SideStore checks it when present (VerifyAppOperation)
             v["sha256"] = sm.group(1).lower()
-        versions.append((rel["published_at"], v))
-    versions.sort(key=lambda t: t[0], reverse=True)  # ISO 8601 UTC strings sort by time
-    return [v for _, v in versions]
+        key = tuple(int(part) for part in m.group(1).split("."))
+        versions.append((key, rel["published_at"], v))
+    # Newest version first by semantic version, not by publish time: a v0.2.1 hotfix published after v0.3.0
+    # must not become the "latest" version. Publish time only breaks ties.
+    versions.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    return [v for _, _, v in versions]
 
 
 def build_source(releases, repo=DEFAULT_REPO, warn=lambda m: print(m, file=sys.stderr)):
-    versions = build_versions(releases, warn)
+    versions = build_versions(releases, warn, repo)
     if not versions:
         raise SystemExit("error: no stable release with a ClipDeck.ipa found; nothing to publish")
     newest_tag = "v" + versions[0]["version"]
@@ -156,11 +163,17 @@ def check_source(data):
                 errs.append(f"{vw}: 'size' must be a positive integer")
             if not re.match(r"^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\d(Z|[+-]\d\d:\d\d)$", str(v.get("date"))):
                 errs.append(f"{vw}: 'date' must be ISO 8601 with a time zone, like 2026-11-20T10:00:00Z")
+            if not re.match(r"^\d+\.\d+\.\d+$", str(v.get("version"))):
+                errs.append(f"{vw}: 'version' must look like 1.2.3, got {v.get('version')!r}")
             if "sha256" in v and not re.match(r"^[0-9a-f]{64}$", str(v["sha256"])):
                 errs.append(f"{vw}: 'sha256' must be 64 lowercase hex characters")
-        dates = [v.get("date", "") for v in vs if isinstance(v, dict)]
-        if dates != sorted(dates, reverse=True):
-            errs.append(f"{w}: versions are not newest first")
+        keys = []
+        for v in vs:
+            m = re.match(r"^(\d+)\.(\d+)\.(\d+)$", str(v.get("version"))) if isinstance(v, dict) else None
+            if m:
+                keys.append(tuple(int(part) for part in m.groups()))
+        if keys != sorted(keys, reverse=True):
+            errs.append(f"{w}: versions are not newest first (by version number)")
     return errs
 
 
