@@ -28,6 +28,9 @@ struct ClipDeckApp: App {
             fatalError("Clip Deck couldn't open its library database: \(error)")
         }
         FileStore.live.ensureFolders()
+        // An import killed mid-way (crash, force quit, iOS ending a background conversion) leaves its staging
+        // folder behind; nothing reached Documents, so it is safe to delete before any new import starts.
+        EpisodeImporter.sweepStaging()
         // Play sound even with the silent switch on, like a video app.
         try? AVAudioSession.sharedInstance().setCategory(.playback, mode: .moviePlayback)
     }
@@ -45,5 +48,11 @@ enum LaunchFlags {
     /// Passed by the UI tests (see ClipDeckUITests). Debug builds only seed sample media when set.
     static var isUITesting: Bool { ProcessInfo.processInfo.arguments.contains("-uiTesting") }
     /// UI tests that need an empty library pass this too.
-    static var shouldSeedSample: Bool { isUITesting && !ProcessInfo.processInfo.arguments.contains("-uiTestingNoSeed") }
+    static var shouldSeedSample: Bool {
+        isUITesting && !ProcessInfo.processInfo.arguments.contains("-uiTestingNoSeed") && !shouldSeedMKV
+    }
+    /// `-uiTesting -uiTestingMKV` (Debug): instead of "Sample Show", import MKV fixture 4 through `EpisodeImporter`
+    /// as "MKV Show / Episode 1" with the sample SRT. The fixture folder comes from the CLIPDECK_FIXTURES
+    /// environment variable (UI tests forward it through `launchEnvironment`).
+    static var shouldSeedMKV: Bool { isUITesting && ProcessInfo.processInfo.arguments.contains("-uiTestingMKV") }
 }

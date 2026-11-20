@@ -3,6 +3,8 @@ import SwiftUI
 import UniformTypeIdentifiers
 
 /// Upload an episode: choose (or create) a show, pick the video, name it, optionally add subtitles.
+/// Every video goes through `EpisodeImporter` (via `VideoImportModel`): MKV is converted to MP4 with an audio-track
+/// choice, progress and Cancel; MP4/MOV/M4V are copied.
 struct UploadEpisodeView: View {
     @Environment(\.modelContext) private var context
     @Environment(\.dismiss) private var dismiss
@@ -12,14 +14,14 @@ struct UploadEpisodeView: View {
     @State private var newShowName = ""
     @State private var title = ""
     @State private var numberText = ""
-    @State private var videoURL: URL?
+    @State private var video = VideoImportModel()
     @State private var subtitleURL: URL?
     @State private var pickingKind: Picking = .video
     @State private var isPicking = false
-    @State private var isSaving = false
     @State private var errorMessage: String?
+    /// Notes from a finished import (e.g. damaged audio skipped); shown before the sheet closes.
+    @State private var importWarnings: [String] = []
 
-    private let store = FileStore.live
     private static let newShowTag = "__new__"
 
     enum Picking {
@@ -29,6 +31,12 @@ struct UploadEpisodeView: View {
     var body: some View {
         NavigationStack {
             Form {
+                if video.isRunning {
+                    Section {
+                        ImportProgressView(model: video, identifierPrefix: "upload")
+                    }
+                }
+
                 Section("Show") {
                     Picker("Show", selection: $selectedShowName) {
                         ForEach(shows) { Text($0.name).tag($0.name) }
@@ -40,8 +48,9 @@ struct UploadEpisodeView: View {
                             .accessibilityIdentifier("upload.newShowName")
                     }
                 }
+                .disabled(video.isRunning)
 
-                Section("Episode") {
+                Section {
                     TextField("Episode name, e.g. Episode 3", text: $title)
                         .accessibilityIdentifier("upload.title")
                     TextField("Episode number (optional)", text: $numberText)
@@ -49,10 +58,37 @@ struct UploadEpisodeView: View {
                         .accessibilityIdentifier("upload.number")
                     fileRow(
                         label: "Video",
-                        fileName: videoURL?.lastPathComponent,
-                        placeholder: "Choose MP4, MOV or M4V",
+                        fileName: video.fileName,
+                        placeholder: "Choose MP4, MOV, M4V or MKV",
                         identifier: "upload.video"
                     ) { pickingKind = .video; isPicking = true }
+                    if video.isPreparing {
+                        VideoPreparingRow(text: video.preparingText, identifier: "upload.preparing")
+                    }
+                    if video.audioTracks.count > 1 {
+                        Picker("Audio", selection: audioSelection) {
+                            ForEach(video.audioTracks, id: \.streamIndex) { track in
+                                Text(video.audioLabel(for: track)).tag(track.streamIndex)
+                            }
+                        }
+                        .accessibilityIdentifier("upload.audioTrack")
+                    }
+                } header: {
+                    Text("Episode")
+                } footer: {
+                    if video.prepared?.needsConversion == true {
+                        Text("MKV videos are converted to MP4 when you add them. Keep Clip Deck open until it finishes.")
+                    }
+                }
+                .disabled(video.isRunning)
+
+                if let videoError = video.videoError {
+                    Section {
+                        ErrorBanner(message: videoError)
+                            .accessibilityIdentifier("upload.videoError")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 }
 
                 Section {
@@ -65,11 +101,15 @@ struct UploadEpisodeView: View {
                 } footer: {
                     Text("You can add subtitles later from the show's episode list.")
                 }
+                .disabled(video.isRunning)
 
                 if let errorMessage {
-                    Section { ErrorBanner(message: errorMessage) }
-                        .listRowBackground(Color.clear)
-                        .listRowInsets(EdgeInsets())
+                    Section {
+                        ErrorBanner(message: errorMessage)
+                            .accessibilityIdentifier("upload.error")
+                    }
+                    .listRowBackground(Color.clear)
+                    .listRowInsets(EdgeInsets())
                 }
             }
             .navigationTitle("Upload episode")
@@ -77,13 +117,13 @@ struct UploadEpisodeView: View {
             .toolbar {
                 ToolbarItem(placement: .cancellationAction) {
                     Button("Cancel") { dismiss() }
-                        .disabled(isSaving)
+                        .disabled(video.isRunning)
                 }
                 ToolbarItem(placement: .confirmationAction) {
-                    if isSaving {
+                    if video.isRunning {
                         ProgressView()
                     } else {
-                        Button("Add episode") { Task { await save() } }
+                        Button("Add episode") { startImport() }
                             .disabled(!canSave)
                             .accessibilityIdentifier("upload.save")
                     }
@@ -95,10 +135,18 @@ struct UploadEpisodeView: View {
             ) { result in
                 handlePick(result)
             }
+            .alert("Episode added", isPresented: showWarnings) {
+                Button("OK") { dismiss() }
+                    .accessibilityIdentifier("upload.warningsOK")
+            } message: {
+                Text(importWarnings.joined(separator: "\n\n"))
+            }
             .onAppear {
                 if selectedShowName.isEmpty { selectedShowName = shows.first?.name ?? Self.newShowTag }
             }
-            .interactiveDismissDisabled(isSaving)
+            // Leaving the sheet (Cancel, swipe, or after adding) stops a running prepare and closes the picked file.
+            .onDisappear { video.leave() }
+            .interactiveDismissDisabled(video.isRunning)
         }
     }
 
@@ -109,7 +157,21 @@ struct UploadEpisodeView: View {
     }
 
     private var canSave: Bool {
-        !showName.isEmpty && !title.trimmingCharacters(in: .whitespaces).isEmpty && videoURL != nil && !isSaving
+        !showName.isEmpty && !title.trimmingCharacters(in: .whitespaces).isEmpty && video.canImport
+    }
+
+    private var audioSelection: Binding<Int> {
+        Binding(
+            get: { video.selectedAudio ?? video.audioTracks.first?.streamIndex ?? 0 },
+            set: { video.selectAudio($0) }
+        )
+    }
+
+    private var showWarnings: Binding<Bool> {
+        Binding(
+            get: { !importWarnings.isEmpty },
+            set: { if !$0 { importWarnings = [] } }
+        )
     }
 
     private func fileRow(label: String, fileName: String?, placeholder: String, identifier: String, action: @escaping () -> Void) -> some View {
@@ -129,6 +191,7 @@ struct UploadEpisodeView: View {
     private func handlePick(_ result: Result<URL, Error>) {
         switch result {
         case .success(let url):
+            errorMessage = nil
             if pickingKind == .subtitle {
                 guard SubtitleFormat(fileExtension: url.pathExtension) != nil else {
                     errorMessage = SubtitleError.unsupportedFormat(url.pathExtension).localizedDescription
@@ -136,69 +199,51 @@ struct UploadEpisodeView: View {
                 }
                 subtitleURL = url
             } else {
-                guard FileStore.videoExtensions.contains(url.pathExtension.lowercased()) else {
-                    errorMessage = "“.\(url.pathExtension)” videos aren't supported. Use MP4, MOV or M4V."
-                    return
+                // Closes the previous file; the extension check, iCloud download, space check and (MKV) probe
+                // all happen in the importer. A refused file shows its message and keeps Add episode disabled.
+                video.pick(url)
+                if EpisodeImporter.isSupportedVideo(url), title.isEmpty {
+                    title = url.deletingPathExtension().lastPathComponent
                 }
-                videoURL = url
-                if title.isEmpty { title = url.deletingPathExtension().lastPathComponent }
             }
-            errorMessage = nil
         case .failure(let error):
             errorMessage = "The file couldn't be opened: \(error.localizedDescription)"
         }
     }
 
-    private func save() async {
-        guard let videoURL else { return }
-        isSaving = true
+    private func startImport() {
         errorMessage = nil
-        let episodeTitle = title.trimmingCharacters(in: .whitespacesAndNewlines)
-        do {
-            let show = try findOrCreateShow(named: showName)
-            let videoPath = store.uniquePath(
-                folder: store.videoFolderPath(show: show.name),
-                baseName: episodeTitle,
-                fileExtension: videoURL.pathExtension
-            )
-            try await store.importFile(from: videoURL, toRelativePath: videoPath)
-
-            var subtitlePath: String?
-            if let subtitleURL {
-                let folder = store.subtitleFolderPath(show: show.name, episode: episodeTitle)
-                let path = "\(folder)/\(FileStore.safeName(subtitleURL.lastPathComponent))"
-                try await store.importFile(from: subtitleURL, toRelativePath: path)
-                subtitlePath = path
+        let details = NewEpisodeDetails(
+            showName: showName,
+            title: title,
+            number: Int(numberText.trimmingCharacters(in: .whitespaces)),
+            subtitleFile: subtitleURL
+        )
+        let context = self.context
+        video.run({ importer, prepared, options, progress in
+            try await importer.importEpisode(prepared, as: details, options: options, into: context, progress: progress)
+        }, completion: { outcome in
+            switch outcome {
+            case .added(let result):
+                if result.warnings.isEmpty {
+                    dismiss()
+                } else {
+                    importWarnings = result.warnings
+                }
+            case .cancelled:
+                // Nothing was added; the file stays prepared, so Add episode can be tapped again.
+                break
+            case .failed(let message):
+                errorMessage = message
             }
-
-            let episode = Episode(
-                title: episodeTitle,
-                number: Int(numberText.trimmingCharacters(in: .whitespaces)),
-                videoPath: videoPath,
-                subtitlePath: subtitlePath,
-                show: show
-            )
-            context.insert(episode)
-            try context.save()
-            dismiss()
-        } catch {
-            errorMessage = "The episode couldn't be added: \(error.localizedDescription)"
-            isSaving = false
-        }
-    }
-
-    private func findOrCreateShow(named name: String) throws -> Show {
-        if let existing = shows.first(where: { $0.name.caseInsensitiveCompare(name) == .orderedSame }) {
-            return existing
-        }
-        let show = Show(name: name, colorIndex: shows.count)
-        context.insert(show)
-        return show
+        })
     }
 }
 
 enum FileTypes {
-    static let videos: [UTType] = [.mpeg4Movie, .quickTimeMovie, UTType(filenameExtension: "m4v") ?? .movie]
+    /// MKV has no system-declared type, so allow movies and any file, and check the extension after picking
+    /// (`EpisodeImporter.isSupportedVideo`, then `prepare`).
+    static let videos: [UTType] = [.movie, .item]
     /// .srt/.ass have no system-declared types, so allow any file and check the extension after picking.
     static let subtitles: [UTType] = [.item]
 }
