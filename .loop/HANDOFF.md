@@ -428,3 +428,47 @@
 ## 2026-11-20 · orchestrator · T-008 · landed
 - Done: T-008 passed in round 2 (sonnet). Squashed to 0adca02. CI 44796687521 green (201/201). Every required task is now done; only optional T-005 and blocked T-007 remain.
 - Left: v0.2.0 was released before T-008, so the expiry banner reaches the phone only in the next release (e.g. v0.3.0). Open Could fix: C7 (a test that catches a cut-off label at AX5), C2, C4-C6.
+
+## 2026-11-20 · loop-backend · T-005 · round 1 (sonnet, backend half)
+- Done: Swift .srt/.ass writer (`SubtitleFileWriter`) fed by the converter's packet loop, `ConversionPlan` subtitle rules (default track, names, picture tracks unusable), importer options (`embeddedSubtitleStreams`, `chosenSubtitleStream`), `PreparedVideo.subtitleTracks`, staging in `Embedded/`, rollback with the video, about 40 tests
+- Left: frontend upload row (`upload.embeddedSubtitle`), seed Episode 2, UI test, PRODUCT_SPEC; the contract is in the task file
+- Files: ios/ClipDeck/Services/Media/SubtitleFileWriter.swift, ConversionPlan.swift, MediaConverter.swift, Services/EpisodeImporter.swift, FileStore.swift (safeName nonisolated), ios/ClipDeckTests/EmbeddedSubtitleTests.swift, docs/ARCHITECTURE.md
+- Gotchas: nothing compiled (CI only); assumes Matroska ASS packets are ReadOrder,Layer,... and WebVTT packets are identifier, settings, payload lines; fixture cue times are checked as source + the video's first-frame time
+
+## 2026-11-20 · loop-frontend · T-005 · round 1 (sonnet, frontend half)
+- Done: `upload.embeddedSubtitle` picker + greyed unusable tracks + footer note, model options pass all usable streams, seed Episode 2 (fixture 1), UI test for embedded cues and picker list, docs
+- Left: CI run; tester checks compile of `Int?` Picker tags and the new UI test; Brent checks a real MKV
+- Files: ios/ClipDeck/Features/Library/UploadEpisodeView.swift, VideoImportModel.swift, ios/ClipDeck/App/RootView.swift, ios/ClipDeckUITests/MKVImportUITests.swift, docs/DESIGN.md, docs/PRODUCT_SPEC.md, CLAUDE.md
+- Gotchas: ASS file name in the picker isn't hardcoded in the test (matches `2 *.ass`); nothing compiled
+
+## 2026-11-20 15:00 · loop-tester · T-005 · round 1
+- Done: read CI 44806223525 (61bb9a4). Both jobs fail to compile with parse errors only, at ConversionPlan.swift:95-96: the WebVTT doc comment holds real line breaks where `\n` was meant. No test ran. I traced the rest by hand and found no other compile error
+- Done: FFmpeg n8.1 source shows Matroska ASS packets are ReadOrder,Layer,... (assumption 1 is right). WebVTT packets are the payload only, with identifier and settings in side data (assumption 3 is wrong → S1, 3+-line cues lose 2 lines)
+- Verdict: Fail. M1 the parse error. S1 WebVTT. S2 unbounded language / byte length of the file name fails the whole import. C1-C5 are in the task file
+- Tests: added ios/ClipDeckTests/EmbeddedSubtitleTesterTests.swift (AC-6 model, WebVTT payload, name limit and containment, fixture 3 on the MP4's AVFoundation clock). The WebVTT and name-limit tests fail until S1/S2 are fixed
+- Gotchas: Swift stops at parse errors, so a clean parse may expose type errors CI hasn't shown. Next run should be scope=all (nothing has run yet). Scratch is in %LOCALAPPDATA%\Temp\clip-deck-loop\T-005-r1
+
+## 2026-11-20 · loop-backend · T-005 · round 2 (sonnet)
+- Done: fixed the parse error (webVTT doc comment), WebVTT packets kept as payload, subtitle file names capped (16-char language, 200 bytes), a failed write of a non-chosen track is now a warning, C1-C4 (stop decoding dropped tracks, safeName strips control characters, "format not supported" wording, DESIGN parenthesis)
+- Left: CI run; tester re-checks all ACs (nothing ran in round 1)
+- Files: Services/Media/ConversionPlan.swift, MediaConverter.swift, SubtitleFileWriter.swift, Services/EpisodeImporter.swift, FileStore.swift, Features/Library/UploadEpisodeView.swift (wording), ClipDeckTests/EmbeddedSubtitleTests.swift, docs/DESIGN.md
+- Gotchas: the round-1 parse error came from a `\n` in a Python edit script; chosen-track write failure still fails the import by design
+
+## 2026-11-20 16:07 · loop-tester · T-005 · round 2
+- Done: read CI 44812195849 (5a71053). It compiles for the first time: the ipa job is green, and the simulator passes 245/246. Every T-005 test passes, including all tester tests (WebVTT payload, name limits, folder containment, AC-6 model, fixture 3 on the MP4 clock), MKVImportUITests embedded test (mkv-03 shows the 3 Japanese cues; mkv-04 lists `1 jpn SRT.srt` and `2 jpn Full.ass`), and all known flakes
+- Done: M1, S1, S2 (names) and C1-C5 are fixed. The S2 warning path is traced only
+- Verdict: Blocked, NEEDED: verify-only pass. The only failure is the builder's stale `EmbeddedSubtitleRuleTests.webVTTPacketsAreWrittenLikeSubRipWithEveryLine` expectation (it still expected the pre-S1 dropped lines). I fixed it in the test file. Run scope=tests only_testing=ClipDeckTests/EmbeddedSubtitleRuleTests
+- Could fix: C6 safeName's controlCharacters includes Cf (ZWJ/ZWNJ/soft hyphen), which can orphan existing folders whose names contain them. C7 the chosen track is still "required" when the user's own file wins. C8 no test for `.subtitleNotSaved`
+- Files: ios/ClipDeckTests/EmbeddedSubtitleTests.swift (expectation), .loop/tasks/T-005-mkv-embedded-subtitles.md
+- Gotchas: scratch files are in %LOCALAPPDATA%\Temp\clip-deck-loop\T-005-r2. A full scope=all simulator run takes about 33 min
+
+## 2026-11-20 16:18 · loop-tester · T-005 · round 2 addendum
+- Done: verify-only run 44817982486 (141d94f, scope=tests, only EmbeddedSubtitleRuleTests) is green: 19/19 pass with 0 issues, including the deciding `webVTTPacketsAreWrittenLikeSubRipWithEveryLine`. The commit changes only that test file
+- Verdict: Pass. AC-1..AC-7 are met using 44812195849 (ipa green, 245/246) plus this run
+- Left: C6 (safeName strips Cf format characters), C7 and C8 go to the orchestrator's loose-ends pass. Brent checks a real MKV with ASS Full/Signs tracks
+- Files: .loop/tasks/T-005-mkv-embedded-subtitles.md (Round 2 addendum)
+- Gotchas: an only_testing run of one unit suite takes about 6 min end to end
+
+## 2026-11-20 · orchestrator · T-005 · landed; T-013 planned
+- Done: T-005 passed (2 sonnet rounds + 1 verify-only pass). Squashed to ee09056. Every feature task is done.
+- Left: T-013 (tidy up loose ends, written by the orchestrator at Brent's request) is next. Then update CLAUDE.md status, ask Brent about merging to main, release v0.3.0, and give him the phone instructions.
