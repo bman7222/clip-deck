@@ -1,0 +1,95 @@
+Other components inside the FFmpegBuild frameworks
+=================================================
+
+The FFmpeg libraries in Clip Deck come from FFmpegBuild 3.16.0, which also ships
+dav1d 1.5.4 (AV1 decoder) and libzvbi 0.2.46 (teletext decoder). Their
+notices follow.
+
+--- dav1d 1.5.4 (BSD-2-Clause) ---
+
+Copyright © 2018-2025, VideoLAN and dav1d authors
+All rights reserved.
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice, this
+   list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS" AND
+ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE IMPLIED
+WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE LIABLE FOR
+ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL DAMAGES
+(INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR SERVICES;
+LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER CAUSED AND
+ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY, OR TORT
+(INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE OF THIS
+SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+--- libzvbi 0.2.46 (LGPL-2.0-or-later, conveyed under LGPL-2.1) ---
+
+libzvbi is free software under the GNU Library General Public License version 2
+or later. Clip Deck conveys it under the LGPL-2.1 text in FFmpeg-LGPL-2.1.txt.
+Source: https://github.com/zapping-vbi/zvbi/tree/v0.2.46
+
+Library sources (src/*), from libzvbi's COPYING.md:
+Copyright (c) 1998      Manish Singh <yosh@gimp.org>
+Copyright (c) 1999-2008 Michael H. Schimek <mschimek@gmx.at, mschimek@users.sf.net>
+Copyright (c) 2000      Stefan Westerfeld <stefan@space.twc.de>
+Copyright (c) 2000-2003 Iñaki G. Etxebarria <garetxe@users.sf.net>
+Copyright (c) 2003-2004 Tom Zoerner <tomzo@nefkom.net>
+
+DVB headers (src/dvb/dmx.h, src/dvb/frontend.h; LGPL-2.1-or-later):
+Copyright (c) 2000 Andre Draszik <ad@convergence.de>
+Copyright (c) 2000 Holger Waechtler <holger@convergence.de>
+Copyright (c) 2000 Marcus Metzler <marcus@convergence.de>
+Copyright (c) 2000 Ralph  Metzler <ralph@convergence.de>
+
+FFmpegBuild modifies libzvbi: it removes the GPL-2 files packet-830.c, pdc.c
+and exp-vtx.c and adds an LGPL stub, src/packet-830-stub.c
+(Copyright (C) 2026 Vincent Herbst, LGPL-2.0-or-later). The change is published
+in build.sh (patch_zvbi) at the FFmpegBuild tag:
+https://github.com/superuser404notfound/FFmpegBuild/tree/3.16.0
+
+--- libzvbi ure.c / ure.h (MIT) ---
+
+libzvbi: src/ure.c and src/ure.h (Unicode regular expression matcher)
+=====================================================================
+
+These two files are part of the shipped Libzvbi framework and carry their
+own MIT license rather than libzvbi's LGPL. The notice below is reproduced
+verbatim from src/ure.c of libzvbi v0.2.46.
+
+    Copyright 1997, 1998, 1999 Computing Research Labs,
+    New Mexico State University
+
+    Modifications and fixes for the Zapping 0.5 release by
+    Iñaki García Etxebarrria <garetxe@users.sourceforge.net>
+
+    Modifications by Michael H. Schimek <mschimek@users.sf.net>
+    for libzvbi 0.1: Added character classes :gfx: and :drcs:,
+    commented out the surrogate expansion and IGNORE_NONSPACING
+    in ure_exec since we don't need that.
+
+    Permission is hereby granted, free of charge, to any person obtaining a
+    copy of this software and associated documentation files (the "Software"),
+    to deal in the Software without restriction, including without limitation
+    the rights to use, copy, modify, merge, publish, distribute, sublicense,
+    and/or sell copies of the Software, and to permit persons to whom the
+    Software is furnished to do so, subject to the following conditions:
+
+    The above copyright notice and this permission notice shall be included in
+    all copies or substantial portions of the Software.
+
+    THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+    IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+    FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT.  IN NO EVENT SHALL
+    THE COMPUTING RESEARCH LAB OR NEW MEXICO STATE UNIVERSITY BE LIABLE FOR ANY
+    CLAIM, DAMAGES OR OTHER LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT
+    OR OTHERWISE, ARISING FROM, OUT OF OR IN CONNECTION WITH THE SOFTWARE OR
+    THE USE OR OTHER DEALINGS IN THE SOFTWARE.

@@ -3,6 +3,9 @@
 ## Environment
 
 Building needs macOS with Xcode 26+ (Swift 6, iOS simulator runtime) and XcodeGen (`brew install xcodegen`).
+Running the tests also needs Homebrew FFmpeg (`brew install ffmpeg`, with libx264 and libx265): `test-ios.sh` uses it
+to generate the MKV test fixtures, and `bootstrap.sh` checks for it. It is a test tool only; the app ships its own
+FFmpeg libraries (FFmpegBuild, see ARCHITECTURE.md).
 
 **Without a Mac** (the original setup), development works like this:
 - **Building:** GitHub Actions builds and tests on a macOS runner (`.github/workflows/ios-simulator.yml`).
@@ -19,14 +22,22 @@ Check your machine: `python3 ~/.claude/skills/iphone-app-setup-skill/scripts/env
 
 ## Environment variables
 
-There are none.
+The app itself reads none:
 - The app has no server-side configuration and no build-time secrets.
 - `.env.example` and `ios/Config/Secrets.example.xcconfig` exist only as scaffold placeholders.
 - The AnkiConnect address and optional API key are entered in the app and stored on the device.
 
-| Variable | Used by | Purpose | Where to get it |
+Only the scripts and the tests use these:
+
+| Variable | Used by | Purpose | Default |
 |---|---|---|---|
-| None | | | |
+| `SIM_NAME` | `run-ios.sh`, `test-ios.sh` | Simulator to use, e.g. `iPhone 17 Pro` | booted iPhone, else the newest |
+| `CLIPDECK_FIXTURES` | `FFmpegFixtureTests` (unit-test process) | Folder with the generated MKV fixtures | `<repo>/build/fixtures` |
+| `TEST_RUNNER_CLIPDECK_FIXTURES` | `test-ios.sh` exports it | `xcodebuild test` strips the `TEST_RUNNER_` prefix and passes `CLIPDECK_FIXTURES` to the test process | `<repo>/build/fixtures` |
+
+To run the fixture tests from Xcode against another folder, set `CLIPDECK_FIXTURES` in the scheme's Test action
+(Arguments › Environment Variables). Without it the tests look in `<repo>/build/fixtures`, which is where
+`test-ios.sh` writes them.
 
 ## Anki setup
 
@@ -82,6 +93,23 @@ With Claude Code, the `ios-simulator-skill` skill can drive the running app. It 
 ./scripts/test-ios.sh
 ```
 
+**Fixtures.** `test-ios.sh` first runs `scripts/make-test-media.sh`, which uses Homebrew `ffmpeg` to write five small
+MKV files (8 s each, 320x180) into `build/fixtures/`. Every video shows a solid colour that changes each second, and
+every audio track beeps for 0.2 s at the start of each even second, so sync can be measured:
+
+| File | Contents |
+|---|---|
+| `01-h264-bframes-aac-srt-ass.mkv` | H.264 with B-frames, AAC stereo, SRT and ASS tracks (Japanese) |
+| `02-hevc-main10-flac.mkv` | HEVC Main10, open GOP, FLAC |
+| `03-offset-ac3-51-srt.mkv` | video starts at 1.0 s, audio at 1.5 s; AC-3 5.1; SRT |
+| `04-nosubs-aac51.mkv` | H.264, AAC 5.1, no subtitles |
+| `05-h264-hi10p.mkv` | H.264 High 10 (the importer must reject it) |
+
+The script skips the work when all five exist and are newer than the script; delete `build/fixtures/` to force a
+rebuild, or run `./scripts/make-test-media.sh [folder]` by hand. No media files are kept in git (`build/` is ignored).
+CI installs `ffmpeg` and generates them fresh on every run. The tests find the folder through `CLIPDECK_FIXTURES`
+(see Environment variables).
+
 **Unit tests (`ClipDeckTests`, Swift Testing):**
 - **SubtitleParserTests:**
   - SRT, including CRLF, tags and missing blank lines;
@@ -98,12 +126,14 @@ With Claude Code, the `ios-simulator-skill` skill can drive the running app. It 
   - address parsing, response/error decoding, and "unreachable" mapping;
   - the syncer: field mapping, HTML escaping, media upload, duplicates, retry skipping, stopping when unreachable, failing cards;
   - settings persistence.
+- **FFmpegFixtureTests:** opens each fixture with libavformat and checks codecs, track counts and the 1.0 s start of fixture 3. It proves the FFmpeg frameworks link and run in the simulator.
 - **MediaAndFileTests:**
   - file names and locations, and importing;
   - real clip extraction from a generated MP4 (2-second clip within ±150 ms, padding clamped, screenshot written).
 
 **UI tests (`ClipDeckUITests`):**
 - **LaunchUITests:** the empty library offers Upload, and the upload sheet stays disabled without a video.
+- **AboutUITests:** Settings › About and licences shows the Clip Deck licence and the LGPL text, and both source links open Safari.
 - **MiningFlowUITests:** the full primary flow on the seeded sample:
   1. open the show, then the episode;
   2. tap line 2 in the list;
@@ -125,6 +155,8 @@ No test talks to a real Anki. Syncing with desktop Anki is checked by hand (see 
 | Scheme not found / new files missing in Xcode | `cd ios && xcodegen generate` |
 | Sync says Anki can't be reached | Is Anki open? Check `webBindAddress` is `0.0.0.0` and Anki was restarted. Check the firewall, the same Wi-Fi, and the IP. Check Local Network permission is on |
 | Sync says "model was not found" / field errors | Re-run Test connection in Anki settings and re-pick the note type and fields |
-| Video won't import | Only MP4, MOV and M4V play with Apple's player. Convert MKV first, e.g. `ffmpeg -i in.mkv -c copy out.mp4` when the codecs are H.264/HEVC + AAC |
+| `ffmpeg not found` from `test-ios.sh` or `bootstrap.sh` | `brew install ffmpeg` (tests only) |
+| Fixture tests say a fixture is missing | `./scripts/make-test-media.sh` (needs `ffmpeg` with libx264 and libx265) |
+| Video won't import | Until MKV import ships, only MP4, MOV and M4V play with Apple's player. Convert MKV first, e.g. `ffmpeg -i in.mkv -c copy out.mp4` when the codecs are H.264/HEVC + AAC |
 | "Video file is missing" | The file was moved or deleted in the Files app. Tap **Choose the video again** |
 | Sideloaded app won't open | Developer Mode on? Apple ID trusted under VPN & Device Management? Free-account installs expire after 7 days; re-install |

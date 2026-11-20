@@ -1,0 +1,17 @@
+Not legal advice; written for personal use, review before any wider release.
+
+Clip Deck
+Copyright (c) 2026 Brent. All rights reserved.
+
+Nobody may copy, reuse, modify or redistribute the Clip Deck source code or
+the Clip Deck app, in whole or in part, without Brent's written permission.
+
+One exception, required by section 6 of the GNU Lesser General Public License
+version 2.1: you may modify the Clip Deck app and reverse engineer it, but only
+to debug your own modifications to the FFmpeg libraries bundled with it, and
+you may replace those bundled libraries with modified versions. This exception
+gives no other permission.
+
+FFmpeg itself is not covered by this licence. It stays under the GNU Lesser
+General Public License version 2.1 (LGPL-2.1). See THIRD_PARTY_NOTICES.md and,
+inside the app, Settings > About and licences.
