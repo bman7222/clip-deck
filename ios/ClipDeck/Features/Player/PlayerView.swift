@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// Episode player. Portrait is laid out like a 3DS: video is the "top screen", and the controls
 /// plus the subtitle list form the "bottom screen". In landscape the list is a side panel (a quarter of the screen).
@@ -13,6 +14,10 @@ struct PlayerView: View {
     @State private var showSidePanel = false
     @State private var showOffset = false
     @State private var showSubtitlePicker = false
+    /// The subtitle style sheet. T-016 gives landscape its own card; until then the sheet serves both.
+    @State private var showStyleSheet = false
+    /// The bottom of the portrait video in global coordinates, so the style sheet's first detent can stay under it.
+    @State private var videoMaxY: CGFloat = 0
     @State private var miningRange: ClipRange?
     @State private var miningError: String?
     @State private var draft: CardDraft?
@@ -78,12 +83,17 @@ struct PlayerView: View {
                     // Entering or leaving landscape always starts with the controls hidden.
                     controlsVisible = false
                     subtitleDialogOpen = false
+                    // Rotating closes the style menu.
+                    showStyleSheet = false
                     hideTask?.cancel()
                 }
             }
         }
         .navigationTitle(episode.title)
         .navigationBarTitleDisplayMode(.inline)
+        // The sheet leaves the video and the bar usable, so the back button is hidden while it is open
+        // (otherwise the player could be popped with the sheet still presented).
+        .navigationBarBackButtonHidden(showStyleSheet)
         .toolbarBackground(Theme.shell, for: .navigationBar)
         .toolbar(isLandscape ? .hidden : .automatic, for: .navigationBar)
         .statusBarHidden(isLandscape && !controlsShown)
@@ -105,6 +115,9 @@ struct PlayerView: View {
         }
         .sheet(isPresented: $showOffset) {
             if let model { OffsetSheet(model: model, onChange: { episode.offsetMs = $0 }) }
+        }
+        .sheet(isPresented: $showStyleSheet) {
+            SubtitleStyleSheet(clearance: styleSheetClearance)
         }
         .sheet(isPresented: $showSubtitlePicker, onDismiss: reloadSubtitles) {
             SubtitlePickerSheet(episode: episode)
@@ -142,6 +155,13 @@ struct PlayerView: View {
         VStack(spacing: 0) {
             videoScreen(model, onTap: { model.togglePlay() })
                 .aspectRatio(16 / 9, contentMode: .fit)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.onChange(of: proxy.frame(in: .global).maxY, initial: true) { _, value in
+                            videoMaxY = value
+                        }
+                    }
+                }
             VStack(spacing: 0) {
                 controls(model)
                     .padding(Spacing.m)
@@ -155,6 +175,18 @@ struct PlayerView: View {
             .background(Theme.panel, in: UnevenRoundedRectangle(topLeadingRadius: Radius.panel, topTrailingRadius: Radius.panel, style: .continuous))
             .padding(.top, Spacing.s)
         }
+    }
+
+    /// Where the portrait video ends, so the style sheet's first detent can stay under it (the sheet measures itself
+    /// and corrects the detent). Nil in landscape or before the video is measured, which makes the sheet `.large` only.
+    private var styleSheetClearance: SheetClearance? {
+        guard !isLandscape, videoMaxY > 0 else { return nil }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+        guard let windowHeight = scene?.keyWindow?.bounds.height ?? scene?.screen.bounds.height,
+              windowHeight > videoMaxY
+        else { return nil }
+        return SheetClearance(windowHeight: windowHeight, videoMaxY: videoMaxY)
     }
 
     private func landscape(_ model: PlayerModel, size: CGSize, insets: EdgeInsets) -> some View {
@@ -424,13 +456,6 @@ struct PlayerView: View {
             PlayerLayerView(player: model.player)
                 .accessibilityIdentifier("player.video")
                 .onTapGesture(perform: onTap)
-            if let miningRange {
-                RecordingBadge(range: miningRange)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(.top, badgeTopPadding)
-                    .padding(.leading, edgeInsets.leading)
-                    .padding(Spacing.s)
-            }
         }
         // The line is an overlay, so it takes the video's size and never changes the video's layout.
         .overlay {
@@ -438,6 +463,16 @@ struct PlayerView: View {
                 subtitleLine(
                     cue.text, margins: subtitleMargins,
                     topObstruction: subtitleTopObstruction, bottomObstruction: subtitleBottomObstruction)
+            }
+        }
+        // The recording badge is drawn after (above) the line, so a line moved up and left can't cover it.
+        .overlay {
+            if let miningRange {
+                RecordingBadge(range: miningRange)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.top, badgeTopPadding)
+                    .padding(.leading, edgeInsets.leading)
+                    .padding(Spacing.s)
             }
         }
         .background { Color.black }
@@ -472,7 +507,7 @@ struct PlayerView: View {
 
     /// While any of these hold, the controls never auto-hide.
     private var keepsControlsUp: Bool {
-        voiceOverOn || showOffset || showSubtitlePicker || subtitleDialogOpen || draft != nil
+        voiceOverOn || showOffset || showSubtitlePicker || showStyleSheet || subtitleDialogOpen || draft != nil
             || miningRange != nil || panelDrag != nil || !(model?.isPlaying ?? false) || (model?.isScrubbing ?? false)
     }
 
@@ -554,6 +589,14 @@ struct PlayerView: View {
             .accessibilityLabel("Subtitles")
             .accessibilityIdentifier("player.subtitlesMenu")
         }
+        // Directly after the subtitles button, in portrait and in all landscape rows. A Button with a presented
+        // state, not a Menu: gestures on a Menu don't fire on iOS 26. Aqua when the style isn't the default.
+        let styleIsDefault = SubtitleStyle.decoded(from: storedSubtitleStyle).isDefault
+        Button { showStyleSheet = true; restartHideTimer() } label: { Image(systemName: "textformat") }
+            .buttonStyle(DeckIconButtonStyle(isActive: !styleIsDefault))
+            .accessibilityLabel("Subtitle style")
+            .accessibilityValue(styleIsDefault ? "Default" : "Changed")
+            .accessibilityIdentifier("player.subtitleStyle")
     }
 
     private func makeCardButton(
