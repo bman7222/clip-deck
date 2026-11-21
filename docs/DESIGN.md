@@ -47,7 +47,7 @@ The show tile hues are the same in both modes: coral, tangerine, leaf, aqua, gra
 - body: regular;
 - times: rounded with monospaced digits.
 
-Subtitles use the system font (Hiragino Sans for Japanese), bold, with a black outline on video. They scale with Dynamic Type through `UIFontMetrics`.
+Subtitles default to the system font (Hiragino Sans for Japanese), bold, with a black outline on video. They scale with Dynamic Type through `UIFontMetrics`, times the chosen size (60% to 200%). The font, weight, size and place can be changed from the subtitle style menu (see "Subtitle style menu" below).
 
 **Spacing scale:** 4 / 8 / 12 / 16 / 24.
 
@@ -63,13 +63,26 @@ Subtitles use the system font (Hiragino Sans for Japanese), bold, with a black o
 
 - `DeckTile`: a rounded-square show icon with a big initial glyph, a top highlight and a hue-tinted shadow.
 - `DeckPrimaryButtonStyle`: a filled aqua (or red) block button with a press-scale. Used for Make a Card, Sync, Play clip and Re-record.
-- `DeckIconButtonStyle`: a 44×44 rounded-square control on a panel. Active = aqua fill.
+- `DeckIconButtonStyle`: a 44×44 rounded-square control on a panel. Idle = Shell fill and Ink glyph; active = aqua fill and a white glyph; disabled = 0.45 opacity (the same value as `DeckPrimaryButtonStyle`). The press-scale is skipped under Reduce Motion.
 - `PendingBadge`: a sunflower count capsule on the Sync button.
 - `ErrorBanner`: a red-tinted inline message with an optional fix action.
 - `ImportProgressView`: "Converting… n%" in bold rounded type with monospaced digits, an aqua bar and a red Cancel, plus "Keep Clip Deck open until it finishes." Shared by the upload sheet and Missing video.
 - `Toast`: a dark capsule confirmation at the bottom ("Card saved. 3 cards waiting to sync.").
 - `SelectableText`: outlined or plain selectable text for subtitles (Look Up).
 - Empty states use `ContentUnavailableView` with a single action.
+
+## Subtitle style menu
+
+The player's controls row has a `textformat` ("Aa") button, `player.subtitleStyle`, right after the subtitles button. It is a Button (not a Menu) that presents a sheet, idle until the style changes from the default, then aqua like the timing offset button. Landscape shows the same button in the bottom bar; its card comes in a later task, so for now it opens the same sheet.
+
+The portrait sheet (`SubtitleStyleSheet`, `presentationBackground(Theme.panel)`) has a first detent sized from the room under the portrait video (window height minus the video's bottom, an 8 pt gap and the system's sheet rise, so it never covers the video; the content scrolls when the room is small, never below 120 pt) plus `.large`. The rise is the OS's, not the app's (about 20 pt for iOS 26's floating sheet; edge-to-edge sheets differ), so the sheet measures its own top once it has settled at the first detent, corrects the detent once (both the detent set and the selection), and keeps the measured rise in `player.styleSheetRise` so later opens are right from the start (landscape: `.large` only), and the navigation back button is hidden while it is open, no background dimming at the first detent so the line can be judged while it changes, and scrolling content under a pinned header (title and Done). Top to bottom:
+- Font: one row per preset (Sans, Rounded, Serif), the name and the sample "Aa あア漢字" drawn in that font and in the current weight, so both scripts can be judged. The selected row is aqua with white text, the others Shell with Ink. The "More fonts…" row goes under the presets later.
+- Bold: a toggle icon control.
+- Size: smaller, the value ("130%", InkSoft) and larger.
+- Position: left, up, down, right, and a value line ("Up 20% · Left 10%" or "Default place").
+- A full-width "Reset to default", disabled while the style is the default.
+
+Every icon is different: `textformat` (opener), `bold`, `textformat.size.smaller`, `textformat.size.larger`, `arrow.left`, `arrow.up`, `arrow.down`, `arrow.right`, `arrow.counterclockwise` (Reset) and `checkmark` (Done). Arrows rather than chevrons, because `chevron.left` is Back. Colours come only from the Theme tokens: idle Shell and Ink, on or selected Accent with white, values and captions InkSoft. A control at its limit is disabled.
 
 ## Screens
 
@@ -99,7 +112,7 @@ Show                            ││ 1:40 前の行             ││    │ 
 | Subtitles tab | Browse Subtitles/Show/Episode folders, preview lines | — | "No subtitle files here" | Parse errors shown on preview |
 | Show | Episodes; subtitle icon per row; swipe to delete | — | — | Row says "Video file missing" in red |
 | Upload sheet | Show, name, video (MP4, MOV, M4V or MKV), optional subtitles. For an MKV with two or more audio tracks, an Audio picker (`upload.audioTrack`, "jpn · Original · AAC", the file's default preselected). For an MKV with text subtitle tracks, an Embedded subtitles picker (`upload.embeddedSubtitle`: "None" plus each text track as "language · title · format", the default-flagged or first text track preselected). Picture tracks are listed below it greyed out as "image-based, can't be used", and text formats Clip Deck can't write (for example mov_text) as "format not supported"; neither can be chosen; with no text tracks the row is hidden. A subtitle file chosen below wins, and the footer says the embedded tracks are still saved) | After picking: a status row (`upload.preparing`) with "Downloading from iCloud…" or "Reading the video…". After Add episode: a progress section at the top, "Converting… n%" with a bar for an MKV or "Adding…" for a copy (`upload.progress`), and Cancel (`upload.cancelConvert`); the fields lock, the screen stays on, and the toolbar shows a spinner | — | Inline banner under the video (`upload.videoError`: unsupported type, unsupported video or audio track, not enough space, unreadable file; Add episode stays disabled) and at the bottom (`upload.error`: import failed, background time ran out). Cancel shows nothing and keeps the sheet. Import notes (e.g. damaged audio skipped) show in an "Episode added" alert before the sheet closes |
-| Player | Watch, offset, switch subtitles, list, Make a Card | Spinner until the player is ready | "No subtitle lines" in the list | Banner: no subtitles, missing subtitle file (with expected location), parse error |
+| Player | Watch, offset, switch subtitles, subtitle style (sheet), list, Make a Card | Spinner until the player is ready | "No subtitle lines" in the list | Banner: no subtitles, missing subtitle file (with expected location), parse error |
 | Missing video | Explains which file and where; Choose the video again (MP4, MOV, M4V or MKV; an MKV uses its default audio track) | The same status row (`missing.preparing`) and progress panel with Cancel (`missing.progress`, `missing.cancelConvert`) as the upload sheet, below the button; back is hidden while it runs | — | Banner (`missing.videoError`, `missing.error`), with Try again when the file is still open |
 | Card editor | Replay, range, re-record, fields, save | "Recording…" | — | Banner (export failed) |
 | Sync sheet | Waiting count, Sync, per-card status | "Syncing 2 of 5…" | "Everything is in Anki." | Setup problem banner; summary in red; per-card error |
@@ -114,6 +127,7 @@ Motion is used only where something changes:
 - **Offset value:** animates with `.numericText()`.
 - **Buttons:** press-scale.
 - **Toasts:** slide up.
+- **Subtitle style sheet:** rises with the system sheet animation, which follows Reduce Motion. The size value animates with `.numericText()` and the selection colour fades in 0.15 s, both skipped under Reduce Motion.
 - **Landscape side panel:** slides in from the trailing edge with the standard spring; content 25 % of the usable width by default (minimum 180 pt, maximum 50 %), plus the trailing inset; resizable with the divider grip, remembered as a fraction.
 
 Saving a card plays a success haptic. There are no ambient or entrance animations. SwiftUI's springs respect Reduce Motion.
@@ -126,6 +140,7 @@ Saving a card plays a success haptic. There are no ambient or entrance animation
 - Aqua buttons carry white text; the light value #1A8BC4 was chosen to reach AA for bold large text.
 - Icon-only buttons have spoken labels; the Sync button reads "Sync to Anki, 3 waiting".
 - Hit targets are at least 44 pt.
+- The subtitle style menu: every control has a spoken label and value ("Larger text, 130 percent", "Move subtitles up, 20 percent up", "Bold, On"); the selected font reads as selected; a control at its limit is dimmed and VoiceOver says so; the sheet scrolls, and at an accessibility text size the font rows stack their name over the sample, so Reset can always be reached.
 - Type is Dynamic Type throughout, including subtitles.
 
 Still to check on the simulator or device: AX3 text size on the player's bottom screen, and dark-mode screenshots (see the handoff notes in CLAUDE.md).

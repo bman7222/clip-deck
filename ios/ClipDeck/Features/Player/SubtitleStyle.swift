@@ -84,22 +84,31 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
     /// (false at the limit, and for a delta of 0), so a menu can disable its button.
     @discardableResult
     mutating func stepSize(_ delta: Int) -> Bool {
-        sizeStep = Self.clamp(sizeStep + delta, to: Self.sizeRange)
+        sizeStep = Self.clampedSum(sizeStep, delta, to: Self.sizeRange)
         return delta > 0 ? canSizeUp : (delta < 0 ? canSizeDown : false)
     }
 
     /// A positive delta moves the line up.
     @discardableResult
     mutating func stepUp(_ delta: Int) -> Bool {
-        upSteps = Self.clamp(upSteps + delta, to: Self.upRange)
+        upSteps = Self.clampedSum(upSteps, delta, to: Self.upRange)
         return delta > 0 ? canMoveUp : (delta < 0 ? canMoveDown : false)
     }
 
     /// A positive delta moves the line right, a negative one left.
     @discardableResult
     mutating func stepRight(_ delta: Int) -> Bool {
-        rightSteps = Self.clamp(rightSteps + delta, to: Self.rightRange)
+        rightSteps = Self.clampedSum(rightSteps, delta, to: Self.rightRange)
         return delta > 0 ? canMoveRight : (delta < 0 ? canMoveLeft : false)
+    }
+
+    /// The value clamped first, then the delta added and clamped again, so a field set to Int.max or Int.min in
+    /// code (or a huge delta) can't overflow and trap.
+    static func clampedSum(_ value: Int, _ delta: Int, to range: ClosedRange<Int>) -> Int {
+        let base = clamp(value, to: range)
+        let (sum, overflow) = base.addingReportingOverflow(delta)
+        if overflow { return delta > 0 ? range.upperBound : range.lowerBound }
+        return clamp(sum, to: range)
     }
 
     var canSizeUp: Bool { sizeStep < Self.sizeRange.upperBound }
