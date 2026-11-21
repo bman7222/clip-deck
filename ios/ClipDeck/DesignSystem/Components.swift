@@ -47,6 +47,7 @@ struct DeckPrimaryButtonStyle: ButtonStyle {
         let configuration: Configuration
         let tint: Color
         @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
         var body: some View {
             configuration.label
@@ -58,8 +59,8 @@ struct DeckPrimaryButtonStyle: ButtonStyle {
             .background(tint, in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous))
             .saturation(isEnabled ? 1 : 0)
             .opacity(isEnabled ? 1 : 0.45)
-            .scaleEffect(configuration.isPressed ? 0.96 : 1)
-            .animation(.spring(duration: 0.2), value: configuration.isPressed)
+            .scaleEffect(configuration.isPressed && !reduceMotion ? 0.96 : 1)
+            .animation(reduceMotion ? nil : .spring(duration: 0.2), value: configuration.isPressed)
         }
     }
 }

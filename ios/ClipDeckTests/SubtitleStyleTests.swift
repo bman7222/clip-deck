@@ -392,4 +392,11 @@ struct SubtitlePlacementTests {
         let bottom = SubtitleStyle(sizeStep: -4, upSteps: 0, rightSteps: -8)
         #expect(bottom.canSizeUp && !bottom.canSizeDown && !bottom.canMoveDown && !bottom.canMoveLeft)
     }
+
+    @Test func firstDetentStaysUnderTheVideo() {
+        // iPhone 17 Pro: window 874, video bottom 342: room 532, less the 8 pt gap and the 20 pt system rise.
+        #expect(SubtitleStyleSheet.firstDetentHeight(windowHeight: 874, videoMaxY: 342) == 504)
+        // A small room never goes below the minimum; the content scrolls.
+        #expect(SubtitleStyleSheet.firstDetentHeight(windowHeight: 400, videoMaxY: 380) == 120)
+    }
 }

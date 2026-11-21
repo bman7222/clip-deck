@@ -75,7 +75,7 @@ Subtitles default to the system font (Hiragino Sans for Japanese), bold, with a 
 
 The player's controls row has a `textformat` ("Aa") button, `player.subtitleStyle`, right after the subtitles button. It is a Button (not a Menu) that presents a sheet, idle until the style changes from the default, then aqua like the timing offset button. Landscape shows the same button in the bottom bar; its card comes in a later task, so for now it opens the same sheet.
 
-The portrait sheet (`SubtitleStyleSheet`, `presentationBackground(Theme.panel)`) has a fixed-height detent (520 pt, so it starts below the video on an iPhone 17 Pro) plus `.large`, no background dimming at the first detent so the line can be judged while it changes, and scrolling content under a pinned header (title and Done). Top to bottom:
+The portrait sheet (`SubtitleStyleSheet`, `presentationBackground(Theme.panel)`) has a first detent sized from the room under the portrait video (window height minus the video's bottom, the gap and the system sheet rise, so it never covers the video; the content scrolls when the room is small) plus `.large` (landscape: `.large` only), and the navigation back button is hidden while it is open, no background dimming at the first detent so the line can be judged while it changes, and scrolling content under a pinned header (title and Done). Top to bottom:
 - Font: one row per preset (Sans, Rounded, Serif), the name and the sample "Aa あア漢字" drawn in that font and in the current weight, so both scripts can be judged. The selected row is aqua with white text, the others Shell with Ink. The "More fonts…" row goes under the presets later.
 - Bold: a toggle icon control.
 - Size: smaller, the value ("130%", InkSoft) and larger.

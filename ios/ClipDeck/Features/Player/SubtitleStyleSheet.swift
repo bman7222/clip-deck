@@ -43,8 +43,24 @@ nonisolated extension SubtitleStyle {
 /// with every tap. The video stays visible above it. Landscape gets a card in T-016.
 /// Colours come only from the Theme tokens: idle Shell and Ink, on or selected Accent with white, values InkSoft.
 struct SubtitleStyleSheet: View {
-    /// Height of the first detent. Sized so the sheet starts below the 16:9 video on an iPhone 17 Pro.
-    static let detentHeight: CGFloat = 520
+    /// The gap kept between the bottom of the video and the top of the sheet.
+    static let gapBelowVideo: CGFloat = 8
+    /// The system draws a `.height` sheet about this much higher than window height minus the detent height
+    /// (measured on iPhone 17 Pro: the white started 20 pt above the expected line).
+    static let systemSheetRise: CGFloat = 20
+    /// The first detent is never shorter than this (title, Done and a little content; the rest scrolls).
+    static let minimumDetentHeight: CGFloat = 120
+
+    /// Height of the first detent: the room under the video, less the gap and the system rise, so the sheet
+    /// never covers the video. Never below `minimumDetentHeight`; when the room is small the content scrolls
+    /// and `.large` is the second detent.
+    static func firstDetentHeight(windowHeight: CGFloat, videoMaxY: CGFloat) -> CGFloat {
+        max(minimumDetentHeight, windowHeight - videoMaxY - gapBelowVideo - systemSheetRise)
+    }
+
+    /// The first detent's height, or nil when there is no video to keep clear (landscape, or not measured yet):
+    /// the sheet is then `.large` only.
+    let firstDetent: CGFloat?
 
     /// The same saved value the player reads, so every change shows on the line at once.
     @AppStorage(SubtitleStyle.storageKey) private var stored = ""
@@ -52,7 +68,12 @@ struct SubtitleStyleSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var sampleSize: CGFloat = 20
-    @State private var detent: PresentationDetent = .height(SubtitleStyleSheet.detentHeight)
+    @State private var detent: PresentationDetent
+
+    init(firstDetent: CGFloat?) {
+        self.firstDetent = firstDetent
+        _detent = State(initialValue: firstDetent.map { PresentationDetent.height($0) } ?? PresentationDetent.large)
+    }
 
     private var style: SubtitleStyle { SubtitleStyle.decoded(from: stored) }
 
@@ -76,10 +97,21 @@ struct SubtitleStyleSheet: View {
         }
         // The system sheet animation is used, and it follows Reduce Motion. The video is not dimmed or covered
         // at the first detent, so the line can be judged while it changes.
-        .presentationDetents([.height(Self.detentHeight), .large], selection: $detent)
-        .presentationBackgroundInteraction(.enabled(upThrough: .height(Self.detentHeight)))
+        .presentationDetents(detents, selection: $detent)
+        .presentationBackgroundInteraction(backgroundInteraction)
         .presentationDragIndicator(.visible)
         .presentationBackground(Theme.panel)
+    }
+
+    private var detents: Set<PresentationDetent> {
+        guard let firstDetent else { return [.large] }
+        return [.height(firstDetent), .large]
+    }
+
+    /// Same detent as the first one, so the video is neither dimmed nor covered while the line is judged.
+    private var backgroundInteraction: PresentationBackgroundInteraction {
+        guard let firstDetent else { return .automatic }
+        return .enabled(upThrough: .height(firstDetent))
     }
 
     // MARK: Pieces
