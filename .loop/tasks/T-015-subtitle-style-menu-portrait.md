@@ -227,3 +227,58 @@ _by loop-frontend · 2026-11-21 05:16_
   - The round-3 `tester-sheet-open-frames`: the sheet container frame, and Done without Selected.
   - That the detent doesn't jump on open on iOS 26 (nothing should move), and that every builder SubtitleStyleUITests test (reveal by swiping, XXXL) still passes with the new container.
   - Not provable on CI: iOS 17/18 and Home-button iPhones (CI has only iOS 26.5). There the sheet may open at the guess and slide to the corrected height about half a second later, once per install.
+
+## Test report (round 3)
+_by loop-tester · 2026-11-21 05:55_
+
+CI run 44893660834 (24a676d, scope=all). The `ipa` job is green. The `simulator` job ran 326 tests: 325 pass and 1 fails, with no build issues in the xcresult. The one failure is `SubtitleStyleSheetTesterUITests/testEveryControlStartsBelowTheVideoAndIsLabelled`, at the gap assertion the builder added last: "XCTAssertLessThanOrEqual failed: (22.776) is greater than (16.0): top 364.776, video 342.0". The fault is in that test hook, not in the layout. In `tester-sheet-open-frames`, the sheet itself is `{{8.0, 349.4}, {386.0, 516.6}}` (grabber at 344.6), a 7.4 pt gap, the same as round 2. The `subtitleStyle.sheet` element reports `{{8.0, 364.8}, …}`, which is Done's top (`{{336.4, 364.8}, {42.2, 42.2}}`). XCUITest reports a `.contain` container's frame as the union of its children, so it starts below the header's 16 pt top padding (15.4 pt at the 0.96 scale). Every assertion before it passed (continueAfterFailure is false): the pixel check, all 12 controls below the video with their labels and values, back hidden while the sheet is open, and the bar and video frames unchanged. All known flakes and `EpisodeImporterTests/copiesAnMP4…` pass in this run.
+
+Evidence that the measurement works on iOS 26.5, independent of the failed hook: this was the first sheet opened on a fresh simulator (the tester class runs before `SubtitleStyleUITests`), so it used the 20 pt guess, a 504 pt detent. In `tester-sheet-open-screenshot`, the sheet's white starts at pixel row 1048 (349.33 pt) at x 80, 120, 201 and 300. In `style-01-sheet`, from a later test and launch, it starts at row 1050 (350.0 pt) at the same columns. The pixel above is (230,233,236) in both. That 0.67 pt shift is what a cached rise of about 20.6 predicts: a 503.4 pt detent, top ≈ 866 − 537.4 × 0.96 = 350.1. So on that first open the probe read the real, scaled top (a rise of about 20.6, a fix of 0.6 pt left alone as under 1 pt), saved it in `player.styleSheetRise`, and the next launch's `init` used it. If the probe had read nothing or something wrong, the second sheet would sit at 349.4 or would have moved by more.
+
+| Criterion | Result | Evidence |
+|-----------|--------|----------|
+| AC-1 `player.subtitleStyle` Button, `textformat`, aqua when changed, right after `player.subtitlesMenu`, "Subtitle style"; landscape bar not broken | Pass | Unchanged code. `testPortraitSheetChangesTheLineLiveAndLeavesTheVideoUncovered` and all 8 PlayerLandscapeBehaviourUITests pass in 44893660834. |
+| AC-2 sheet controls, identifiers, sample per font, values, distinct icons, Theme colours, 0.45 disabled look | Pass | `style-01-sheet` (this run): three font rows with "Aa あア漢字" in their own font, Serif aqua, Bold, smaller and larger A, four arrows, "130%", "Default place", Reset, Done. In the failing tester test, all 12 identifiers exist as buttons before the failing line. |
+| AC-3 live changes; each limit disables its own button; Reset disabled at the default; playback not paused | Pass | `testEveryLimitDisablesItsOwnButton` passes. `testUsingTheSheetDoesNotPausePlayback` passes on its first run (21.1 s). Its activities show "Find the player.playPause Button" after the sheet opened and again after the sizeUp tap, both before Done, and both read "Pause". Back returns after Done. |
+| AC-4 label and value on every control; selected chip `.isSelected` | Pass | The tester test's label and value checks pass before the failing line. C3 is fixed: Done has no `Selected` in `tester-sheet-open-frames` (line 64), while Sans keeps it. The builder's new `XCTAssertFalse(done.isSelected)` passes. |
+| AC-5 `presentationBackground(Theme.panel)`, fixed detent + `.large`, every control's minY ≥ video maxY on iPhone 17 Pro, scrolls to Reset at XXXL | Pass on iPhone 17 Pro / iOS 26.5. Other OS versions and devices: by reasoning, plus a deciding test that hasn't run | Pixel check passes. The sheet is at 349.4 against the video's maxY of 342 (7.4 pt gap). The XXXL test passes. S2: the measurement is shown to work by the cache shift above. The end-to-end correction test (below) hasn't run yet. |
+| AC-6 SubtitleStyleUITests | Pass | All 9 SubtitleStyleUITests pass, including the 5 for this task. Attachments `style-01-sheet` and `style-02-large-text` are present. |
+| AC-7 DESIGN.md + PRODUCT_SPEC.md; every existing test passes | Pass for docs. Tests: 325/326, and the only failure is the test-hook flaw above | DESIGN.md describes the measured rise, the floor and the cache key. All 7 new SheetFit unit tests pass (`firstDetentStaysUnderTheVideo`, `riseComesFromTheMeasuredSheetTop`, `nonsensicalMeasurementsAreIgnored`, `oneCorrectionPutsTheSheetJustUnderTheVideo`, `aSheetSittingTooLowIsRaised`, `aSubPointDifferenceIsLeftAlone`, `theFloorHoldsAfterACorrection`). |
+
+Round-2 findings:
+- S2: the fixed rise is gone. The rise is measured, cached and corrected once. On iOS 26.5 this is proven by a run (cache shift above). The case where the guess is wrong, which is the iOS 17/18 case, is proven by the arithmetic in unit tests, and end to end by the new tester test, which hasn't run yet.
+- C3: fixed, proven by a run (tree and the builder's assertion).
+
+Review of the approach (reasoning, CI has only iOS 26.5):
+- Layout loops: none. `fitFirstDetent` runs only when `SheetFitKey` changes (clearance or Dynamic Type), corrects at most once, and returns. Changing the detent doesn't change `videoMaxY`, which is SwiftUI's global frame of the presenting view. Nothing measures on geometry change.
+- Stale selection: `useFirstDetent` sets `firstHeight` and `detent` in the same update, and keeps `.large` if the sheet is there, so the selection is always in the set. The `PresentationDetent.height(x) == .height(x)` comparison uses the same stored CGFloat, so it is exact.
+- Rotation: rotating sets `showStyleSheet = false`, and the clearance turns nil in the same update, so the dismissing sheet may switch to `.large` only. The round-2 code did the same, so this isn't new. Dynamic Type while open: the task restarts, finds no refit needed, and measures again. Harmless.
+- iOS 17/18: a `.height` detent there is drawn edge to edge, above the bottom safe area, so the rise should be about 34 pt on Face ID iPhones and 0 on Home-button iPhones. Both are inside the plausible −24…96 range, the transform is identity, and the sheet lives in the same window, so `convert(_:to: window)` gives the real top. One correction is exact there. Cost: the very first open per install shows the sheet about 14 pt too high (over the video) for about 0.5 s before it slides down. Brent should check this on a device.
+- iOS 26: the rise depends on the height (about −0.04 pt per pt, because of the 0.96 scale), so one correction from a far-off cache leaves about 4% of the error, for example 0.8 pt from a 20 pt miss. The 8 pt gap absorbs that.
+- Accessibility: the probe is `accessibilityElementsHidden`, `isAccessibilityElement = false`, `.accessibilityHidden(true)` and non-interactive, and it doesn't appear in the tree. The `.contain` container has no label, so VoiceOver doesn't stop on it, and every control is still its own element (all identifiers were found).
+- Security, paths, network: not touched. The new UserDefaults key holds one Double, and it is checked for plausibility on read.
+
+### Findings
+
+Could fix C1
+Where: ios/ClipDeck/Features/Player/SubtitleStyleSheet.swift:262-272
+Problem: The "settled" check is two equal readings 0.1 s apart while the selection is the first detent. If the user holds the sheet still mid-drag within the first ~1.65 s, the rise is measured from the dragged position (anything within −24…96 is accepted), cached, and the detent is "corrected" to match. The next open re-measures and fixes it, so it heals itself.
+Proof: Read it.
+Fix: Optionally require the reading to sit within, say, 30 pt of the expected top, or skip the sample while a drag is in progress.
+
+Could fix C2
+Where: ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (the builder's gap check, now fixed by the tester)
+Problem: The builder's gap assertion read the `subtitleStyle.sheet` container, whose XCUITest frame is the union of its children. I replaced it with `sheetTop(_:)`, the innermost element that contains the container. This is test code only, recorded so the next builder knows. CONTEXT Learned has a line about it.
+
+Tests changed: ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift
+- `testEveryControlStartsBelowTheVideoAndIsLabelled`: the gap is now measured from the sheet's own top (`sheetTop`), not the container's union frame. The −0.5…16 limits are unchanged.
+- New `testAWrongSavedRiseIsCorrectedOnceTheSheetHasSettled`: launches with `-player.styleSheetRise` set to an XML plist real 0 (argument domain, this launch only). The first detent opens 20 pt too tall and covers the video. It asserts that the settled sheet is −0.5…16 pt under the video and that the pixel check passes. It attaches `tester-wrong-rise-frames` with about 3 s of early samples ("covered early: true" shows the wrong position was caught before the correction). Mutation (reasoned, CI only): without the correction in `fitFirstDetent`, the sheet stays at 524 pt, top ≈ 330, gap ≈ −12, and the test fails. If the log says "covered early: false" for every sample, the seed may not have taken effect; the cache shift above is then the evidence for the measurement.
+
+```text
+VERDICT: Blocked
+NEEDED: verify-only pass: gh workflow run ios-simulator.yml --ref loop/subtitle-style -f scope=tests -f only_testing=ClipDeckUITests/SubtitleStyleSheetTesterUITests (deciding: testEveryControlStartsBelowTheVideoAndIsLabelled with the fixed sheetTop gap check, and testAWrongSavedRiseIsCorrectedOnceTheSheetHasSettled)
+SPEC: AC-1, AC-2, AC-3, AC-4, AC-6 met; AC-5 met on iPhone 17 Pro / iOS 26.5 (7.4 pt gap, pixel check passes; S2's measurement proven by the cache shift; the wrong-rise correction is pending the verify-only run); AC-7 docs met, 325/326 pass (the 1 failure is a test-hook flaw)
+CHECKS_RUN: CI 44893660834 ipa green (build-ipa.sh); simulator test-ios.sh 325/326, 0 build issues; tree tester-sheet-open-frames; pixel rows of tester-sheet-open-screenshot vs style-01-sheet; playback test activities
+UNVERIFIED: iOS 17/18 and Home-button iPhones (the first open per install may show the sheet over the video for about 0.5 s before it corrects); VoiceOver speech; dark mode; Reduce Motion; feel on a real iPhone
+REVIEWED_AT: 24a676dc2804a4a809ef11166c38cb91d9c59c2d
+```

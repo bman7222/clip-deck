@@ -76,12 +76,62 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
         XCTAssertLessThanOrEqual(difference, 24,
                                  "The sheet covers the bottom of the video: \(nearBottom) at maxY-3 vs \(higher) at maxY-40")
         // Round 3 (S2): the first detent is measured and corrected, so the sheet sits just under the video: neither
-        // over it nor much lower (the target gap is 8 pt). Read from the sheet's own container element.
+        // over it nor much lower (the target gap is 8 pt).
         let sheet = app.descendants(matching: .any)["subtitleStyle.sheet"].firstMatch
         XCTAssertTrue(sheet.exists, "The sheet's container is in the tree")
-        let gap = sheet.frame.minY - video.maxY
-        XCTAssertGreaterThanOrEqual(gap, -0.5, "The sheet starts below the video: top \(sheet.frame.minY), video \(video.maxY)")
-        XCTAssertLessThanOrEqual(gap, 16, "The sheet doesn't sit too low: top \(sheet.frame.minY), video \(video.maxY)")
+        let top = try XCTUnwrap(sheetTop(app), "The sheet's own frame is in the tree")
+        let gap = top - video.maxY
+        XCTAssertGreaterThanOrEqual(gap, -0.5, "The sheet starts below the video: top \(top), video \(video.maxY)")
+        XCTAssertLessThanOrEqual(gap, 16, "The sheet doesn't sit too low: top \(top), video \(video.maxY)")
+        app.terminate()
+    }
+
+    /// S2 end to end: a wrong saved rise (0 pt, as if the system drew the sheet about 20 pt lower than it does) opens
+    /// the first detent too tall, so at first the sheet covers the bottom of the video. Once it has settled, the sheet
+    /// measures its own top and corrects the detent once, ending just under the video. The launch argument overrides
+    /// `player.styleSheetRise` for this launch only (the argument domain), so later tests keep the measured value.
+    /// The early screenshots record whether the wrong first position was caught before the correction (it's a race
+    /// with the 0.45 s settle wait, so that part is attached, not asserted).
+    @MainActor
+    func testAWrongSavedRiseIsCorrectedOnceTheSheetHasSettled() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let zeroRise = #"<?xml version="1.0" encoding="UTF-8"?><plist version="1.0"><real>0</real></plist>"#
+        let app = launch(seed: nil, extraArguments: ["-player.styleSheetRise", zeroRise])
+        let video = app.descendants(matching: .any)["player.video"].frame
+        let opener = app.buttons["player.subtitleStyle"]
+        XCTAssertTrue(opener.waitForExistence(timeout: 10), "The controls row has the style button")
+        opener.tap()
+
+        // About 3 s of screenshots: is the bottom of the video covered (the sheet's white near maxY instead of the
+        // video's colour 40 pt higher)?
+        let start = Date()
+        var log: [String] = []
+        var coveredEarly = false
+        while Date().timeIntervalSince(start) < 3 {
+            let shot = app.screenshot()
+            let x = video.minX + video.width * 0.2
+            let nearBottom = rgb(shot, at: CGPoint(x: x, y: video.maxY - 3))
+            let higher = rgb(shot, at: CGPoint(x: x, y: video.maxY - 40))
+            let difference = zip(nearBottom, higher).map { abs($0 - $1) }.max() ?? 255
+            if difference > 24 { coveredEarly = true }
+            let elapsed = (Date().timeIntervalSince(start) * 100).rounded() / 100
+            log.append("t \(elapsed) s: maxY-3 \(nearBottom) vs maxY-40 \(higher) (difference \(difference))")
+        }
+        XCTAssertTrue(app.buttons["subtitleStyle.done"].waitForExistence(timeout: 5), "The style sheet opens")
+        let top = try XCTUnwrap(sheetTop(app), "The sheet's own frame is in the tree")
+        log.append("covered early: \(coveredEarly); settled sheet top \(top), video maxY \(video.maxY)")
+        attach(app, name: "tester-wrong-rise", text: log.joined(separator: "\n"))
+
+        let gap = top - video.maxY
+        XCTAssertGreaterThanOrEqual(gap, -0.5, "After the correction the sheet starts below the video: top \(top), video \(video.maxY)")
+        XCTAssertLessThanOrEqual(gap, 16, "After the correction the sheet doesn't sit too low: top \(top), video \(video.maxY)")
+        let shot = app.screenshot()
+        let x = video.minX + video.width * 0.2
+        let nearBottom = rgb(shot, at: CGPoint(x: x, y: video.maxY - 3))
+        let higher = rgb(shot, at: CGPoint(x: x, y: video.maxY - 40))
+        let difference = zip(nearBottom, higher).map { abs($0 - $1) }.max() ?? 255
+        XCTAssertLessThanOrEqual(difference, 24,
+                                 "After the correction the sheet leaves the video uncovered: \(nearBottom) vs \(higher)")
         app.terminate()
     }
 
@@ -170,11 +220,24 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
         XCTAssertEqual(control.value as? String, value, "\(id) value", file: file, line: line)
     }
 
+    /// The top of the sheet itself, in window points: the innermost element that contains `subtitleStyle.sheet`.
+    /// The container can't be used: XCUITest reports a `.contain` container as the union of its children, so its
+    /// top is Done's top, under the header's padding (CI 44893660834: container 364.8, the sheet 349.4).
     @MainActor
-    private func launch(seed: String?) -> XCUIApplication {
+    private func sheetTop(_ app: XCUIApplication) -> CGFloat? {
+        let container = app.descendants(matching: .any)["subtitleStyle.sheet"].firstMatch
+        guard container.exists else { return nil }
+        let containerTop = container.frame.minY
+        let wrappers = app.otherElements.containing(.any, identifier: "subtitleStyle.sheet").allElementsBoundByIndex
+        return wrappers.map { $0.frame.minY }.filter { $0 > 0 && $0 <= containerTop }.max()
+    }
+
+    @MainActor
+    private func launch(seed: String?, extraArguments: [String] = []) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
         if let seed { app.launchArguments += ["-uiTestingSubtitleStyle", seed] }
+        app.launchArguments += extraArguments
         app.launch()
         let showTile = app.buttons["library.show.Sample Show"]
         XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
