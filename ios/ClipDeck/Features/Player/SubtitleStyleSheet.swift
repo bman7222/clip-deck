@@ -39,28 +39,132 @@ nonisolated extension SubtitleStyle {
     }
 }
 
+/// Where the portrait video ends on screen, so the style sheet's first detent can keep the sheet under it.
+/// Both values are in window points (the window is the screen on iPhone).
+nonisolated struct SheetClearance: Equatable, Sendable {
+    var windowHeight: CGFloat
+    var videoMaxY: CGFloat
+}
+
+/// One measurement turned into a fix: the rise the system really used, and the first detent height to use from now
+/// on (the current height when the sheet already sits where it should).
+nonisolated struct SheetFitCorrection: Equatable, Sendable {
+    var rise: CGFloat
+    var detentHeight: CGFloat
+}
+
+/// The arithmetic that keeps the style sheet's first detent just under the video.
+///
+/// The system draws a `.height(h)` sheet with its top at `windowHeight - h - rise`. The rise belongs to the OS,
+/// not to the app: on iOS 26 (iPhone 17 Pro) the lower detent is a floating card, inset 8 pt and drawn at about
+/// 0.96 scale, which comes to about 20 pt; systems that draw an edge-to-edge sheet and add the bottom safe area to
+/// the detent rise by that inset instead. So the rise is measured once the sheet has settled, and 20 pt is only the
+/// first guess.
+nonisolated enum SheetFit {
+    /// The gap kept between the bottom of the video and the top of the sheet.
+    static let gapBelowVideo: CGFloat = 8
+    /// The rise assumed until one has been measured (iOS 26 on iPhone 17 Pro).
+    static let firstGuessRise: CGFloat = 20
+    /// The first detent is never shorter than this (title, Done and a little content; the rest scrolls).
+    static let minimumDetentHeight: CGFloat = 120
+    /// A measured rise outside this range is not a settled sheet at the first detent (it is mid-animation, being
+    /// dragged, or at `.large`), so it is ignored.
+    static let plausibleRise: ClosedRange<CGFloat> = -24 ... 96
+    /// Smaller differences than this are left alone, so the sheet never shuffles by a fraction of a point.
+    static let minimumChange: CGFloat = 1
+
+    /// Height of the first detent: the room under the video, less the gap and the rise, so the sheet never covers
+    /// the video. Never below `minimumDetentHeight`; when the room is small the content scrolls and `.large` is the
+    /// second detent.
+    static func detentHeight(for clearance: SheetClearance, rise: CGFloat) -> CGFloat {
+        max(minimumDetentHeight, clearance.windowHeight - clearance.videoMaxY - gapBelowVideo - rise)
+    }
+
+    /// The rise implied by a sheet of `detentHeight` whose top was measured at `sheetTop`, or nil when the
+    /// measurement makes no sense (not finite, off the window, or an implausible rise).
+    static func rise(windowHeight: CGFloat, detentHeight: CGFloat, sheetTop: CGFloat) -> CGFloat? {
+        guard windowHeight.isFinite, detentHeight.isFinite, sheetTop.isFinite,
+              windowHeight > 0, detentHeight > 0, sheetTop > 0, sheetTop < windowHeight
+        else { return nil }
+        let measured = (windowHeight - detentHeight) - sheetTop
+        return plausibleRise.contains(measured) ? measured : nil
+    }
+
+    /// The fix for a sheet at the first detent of `detentHeight` whose top was measured at `sheetTop`, or nil when
+    /// the measurement makes no sense (the current detent is then kept).
+    static func correction(for clearance: SheetClearance, detentHeight: CGFloat, sheetTop: CGFloat) -> SheetFitCorrection? {
+        guard let measured = rise(windowHeight: clearance.windowHeight, detentHeight: detentHeight, sheetTop: sheetTop)
+        else { return nil }
+        let corrected = self.detentHeight(for: clearance, rise: measured)
+        let height = abs(corrected - detentHeight) < minimumChange ? detentHeight : corrected
+        return SheetFitCorrection(rise: measured, detentHeight: height)
+    }
+}
+
+/// Holds the UIKit view behind the sheet's content, so the sheet's real top on screen can be read.
+/// UIKit's `convert(_:to:)` includes the transforms the system applies to a sheet (on iOS 26 the content of the
+/// lower detent is drawn scaled; CI 44888942981 shows 44 pt buttons as 42.2 pt), and it reads the model frame,
+/// which doesn't depend on SwiftUI laying the sheet out again after the system moved it.
+final class SheetTopProbe {
+    weak var view: UIView?
+
+    /// The top of the sheet in window points, or nil while the probe isn't in a window.
+    var top: CGFloat? {
+        guard let view, let window = view.window else { return nil }
+        return view.convert(view.bounds, to: window).minY
+    }
+}
+
+/// An empty, untouchable UIKit view laid behind the whole sheet (safe areas included) for `SheetTopProbe`.
+private struct SheetTopProbeView: UIViewRepresentable {
+    let probe: SheetTopProbe
+
+    func makeUIView(context: Context) -> UIView {
+        let view = UIView()
+        view.backgroundColor = .clear
+        view.isUserInteractionEnabled = false
+        view.isAccessibilityElement = false
+        view.accessibilityElementsHidden = true
+        probe.view = view
+        return view
+    }
+
+    func updateUIView(_ view: UIView, context: Context) {
+        probe.view = view
+    }
+}
+
+/// What the first detent was fitted for. A new value (a different video bottom or window, or a new text size)
+/// refits the detent and measures again; nothing else does.
+private nonisolated struct SheetFitKey: Equatable {
+    var clearance: SheetClearance?
+    var textSize: DynamicTypeSize
+}
+
 /// The portrait subtitle style menu: a bottom sheet that changes the saved style (and so the line on the video)
 /// with every tap. The video stays visible above it. Landscape gets a card in T-016.
 /// Colours come only from the Theme tokens: idle Shell and Ink, on or selected Accent with white, values InkSoft.
 struct SubtitleStyleSheet: View {
-    /// The gap kept between the bottom of the video and the top of the sheet.
-    static let gapBelowVideo: CGFloat = 8
-    /// The system draws a `.height` sheet about this much higher than window height minus the detent height
-    /// (measured on iPhone 17 Pro: the white started 20 pt above the expected line).
-    static let systemSheetRise: CGFloat = 20
-    /// The first detent is never shorter than this (title, Done and a little content; the rest scrolls).
-    static let minimumDetentHeight: CGFloat = 120
+    /// Where the last measured rise is kept, so later opens (also after a relaunch) are right from the start.
+    static let riseKey = "player.styleSheetRise"
 
-    /// Height of the first detent: the room under the video, less the gap and the system rise, so the sheet
-    /// never covers the video. Never below `minimumDetentHeight`; when the room is small the content scrolls
-    /// and `.large` is the second detent.
-    static func firstDetentHeight(windowHeight: CGFloat, videoMaxY: CGFloat) -> CGFloat {
-        max(minimumDetentHeight, windowHeight - videoMaxY - gapBelowVideo - systemSheetRise)
+    /// The last measured rise, or the first guess when none was measured (or the saved one is implausible).
+    static var cachedRise: CGFloat {
+        get {
+            guard let saved = UserDefaults.standard.object(forKey: riseKey) as? Double else {
+                return SheetFit.firstGuessRise
+            }
+            let rise = CGFloat(saved)
+            return SheetFit.plausibleRise.contains(rise) ? rise : SheetFit.firstGuessRise
+        }
+        set {
+            UserDefaults.standard.set(Double(newValue), forKey: riseKey)
+        }
     }
 
-    /// The first detent's height, or nil when there is no video to keep clear (landscape, or not measured yet):
-    /// the sheet is then `.large` only.
-    let firstDetent: CGFloat?
+    /// The video to keep clear, or nil when there is none (landscape, or not measured yet): the sheet is then
+    /// `.large` only.
+    let clearance: SheetClearance?
 
     /// The same saved value the player reads, so every change shows on the line at once.
     @AppStorage(SubtitleStyle.storageKey) private var stored = ""
@@ -68,11 +172,17 @@ struct SubtitleStyleSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var sampleSize: CGFloat = 20
+    /// The selected detent. It always names a detent in `detents`: it changes together with `firstHeight`.
     @State private var detent: PresentationDetent
+    /// The first detent's height in use, or nil for `.large` only.
+    @State private var firstHeight: CGFloat?
+    @State private var probe = SheetTopProbe()
 
-    init(firstDetent: CGFloat?) {
-        self.firstDetent = firstDetent
-        _detent = State(initialValue: firstDetent.map { PresentationDetent.height($0) } ?? PresentationDetent.large)
+    init(clearance: SheetClearance?) {
+        self.clearance = clearance
+        let height = clearance.map { SheetFit.detentHeight(for: $0, rise: Self.cachedRise) }
+        _firstHeight = State(initialValue: height)
+        _detent = State(initialValue: height.map { PresentationDetent.height($0) } ?? PresentationDetent.large)
     }
 
     private var style: SubtitleStyle { SubtitleStyle.decoded(from: stored) }
@@ -95,6 +205,18 @@ struct SubtitleStyleSheet: View {
             }
             .scrollBounceBehavior(.basedOnSize)
         }
+        // A container, so UI tests can read where the sheet starts (`subtitleStyle.sheet`); its controls stay
+        // separate elements.
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("subtitleStyle.sheet")
+        .background {
+            SheetTopProbeView(probe: probe)
+                .ignoresSafeArea()
+                .accessibilityHidden(true)
+        }
+        .task(id: SheetFitKey(clearance: clearance, textSize: dynamicTypeSize)) {
+            await fitFirstDetent()
+        }
         // The system sheet animation is used, and it follows Reduce Motion. The video is not dimmed or covered
         // at the first detent, so the line can be judged while it changes.
         .presentationDetents(detents, selection: $detent)
@@ -104,14 +226,65 @@ struct SubtitleStyleSheet: View {
     }
 
     private var detents: Set<PresentationDetent> {
-        guard let firstDetent else { return [.large] }
-        return [.height(firstDetent), .large]
+        guard clearance != nil, let firstHeight else { return [.large] }
+        return [.height(firstHeight), .large]
     }
 
     /// Same detent as the first one, so the video is neither dimmed nor covered while the line is judged.
     private var backgroundInteraction: PresentationBackgroundInteraction {
-        guard let firstDetent else { return .automatic }
-        return .enabled(upThrough: .height(firstDetent))
+        guard clearance != nil, let firstHeight else { return .automatic }
+        return .enabled(upThrough: .height(firstHeight))
+    }
+
+    // MARK: Fitting the first detent
+
+    /// Keeps the first detent just under the video. It runs when the sheet appears and again only when the geometry
+    /// really changes (`SheetFitKey`). It first refits from the cached rise if needed, then waits for the sheet to
+    /// settle, measures where the system really drew it, and corrects the detent at most once. The correction moves
+    /// the sheet, but nothing measures again until the key changes, so it can't feed back into a loop.
+    private func fitFirstDetent() async {
+        guard let clearance else {
+            // No video to keep clear: `.large` only, and the selection must stay in the set.
+            if firstHeight != nil {
+                firstHeight = nil
+                detent = .large
+            }
+            return
+        }
+        // Usually already fitted: `init` used the same values. A changed geometry refits from the cached rise.
+        let expected = SheetFit.detentHeight(for: clearance, rise: Self.cachedRise)
+        let needsRefit = firstHeight.map { abs($0 - expected) >= SheetFit.minimumChange } ?? true
+        if needsRefit { useFirstDetent(expected) }
+
+        // The sheet's presentation animation takes about a third of a second.
+        try? await Task.sleep(for: .milliseconds(450))
+        var previousTop: CGFloat?
+        for _ in 0 ..< 12 {
+            if Task.isCancelled { return }
+            if let height = firstHeight, detent == .height(height), let top = probe.top {
+                // Two equal readings 0.1 s apart: the sheet has settled (it isn't animating or being dragged).
+                if let previousTop, abs(top - previousTop) < 0.5 {
+                    if let fit = SheetFit.correction(for: clearance, detentHeight: height, sheetTop: top) {
+                        Self.cachedRise = fit.rise
+                        if fit.detentHeight != height { useFirstDetent(fit.detentHeight) }
+                    }
+                    return
+                }
+                previousTop = top
+            } else {
+                // At `.large`, or not in a window yet: nothing to measure now.
+                previousTop = nil
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    /// Changes the first detent's height and, unless the sheet is at `.large`, the selection with it, in the same
+    /// update, so the selection always names a detent in the set.
+    private func useFirstDetent(_ height: CGFloat) {
+        let atLarge = detent == .large
+        firstHeight = height
+        detent = atLarge ? .large : .height(height)
     }
 
     // MARK: Pieces
@@ -127,6 +300,9 @@ struct SubtitleStyleSheet: View {
             Button { dismiss() } label: { Image(systemName: "checkmark") }
                 .buttonStyle(DeckIconButtonStyle(isActive: true))
                 .accessibilityLabel("Done")
+                // The label is a checkmark symbol, which the accessibility tree reported as Selected (CI 44888942981),
+                // while Bold, the same style with another symbol, was not. Done is never a selection.
+                .accessibilityRemoveTraits(.isSelected)
                 .accessibilityIdentifier("subtitleStyle.done")
         }
         .padding(.horizontal, Spacing.l)

@@ -4,11 +4,11 @@ title: Adjust the subtitle style from a menu in the portrait player
 lane: frontend
 depends_on: [T-014]
 status: testing
-round: 2
+round: 3
 base_sha: 29491a8a99698de0de6b9141cd3e1ee961b711ca
 issue: 16
 spec: .loop/specs/subtitle-style.md
-model:
+model: opus
 ---
 
 ## Adjust the subtitle style from a menu in the portrait player
@@ -150,3 +150,80 @@ _by loop-frontend ·
 - C2: chose to hide the back button while the sheet is open (`.navigationBarBackButtonHidden(showStyleSheet)`), so the player can't be popped with the sheet presented. Cost: the swipe-back gesture is off while it is open.
 - Tests: unit `firstDetentStaysUnderTheVideo`. The tester's SubtitleStyleSheetTesterUITests.swift is untouched.
 - Tester, look at: the pixel check in testEveryControlStartsBelowTheVideoAndIsLabelled (the 20 pt rise is a measured constant; if the sheet still covers or leaves a bigger gap, adjust `systemSheetRise`); that the nav bar doesn't jump when the back button hides.
+
+## Test report (round 2)
+_by loop-tester · 2026-11-21 04:57_
+
+CI run 44888942981 (89ae32f, scope=all). The `ipa` job is green. The `simulator` job ran 320 tests: 319 pass and 1 fails, with no build issues in the xcresult. The one failure is my own round-1 test `SubtitleStyleSheetTesterUITests/testUsingTheSheetDoesNotPausePlayback`, and the fault is in the test, not the app. It tapped Play at 209.4 s and read the label after Done at 216.5 s, about 7 s later, but the sample is 0:06.0 long (its duration label in `tester-sheet-open-frames`). The clip had ended, and an ended clip shows "Play". I rewrote it to read `player.playPause` while the sheet is still open, about 3 and 5 s after Play. All four known UI flakes and `EpisodeImporterTests/copiesAnMP4…` pass in this run.
+
+| Criterion | Result | Evidence |
+|-----------|--------|----------|
+| AC-1 `player.subtitleStyle` Button, `textformat`, aqua when changed, right after `player.subtitlesMenu`, "Subtitle style"; landscape bar not broken | Pass | Unchanged since round 1. `testPortraitSheetChangesTheLineLiveAndLeavesTheVideoUncovered` passes. In `tester-sheet-open-frames`, subtitlesMenu is at x 236 and subtitleStyle at x 288 in the same row. All PlayerLandscape* tests pass. |
+| AC-2 sheet controls, identifiers, sample per font, values, distinct icons, Theme colours, 0.45 disabled look | Pass | `style-01-sheet` and `tester-sheet-open-screenshot`: the three font rows show "Aa あア漢字" in their own font, Bold, smaller and larger A, four arrows, "130%" / "100%", "Default place", Reset (dimmed at the default), and Done ✓. `testEveryControlStartsBelowTheVideoAndIsLabelled` passes (all 12 identifiers exist as buttons). |
+| AC-3 live changes; each limit disables its own button; Reset disabled at the default; playback not paused | Pass except "not paused": Unverified | `testEveryLimitDisablesItsOwnButton` passes (60%, up 18, right +8, left −8, "Up 90% · Right 40%", "Left 40%"). The builder tests cover live changes, 200%, down and Reset. "Not paused" isn't proven yet: the round-1 test was flawed (see above), and the rewritten test hasn't run. |
+| AC-4 label and value on every control; selected chip `.isSelected` | Pass | `testEveryControlStartsBelowTheVideoAndIsLabelled` passes: "Larger text"/"Smaller text" "100 percent", "Move subtitles up/down/left/right" with values, Bold "On", "Serif font"/"Rounded font", Sans `isSelected` and Serif not, Done, and Reset disabled. |
+| AC-5 `presentationBackground(Theme.panel)`, fixed detent + `.large`, every control's minY ≥ video maxY on iPhone 17 Pro, scrolls to Reset at XXXL | Pass on iPhone 17 Pro / iOS 26.5; see S2 for other devices | The pixel check in `testEveryControlStartsBelowTheVideoAndIsLabelled` passes. I sampled `tester-sheet-open-screenshot` myself: the video is (42,172,210) down to y 341, the Shell gap runs 342–349 with the shadow at 347–349, and the sheet's white starts at y 350 at x 80 and 201. In the tree, the sheet container is {{8, 349.4}, {386, 516.6}} and the Sheet Grabber is at y 344.6, so the gap is 7.4 pt (target 8). The old 520 pt detent covered that same pixel (round 1: white at y 335–341 at x 80), so this test fails on 08f286b and passes here. The unit test `firstDetentStaysUnderTheVideo` passes. `testPortraitSheetScrollsToResetAtAnAccessibilityTextSize` passes. |
+| AC-6 SubtitleStyleUITests (open, ×3 taller + 130%, up ×2, Serif/Bold, keep-flag relaunch, Reset ±2 + disabled, 200%, XXXL, attachments) | Pass | All builder SubtitleStyleUITests pass (26.8, 35.9, 14.3, 30.4, 16.6 s). `style-01-sheet` and `style-02-large-text` are present. |
+| AC-7 DESIGN.md + PRODUCT_SPEC.md updated; every existing test passes | Pass | DESIGN.md now describes the computed detent and the hidden back button. 319/320 pass; the only failure is the tester test flaw, and every earlier suite is green. |
+
+Round-1 findings:
+- S1 fixed on iPhone 17 Pro / iOS 26.5, proven by a run: the pixel check passes, and the sheet top is at 349.4–350 against the video's maxY of 342.
+- C1 fixed, by reading: in `Components.swift:62-63`, `DeckPrimaryButtonStyle` skips the scale and the animation under `accessibilityReduceMotion`. Not driven, since CI has no Reduce Motion run.
+- C2 fixed, proven by a run. In `tester-sheet-open-frames`, the NavigationBar holds only the "Episode 1" title, with no `BackButton`. With the sheet closed (`portrait-default-frames`), it has `BackButton` at {{16, 62}, {44, 44}}. The bar's frame {{0, 62}, {402, 54}} and the title's {{163, 73.7}} are identical in both, and the video's frame is unchanged ({{0, 116}, {402, 226}} before and while open), so nothing jumps. I added assertions for this, and for back returning after Done (not run yet).
+- Builder assumption answered: the player stays in the accessibility tree while the sheet is open. Its whole subtree (video, the slider with 0:00.0 and 0:06.0, playPause, the row, Make a Card and the cue list) is in `tester-sheet-open-frames`.
+
+### Findings
+
+Should fix S2
+Where: ios/ClipDeck/Features/Player/SubtitleStyleSheet.swift:50 (`systemSheetRise = 20`), :57-59; PlayerView.swift:182-187
+Problem: The first detent subtracts a fixed 20 pt "system rise". That value was measured once, on iPhone 17 Pro with iOS 26.5, and it reflects how that OS draws the sheet, not the app's layout. In this run, iOS 26 draws a floating sheet inset 8 pt on every side, {{8, 349.4}, {386, 516.6}}, for a 504 pt detent. So the rise is 8 pt of bottom inset plus 12.6 pt of extra height, about 20.6. Neither part is guaranteed elsewhere. iOS 17 and 18, which the app supports (deployment target 17.0), draw edge-to-edge sheets, and a `.height` detent there is, as far as I know, sized above the bottom safe area (34 pt on Face ID iPhones). That would put the sheet about 14 pt higher than the formula expects and cover about 6 pt of the video, the same defect as round-1 S1. Home-button iPhones (SE, 0 pt bottom inset, no display corners) likely don't float the sheet either. If the real rise is smaller than 20, the gap only grows, which is harmless. If it is larger, the sheet covers the video.
+Proof: Traced it, not run. The iOS 26.5 numbers come from `tester-sheet-open-frames` (CI 44888942981). The iOS 17/18 behaviour is inferred; CI only has the iPhone 17 Pro iOS 26.5 simulator.
+Trigger: Open the style sheet in portrait on iOS 17 or 18, or on another iPhone class.
+Fix: Measure the sheet instead of assuming its offset. In `SubtitleStyleSheet`, report its own top in global coordinates. These match the window's in this run: the sheet's elements are at y 349.4 in window space. Use `onGeometryChange(for: CGFloat.self) { $0.frame(in: .global).minY }` (iOS 16+) or the background GeometryReader + `onChange` pattern already used for the video, on the root VStack, while `detent` is the first one. Compute `rise = (windowHeight − firstDetent) − measuredTop`, and correct the detent once: `firstDetent = max(120, windowHeight − videoMaxY − 8 − rise)`. Set the `detents` set and the `detent` selection to the new `.height` together, because `@State detent` keeps its initial value and would otherwise point at a detent that's no longer in the set. A `.height` detent's offset doesn't depend on its height, so one correction converges. Cache the measured rise (for example in PlayerView `@State` or a static), so later opens are exact from the start, and keep 20 only as the first guess. The deciding test is `testEveryControlStartsBelowTheVideoAndIsLabelled` (the pixel check), plus an assertion that the sheet's top gap is no more than about 16 pt, if the builder wants to catch overshoot. If Brent decides only iOS 26 matters, this drops to Could fix.
+
+Could fix C3
+Where: ios/ClipDeck/Features/Player/SubtitleStyleSheet.swift:127-130 (Done)
+Problem: XCUITest reports `subtitleStyle.done` as Selected (`tester-sheet-open-frames` line 62), so VoiceOver may say "Done, selected". The source adds no `.isSelected` to Done; only the font chips get it (:185). The cause is unknown, possibly the system's initial focus in a sheet.
+Proof: Ran it (tree only; VoiceOver speech not heard).
+Fix: Check with VoiceOver on a device. If it is spoken, add `.accessibilityRemoveTraits(.isSelected)` to Done.
+
+Notes (no finding):
+- PlayerLandscapeBehaviourUITests/testOpenSubtitlesMenuKeepsControlsUpWhilePlaying passed but took 441 s (usually tens of seconds). It is a known flake, and the diff doesn't touch it.
+- `styleSheetFirstDetent` reads `connectedScenes.first.screen.bounds`. That is right on an iPhone-only target (TARGETED_DEVICE_FAMILY 1), and the floor of 120 pt covers the video on very short screens, as the builder documented.
+
+Tests changed: ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift
+- `testUsingTheSheetDoesNotPausePlayback`: reads "Pause" with the sheet open (after it opens and after a size tap), then checks that Done closes the sheet and back returns. The old version checked after the 6 s clip had already ended.
+- `testEveryControlStartsBelowTheVideoAndIsLabelled`: adds checks that back is shown before, hidden while open, and that the nav bar and video frames are unchanged.
+
+```text
+VERDICT: Fail
+SPEC: AC-1, AC-2, AC-4, AC-6, AC-7 met; AC-5 met on iPhone 17 Pro / iOS 26.5 (S2: fragile constant for other OS/devices); AC-3 met except "playback not paused" (test was flawed, rewritten, not yet run)
+CHECKS_RUN: CI 44888942981 ipa green (build-ipa.sh); simulator test-ios.sh 319/320, 0 build issues, the 1 failure is a tester test flaw (clip ended); screenshots style-01-sheet and tester-sheet-open-screenshot read and pixel-sampled; tester-sheet-open-frames and portrait-default-frames compared
+UNVERIFIED: "playback not paused" (rewritten test not run); back returning after Done (new assertion not run); the sheet on iOS 17/18 and on other iPhone classes (S2); Reduce Motion on Reset (read only); VoiceOver speech, dark mode, feel on a real iPhone
+REVIEWED_AT: 89ae32fb9c9c8abef5cc074ed814ad9f2322724a
+```
+
+## Fix round 3
+_orchestrator · 2026-11-21 · round 2 failed on Sonnet (S2: the hard-coded systemSheetRise of 20 pt is iOS 26 only). Brent chose: measure it, on Opus. A fresh loop-frontend (opus) gets the round-2 Test report. The tester's edited SubtitleStyleSheetTesterUITests.swift is uncommitted and must be kept. This is the last normal round._
+
+## Implementation notes (round 3) · opus
+_by loop-frontend · 2026-11-21 05:16_
+- S2 (nothing compiled here, CI only): the fixed `systemSheetRise` is gone. The sheet now measures where the system really drew it and corrects the first detent once.
+  - New pure math in `SubtitleStyleSheet.swift`: `SheetClearance` (window height, video maxY), `SheetFit.detentHeight(for:rise:)` = max(120, window - videoMaxY - 8 - rise), `SheetFit.rise(windowHeight:detentHeight:sheetTop:)` = (window - detent) - top, nil when the top isn't finite, isn't inside the window, or the rise is outside -24...96 (mid-animation, dragged, or at `.large`), and `SheetFit.correction(for:detentHeight:sheetTop:)` (keeps the current height when the fix is under 1 pt, so nothing shuffles by fractions).
+  - What the round-2 tree showed (CI 44888942981 `tester-sheet-open-frames`): on iOS 26.5 the lower-detent sheet is drawn scaled by about 0.96 (44 pt buttons are 42.2 pt, the 402 pt layout is 386 pt wide), so its top is 874 - 8 - (504 + 34) x 0.96 = 349.4. That also fits round 1's 520 pt detent at 334. So the rise is the OS's and even changes a little with the height (about -0.04 pt per pt, so one correction converges).
+  - Because of that scale, the sheet's top is read from UIKit, not from SwiftUI's global frame: `SheetTopProbe` holds a hidden, untouchable `UIView` laid behind the whole sheet (`.ignoresSafeArea()`), and `convert(bounds, to: window).minY` includes the system's transforms. This differs from the "GeometryReader + onChange" suggestion on purpose; SwiftUI geometry may leave out a transform UIKit applies above the hosting view.
+  - `SubtitleStyleSheet(clearance:)` owns `@State firstHeight` and `@State detent`. `init` sizes the first detent from the cached rise. `.task(id: SheetFitKey(clearance, dynamicTypeSize))` runs on appear and again only when the geometry or text size really changes: it refits from the cache if needed, waits 0.45 s, then samples the probe every 0.1 s (up to 12 times) while the selection is the first detent; on two equal readings it caches the rise and, if needed, sets `firstHeight` and `detent` together (`useFirstDetent`; a sheet at `.large` stays at `.large`). Then it returns, so the correction can't feed back into a loop.
+  - The rise is cached in `UserDefaults` `player.styleSheetRise` (ignored if implausible), so later opens and relaunches are right first time. `-uiTesting` doesn't clear it (it is a device property, like a real phone keeps it).
+  - Kept: `presentationBackgroundInteraction(.enabled(upThrough:))` on the same (corrected) detent, landscape `.large` only (no clearance; the task also clears a stale first detent), the hidden back button. `PlayerView.styleSheetClearance` replaces `styleSheetFirstDetent` (key window height, foreground scene first).
+  - The sheet's root is now an accessibility container `subtitleStyle.sheet` (`.contain`, so every control stays its own element) so UI tests can read the sheet's top.
+- C3: Done was the only Selected element besides the Sans chip, while Bold (same `DeckIconButtonStyle(isActive: true)`, other symbol, and a value) was not. The style adds no traits, so the likely cause is the `checkmark` symbol label being read as a selection mark (not proven; I can't run VoiceOver here). Added `.accessibilityRemoveTraits(.isSelected)` to Done; Done is never a selection.
+- Tests:
+  - Unit (SubtitleStyleTests): `firstDetentStaysUnderTheVideo` rewritten on the new API (504 at the guess, 490 at a 34 pt rise, floor), plus `riseComesFromTheMeasuredSheetTop` (20.6 from the round-2 numbers, 20 from round 1's), `nonsensicalMeasurementsAreIgnored` (at `.large`, off screen, 0, negative, NaN, infinity, mid-animation, no window), `oneCorrectionPutsTheSheetJustUnderTheVideo` (34 pt true rise: 504 -> 490, top lands at video + 8, a second measurement changes nothing), `aSheetSittingTooLowIsRaised` (rise 0: 504 -> 524), `aSubPointDifferenceIsLeftAlone` (iOS 26.5: stays 504), `theFloorHoldsAfterACorrection`.
+  - UI: the tester's `testEveryControlStartsBelowTheVideoAndIsLabelled` now also checks, last, that `subtitleStyle.sheet`'s minY - video maxY is >= -0.5 and <= 16 pt (nothing removed or loosened). `testPortraitSheetChangesTheLineLiveAndLeavesTheVideoUncovered` checks Done isn't Selected.
+- Docs: DESIGN.md (the measured rise, the floor, the cache key).
+- Checked: nothing can compile here (ci_only). I re-read every change for Swift 6 isolation (the math types are `nonisolated`, the probe and view are MainActor), names that shadow (`measured` instead of `rise` inside `SheetFit`), and that the selection always names a detent in the set.
+- Tester, look at:
+  - `testEveryControlStartsBelowTheVideoAndIsLabelled`: the new gap assertion, and that `subtitleStyle.sheet` exists as an element (if SwiftUI doesn't expose the container, the test fails at "The sheet's container is in the tree"; that is a test-hook problem, not the layout). On iOS 26.5 I expect a gap of about 7.4 to 8 pt and no visible correction (the fix there is 0.6 pt, under the 1 pt threshold).
+  - The round-3 `tester-sheet-open-frames`: the sheet container frame, and Done without Selected.
+  - That the detent doesn't jump on open on iOS 26 (nothing should move), and that every builder SubtitleStyleUITests test (reveal by swiping, XXXL) still passes with the new container.
+  - Not provable on CI: iOS 17/18 and Home-button iPhones (CI has only iOS 26.5). There the sheet may open at the guess and slide to the corrected height about half a second later, once per install.

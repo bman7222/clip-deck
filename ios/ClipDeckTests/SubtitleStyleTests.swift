@@ -393,10 +393,85 @@ struct SubtitlePlacementTests {
         #expect(bottom.canSizeUp && !bottom.canSizeDown && !bottom.canMoveDown && !bottom.canMoveLeft)
     }
 
+    // MARK: Style sheet first detent
+
+    /// iPhone 17 Pro portrait: window 874, video bottom 342.
+    private let iPhone17Pro = SheetClearance(windowHeight: 874, videoMaxY: 342)
+
     @Test func firstDetentStaysUnderTheVideo() {
-        // iPhone 17 Pro: window 874, video bottom 342: room 532, less the 8 pt gap and the 20 pt system rise.
-        #expect(SubtitleStyleSheet.firstDetentHeight(windowHeight: 874, videoMaxY: 342) == 504)
+        // Room 532, less the 8 pt gap and the 20 pt first guess.
+        #expect(SheetFit.detentHeight(for: iPhone17Pro, rise: SheetFit.firstGuessRise) == 504)
+        // A bigger rise (an edge-to-edge sheet that adds the 34 pt bottom inset) makes a shorter detent.
+        #expect(SheetFit.detentHeight(for: iPhone17Pro, rise: 34) == 490)
         // A small room never goes below the minimum; the content scrolls.
-        #expect(SubtitleStyleSheet.firstDetentHeight(windowHeight: 400, videoMaxY: 380) == 120)
+        #expect(SheetFit.detentHeight(for: SheetClearance(windowHeight: 400, videoMaxY: 380), rise: 20) == 120)
+        #expect(SheetFit.detentHeight(for: iPhone17Pro, rise: 500) == SheetFit.minimumDetentHeight)
+    }
+
+    @Test func riseComesFromTheMeasuredSheetTop() throws {
+        // CI 44888942981 (iOS 26.5): a 504 pt detent drew its top at 349.4, so the rise is 370 - 349.4.
+        let rise = try #require(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: 349.4))
+        #expect(abs(rise - 20.6) < 0.001)
+        // Round 1 on the same OS: a 520 pt detent drew its top at 334.
+        let earlier = try #require(SheetFit.rise(windowHeight: 874, detentHeight: 520, sheetTop: 334))
+        #expect(abs(earlier - 20) < 0.001)
+        // A sheet exactly at window minus detent has no rise.
+        #expect(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: 370) == 0)
+    }
+
+    @Test func nonsensicalMeasurementsAreIgnored() {
+        // At `.large` the top is near the status bar: an implausible rise.
+        #expect(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: 62) == nil)
+        #expect(SheetFit.correction(for: iPhone17Pro, detentHeight: 504, sheetTop: 62) == nil)
+        // Still off screen (the presentation hasn't started), or not laid out yet.
+        #expect(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: 874) == nil)
+        #expect(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: 0) == nil)
+        #expect(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: -10) == nil)
+        #expect(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: .nan) == nil)
+        #expect(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: .infinity) == nil)
+        // Mid-animation, far lower than any real detent sits.
+        #expect(SheetFit.rise(windowHeight: 874, detentHeight: 504, sheetTop: 600) == nil)
+        // No window.
+        #expect(SheetFit.rise(windowHeight: 0, detentHeight: 504, sheetTop: 349) == nil)
+    }
+
+    @Test func oneCorrectionPutsTheSheetJustUnderTheVideo() throws {
+        // An edge-to-edge sheet that really rises 34 pt opened at the 20 pt guess: it covers 6 pt of the video.
+        let trueRise: CGFloat = 34
+        let guess = SheetFit.detentHeight(for: iPhone17Pro, rise: SheetFit.firstGuessRise)
+        let firstTop = iPhone17Pro.windowHeight - guess - trueRise
+        #expect(firstTop < iPhone17Pro.videoMaxY)
+        let fix = try #require(SheetFit.correction(for: iPhone17Pro, detentHeight: guess, sheetTop: firstTop))
+        #expect(abs(fix.rise - trueRise) < 0.001)
+        #expect(abs(fix.detentHeight - 490) < 0.001)
+        // At the corrected height the sheet starts the gap below the video ...
+        let correctedTop = iPhone17Pro.windowHeight - fix.detentHeight - trueRise
+        #expect(abs(correctedTop - (iPhone17Pro.videoMaxY + SheetFit.gapBelowVideo)) < 0.001)
+        // ... and measuring again changes nothing: it has converged.
+        let again = try #require(SheetFit.correction(for: iPhone17Pro, detentHeight: fix.detentHeight, sheetTop: correctedTop))
+        #expect(again.detentHeight == fix.detentHeight)
+        // The cached rise makes the next open right from the start.
+        #expect(SheetFit.detentHeight(for: iPhone17Pro, rise: again.rise) == fix.detentHeight)
+    }
+
+    @Test func aSheetSittingTooLowIsRaised() throws {
+        // A home-button iPhone that doesn't rise at all: the 20 pt guess leaves a 28 pt gap; one fix closes it.
+        let fix = try #require(SheetFit.correction(for: iPhone17Pro, detentHeight: 504, sheetTop: 370))
+        #expect(fix.rise == 0)
+        #expect(fix.detentHeight == 524)
+    }
+
+    @Test func aSubPointDifferenceIsLeftAlone() throws {
+        // iOS 26.5: the measured 20.6 pt rise asks for 503.4, within a point of 504, so the sheet stays put.
+        let fix = try #require(SheetFit.correction(for: iPhone17Pro, detentHeight: 504, sheetTop: 349.4))
+        #expect(fix.detentHeight == 504)
+        #expect(abs(fix.rise - 20.6) < 0.001)
+    }
+
+    @Test func theFloorHoldsAfterACorrection() throws {
+        // Little room under the video: the fix never goes below the minimum, so the content scrolls instead.
+        let short = SheetClearance(windowHeight: 667, videoMaxY: 520)
+        let fix = try #require(SheetFit.correction(for: short, detentHeight: 120, sheetTop: 667 - 120 - 34))
+        #expect(fix.detentHeight == SheetFit.minimumDetentHeight)
     }
 }

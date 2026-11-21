@@ -28,9 +28,17 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
         XCUIDevice.shared.orientation = .portrait
         let app = launch(seed: nil)
         let video = app.descendants(matching: .any)["player.video"].frame
+        let navigationBar = app.navigationBars.firstMatch
+        let barBefore = navigationBar.frame
+        XCTAssertTrue(navigationBar.buttons["BackButton"].exists, "Back is shown before the sheet opens")
         openStyleSheet(app)
         RunLoop.current.run(until: Date().addingTimeInterval(1))
         attach(app, name: "tester-sheet-open", text: "video \(video)")
+
+        // C2: back is hidden while the sheet is open, and hiding it doesn't move the bar or the video.
+        XCTAssertFalse(navigationBar.buttons["BackButton"].exists, "Back is hidden while the sheet is open")
+        XCTAssertEqual(navigationBar.frame, barBefore, "The navigation bar doesn't move when back hides")
+        XCTAssertEqual(app.descendants(matching: .any)["player.video"].frame, video, "The video doesn't move")
 
         // The sheet itself (not only its controls) must leave the video uncovered: near the video's bottom edge,
         // left of the centred line, the pixel is still the video's colour, the same as 40 pt higher.
@@ -67,6 +75,13 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
         // Checked last, so a failure here doesn't hide the label checks above (continueAfterFailure is false).
         XCTAssertLessThanOrEqual(difference, 24,
                                  "The sheet covers the bottom of the video: \(nearBottom) at maxY-3 vs \(higher) at maxY-40")
+        // Round 3 (S2): the first detent is measured and corrected, so the sheet sits just under the video: neither
+        // over it nor much lower (the target gap is 8 pt). Read from the sheet's own container element.
+        let sheet = app.descendants(matching: .any)["subtitleStyle.sheet"].firstMatch
+        XCTAssertTrue(sheet.exists, "The sheet's container is in the tree")
+        let gap = sheet.frame.minY - video.maxY
+        XCTAssertGreaterThanOrEqual(gap, -0.5, "The sheet starts below the video: top \(sheet.frame.minY), video \(video.maxY)")
+        XCTAssertLessThanOrEqual(gap, 16, "The sheet doesn't sit too low: top \(sheet.frame.minY), video \(video.maxY)")
         app.terminate()
     }
 
@@ -100,7 +115,9 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
         app.terminate()
     }
 
-    /// The sample is 6 s long, so this plays, opens the sheet, taps once and closes it in a few seconds.
+    /// The sample is only 6 s long and ends paused, so playback is read while the sheet is still open (the player
+    /// stays in the accessibility tree under the sheet; CI 44888942981 `tester-sheet-open-frames`), about 3 and 5 s
+    /// after Play. Reading it after Done came about 7 s after Play, past the end of the clip.
     @MainActor
     func testUsingTheSheetDoesNotPausePlayback() throws {
         XCUIDevice.shared.orientation = .portrait
@@ -108,14 +125,16 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
         let playPause = app.buttons["player.playPause"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 5))
         playPause.tap()
-        XCTAssertEqual(playPause.label, "Pause", "Playing")
         openStyleSheet(app)
+        XCTAssertEqual(playPause.label, "Pause", "Opening the sheet didn't pause playback")
         app.buttons["subtitleStyle.sizeUp"].tap()
+        XCTAssertEqual(playPause.label, "Pause", "Tapping a control in the sheet didn't pause playback")
         XCTAssertEqual(app.staticTexts["subtitleStyle.sizeValue"].label, "110%")
         let done = app.buttons["subtitleStyle.done"]
         done.tap()
         XCTAssertTrue(done.waitForNonExistence(timeout: 5), "Done closes the sheet")
-        XCTAssertEqual(playPause.label, "Pause", "Opening the sheet and tapping a control didn't pause playback")
+        XCTAssertTrue(app.navigationBars.buttons["BackButton"].waitForExistence(timeout: 5),
+                      "Back comes back when the sheet closes")
         app.terminate()
     }
 

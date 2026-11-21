@@ -117,7 +117,7 @@ struct PlayerView: View {
             if let model { OffsetSheet(model: model, onChange: { episode.offsetMs = $0 }) }
         }
         .sheet(isPresented: $showStyleSheet) {
-            SubtitleStyleSheet(firstDetent: styleSheetFirstDetent)
+            SubtitleStyleSheet(clearance: styleSheetClearance)
         }
         .sheet(isPresented: $showSubtitlePicker, onDismiss: reloadSubtitles) {
             SubtitlePickerSheet(episode: episode)
@@ -177,13 +177,16 @@ struct PlayerView: View {
         }
     }
 
-    /// The style sheet's first detent: the room under the portrait video. Nil in landscape or before the video is
-    /// measured, which makes the sheet `.large` only.
-    private var styleSheetFirstDetent: CGFloat? {
+    /// Where the portrait video ends, so the style sheet's first detent can stay under it (the sheet measures itself
+    /// and corrects the detent). Nil in landscape or before the video is measured, which makes the sheet `.large` only.
+    private var styleSheetClearance: SheetClearance? {
         guard !isLandscape, videoMaxY > 0 else { return nil }
-        let scene = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }.first
-        guard let windowHeight = scene?.screen.bounds.height else { return nil }
-        return SubtitleStyleSheet.firstDetentHeight(windowHeight: windowHeight, videoMaxY: videoMaxY)
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+        guard let windowHeight = scene?.keyWindow?.bounds.height ?? scene?.screen.bounds.height,
+              windowHeight > videoMaxY
+        else { return nil }
+        return SheetClearance(windowHeight: windowHeight, videoMaxY: videoMaxY)
     }
 
     private func landscape(_ model: PlayerModel, size: CGSize, insets: EdgeInsets) -> some View {

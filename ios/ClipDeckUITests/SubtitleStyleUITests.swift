@@ -120,6 +120,7 @@ final class SubtitleStyleUITests: XCTestCase {
             XCTAssertGreaterThanOrEqual(control.frame.minY, video.maxY - 1, "\(id) is below the video, which stays uncovered")
         }
         XCTAssertTrue(app.buttons["subtitleStyle.font.sans"].isSelected, "Sans is the selected font by default")
+        XCTAssertFalse(app.buttons["subtitleStyle.done"].isSelected, "Done is not reported as a selection")
         XCTAssertEqual(app.staticTexts["subtitleStyle.sizeValue"].label, "100%")
 
         let sizeUp = app.buttons["subtitleStyle.sizeUp"]
