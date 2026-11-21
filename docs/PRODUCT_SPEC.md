@@ -16,7 +16,7 @@ Language learners, Japanese learners in particular, who already mine cards with 
 1. **Library:** shows as tiles, each holding episodes. Upload a video, name the episode, and optionally attach subtitles.
 2. **Player:**
    - play/pause, scrubbing and ±5 s skips;
-   - subtitle overlay, plus a subtitle list you tap to jump;
+   - subtitle overlay (drawn in a saved style: font, bold, size and position, and it always stays inside the video), plus a subtitle list you tap to jump;
    - subtitle offset, and "Load different subtitles";
    - iOS Look Up on subtitle text.
 3. **Make a Card:**
@@ -104,4 +104,5 @@ Everything in Core features and Main user flows:
   - tag `clipdeck`;
   - duplicates checked within the deck.
 - **Offset:** positive values show subtitles later. Saved per episode.
+- **Subtitle style:** global and remembered across launches (one style for the whole app, not per show). The default is Sans, bold, 100%, centred at the bottom. Only the line on the video changes, not the subtitle list. The menu to change it comes in later tasks.
 - **Installing:** builds come from a GitHub Actions macOS runner and are installed with Sideloadly. The developer works on Windows without a Mac.

@@ -22,6 +22,17 @@ struct ClipDeckApp: App {
         if isUITesting, !ProcessInfo.processInfo.arguments.contains("-uiTestingKeepPanelWidth") {
             UserDefaults.standard.removeObject(forKey: "player.panelFraction")
         }
+        // The subtitle style (global, in the standard defaults) is cleared on every UI-test launch too, unless
+        // -uiTestingKeepSubtitleStyle is passed. -uiTestingSubtitleStyle <json> then seeds a style.
+        if isUITesting {
+            let arguments = ProcessInfo.processInfo.arguments
+            if !arguments.contains("-uiTestingKeepSubtitleStyle") {
+                UserDefaults.standard.removeObject(forKey: SubtitleStyle.storageKey)
+            }
+            if let seed = SubtitleStyle.seedJSON(in: arguments) {
+                UserDefaults.standard.set(SubtitleStyle.decoded(from: seed).json, forKey: SubtitleStyle.storageKey)
+            }
+        }
         _settings = State(initialValue: isUITesting
             ? SettingsStore(defaults: UserDefaults(suiteName: "uiTesting") ?? .standard, key: "ankiSettings.uiTesting")
             : SettingsStore())

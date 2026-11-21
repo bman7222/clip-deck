@@ -153,6 +153,11 @@ struct SelectableText: UIViewRepresentable {
     var color: UIColor = .label
     var outlined = false
     var alignment: NSTextAlignment = .center
+    /// A ready-made font (the subtitle style's). When nil the system font at `textStyle` and `weight` is used.
+    var font: UIFont?
+    /// When true the view is only as wide as its text (up to the proposed width), so its frame is the frame
+    /// of the visible text. Otherwise it takes the whole proposed width.
+    var hugsWidth = false
     /// Set on the UITextView itself so UI tests can find it.
     var identifier: String?
 
@@ -169,13 +174,18 @@ struct SelectableText: UIViewRepresentable {
         return view
     }
 
-    func updateUIView(_ view: UITextView, context: Context) {
-        let base = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: textStyle).pointSize, weight: weight)
-        let font = UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
+    private func attributedString() -> NSAttributedString {
+        let resolvedFont: UIFont
+        if let font {
+            resolvedFont = font
+        } else {
+            let base = UIFont.systemFont(ofSize: UIFont.preferredFont(forTextStyle: textStyle).pointSize, weight: weight)
+            resolvedFont = UIFontMetrics(forTextStyle: textStyle).scaledFont(for: base)
+        }
         let paragraph = NSMutableParagraphStyle()
         paragraph.alignment = alignment
         var attributes: [NSAttributedString.Key: Any] = [
-            .font: font,
+            .font: resolvedFont,
             .foregroundColor: color,
             .paragraphStyle: paragraph,
         ]
@@ -184,12 +194,27 @@ struct SelectableText: UIViewRepresentable {
             attributes[.strokeColor] = UIColor.black
             attributes[.strokeWidth] = -3.0
         }
-        view.attributedText = NSAttributedString(string: text, attributes: attributes)
+        return NSAttributedString(string: text, attributes: attributes)
+    }
+
+    func updateUIView(_ view: UITextView, context: Context) {
+        view.attributedText = attributedString()
         view.accessibilityIdentifier = identifier
     }
 
     func sizeThatFits(_ proposal: ProposedViewSize, uiView: UITextView, context: Context) -> CGSize? {
-        let width = proposal.width ?? 320
+        let proposed = proposal.width ?? 320
+        var width = proposed
+        if hugsWidth {
+            // The widest line at the proposed width. Asking again at that width gives the same lines, so the
+            // size is stable when SwiftUI proposes it back.
+            let used = attributedString().boundingRect(
+                with: CGSize(width: proposed, height: .greatestFiniteMagnitude),
+                options: [.usesLineFragmentOrigin, .usesFontLeading],
+                context: nil
+            )
+            width = min(proposed, ceil(used.width) + 1)
+        }
         let fitted = uiView.sizeThatFits(CGSize(width: width, height: .greatestFiniteMagnitude))
         return CGSize(width: width, height: fitted.height)
     }

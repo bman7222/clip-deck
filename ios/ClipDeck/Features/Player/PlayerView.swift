@@ -34,7 +34,11 @@ struct PlayerView: View {
     /// save in `onEnded` both read it, so a drag that resizes live is always saved and one that doesn't never moves the panel.
     @State private var panelDragOrigin: CGPoint?
     @State private var panelDragResizes = false
+    /// The saved subtitle style (JSON). A string AppStorage, so a later menu that writes it updates the line live.
+    @AppStorage(SubtitleStyle.storageKey) private var storedSubtitleStyle = ""
     @Environment(\.dismiss) private var dismiss
+    /// Read so a text size change redraws the line (its font is built from the current Dynamic Type size).
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverOn
 
     private let store = FileStore.live
@@ -172,7 +176,11 @@ struct PlayerView: View {
         return HStack(spacing: 0) {
             videoScreen(
                 model,
-                subtitleBottomPadding: shown ? bottomBarHeight + Spacing.s : Spacing.m + insets.bottom,
+                subtitleMargins: SubtitleMargins(
+                    top: Spacing.s + insets.top, leading: Spacing.l + barInsets.leading,
+                    bottom: Spacing.m + insets.bottom, trailing: Spacing.l + barInsets.trailing),
+                subtitleTopObstruction: shown ? topBarHeight + Spacing.s : 0,
+                subtitleBottomObstruction: shown ? bottomBarHeight + Spacing.s : 0,
                 badgeTopPadding: shown ? topBarHeight + Spacing.s : insets.top,
                 edgeInsets: EdgeInsets(top: 0, leading: barInsets.leading, bottom: 0, trailing: barInsets.trailing),
                 onTap: toggleControls
@@ -363,6 +371,8 @@ struct PlayerView: View {
         .padding(.leading, insets.leading)
         .padding(.trailing, insets.trailing)
         .background(Color.black.opacity(0.55))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("player.topBar")
     }
 
     /// Landscape bottom bar: scrubber, then transport and Make a Card on one row.
@@ -387,6 +397,8 @@ struct PlayerView: View {
         .padding(.leading, insets.leading)
         .padding(.trailing, insets.trailing)
         .background(Color.black.opacity(0.55))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("player.bottomBar")
     }
 
     private func bottomRow(_ model: PlayerModel, iconOnly: Bool, skips: Bool = true) -> some View {
@@ -400,7 +412,10 @@ struct PlayerView: View {
     /// The video with its subtitle line. `onTap` differs by orientation: play/pause or show/hide controls.
     private func videoScreen(
         _ model: PlayerModel,
-        subtitleBottomPadding: CGFloat = Spacing.m,
+        subtitleMargins: SubtitleMargins = SubtitleMargins(
+            top: Spacing.s, leading: Spacing.l, bottom: Spacing.m, trailing: Spacing.l),
+        subtitleTopObstruction: CGFloat = 0,
+        subtitleBottomObstruction: CGFloat = 0,
         badgeTopPadding: CGFloat = 0,
         edgeInsets: EdgeInsets = EdgeInsets(),
         onTap: @escaping () -> Void
@@ -409,14 +424,6 @@ struct PlayerView: View {
             PlayerLayerView(player: model.player)
                 .accessibilityIdentifier("player.video")
                 .onTapGesture(perform: onTap)
-            if let cue = model.currentCue {
-                SelectableText(text: cue.text, textStyle: .title3, weight: .bold, color: .white, outlined: true, identifier: "player.subtitle")
-                    .padding(.horizontal, Spacing.l)
-                    .padding(.leading, edgeInsets.leading)
-                    .padding(.trailing, edgeInsets.trailing)
-                    .padding(.bottom, subtitleBottomPadding)
-                    .animation(.easeInOut(duration: 0.2), value: subtitleBottomPadding)
-            }
             if let miningRange {
                 RecordingBadge(range: miningRange)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -425,8 +432,38 @@ struct PlayerView: View {
                     .padding(Spacing.s)
             }
         }
+        // The line is an overlay, so it takes the video's size and never changes the video's layout.
+        .overlay {
+            if let cue = model.currentCue {
+                subtitleLine(
+                    cue.text, margins: subtitleMargins,
+                    topObstruction: subtitleTopObstruction, bottomObstruction: subtitleBottomObstruction)
+            }
+        }
         .background { Color.black }
         .clipped()
+    }
+
+    /// The line on the video, drawn in the saved style and placed by `SubtitlePlacement` (it stays inside the
+    /// video, below the top bar and above the bottom bar while they show).
+    private func subtitleLine(
+        _ text: String, margins: SubtitleMargins, topObstruction: CGFloat, bottomObstruction: CGFloat
+    ) -> some View {
+        _ = dynamicTypeSize
+        let style = SubtitleStyle.decoded(from: storedSubtitleStyle)
+        return GeometryReader { geometry in
+            let regionHeight = max(0, geometry.size.height - margins.top - margins.bottom)
+            SubtitleLineLayout(
+                style: style, margins: margins, topObstruction: topObstruction, bottomObstruction: bottomObstruction
+            ) {
+                SelectableText(
+                    text: text, textStyle: .title3, weight: .bold, color: .white, outlined: true,
+                    font: style.uiFont(regionHeight: regionHeight), hugsWidth: true, identifier: "player.subtitle")
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+        }
+        .animation(.easeInOut(duration: 0.2), value: bottomObstruction)
+        .animation(.easeInOut(duration: 0.2), value: topObstruction)
     }
 
     // MARK: Overlay timing
