@@ -502,3 +502,15 @@
 ## 2026-11-20 · orchestrator · T-013 · landed; goal complete
 - Done: T-013 passed (2 sonnet rounds). All 12 buildable tasks are done; T-007 stays blocked (paid account). CLAUDE.md "Current status" updated.
 - Left: Brent decides whether to merge loop/mkv-landscape-sideload into main, then release v0.3.0. Open Could fix: make-source-json.py version regex accepts a trailing newline (use re.fullmatch).
+
+## 2026-11-20 22:03 · loop-planner · T-014..T-016 · planning
+- Done: spec .loop/specs/subtitle-style.md (Proposed, decisions D-1..D-8 with recommended answers); planned T-014 (style value + placement + renderer, Debug seed flag), T-015 (portrait opener + sheet), T-016 (landscape card in place of the bottom bar); issues #15-#17
+- Left: all three are blocked until Brent confirms D-1..D-8 (fonts, global scope, steps, position unit, portrait sheet, landscape card, default, aqua opener); if he accepts them, no task changes
+- Files: .loop/specs/subtitle-style.md, .loop/tasks/T-014-subtitle-style-renderer.md, T-015-subtitle-style-menu-portrait.md, T-016-subtitle-style-menu-landscape.md, .loop/BOARD.md
+- Gotchas: the ASS parser already strips all styles/tags, so the user style applies to ASS the same as to SRT. `SelectableText.sizeThatFits` returns the full width, so the line frame must be made to hug the text before frames can prove position. "Position" never "offset" (player.offset is timing). The landscape bar at panel 50% goes from about 245 to about 297 of about 320 pt
+
+## 2026-11-20 22:20 · loop-planner · T-014..T-017 · replan after Brent's answers
+- Done: spec Accepted (D-2..D-8 as recommended; D-1 "both": presets + "More fonts…" system picker with a fixed Hiragino cascade for Japanese). New T-017 (#18) picked font. T-015 preset rows show "Aa あア漢字". T-016 now depends on T-017 and has 13 controls. All four are todo; issues #15-#18 edited to match
+- Left: build order T-014 → T-015 → T-017 → T-016
+- Files: .loop/specs/subtitle-style.md, .loop/tasks/T-014..T-017, .loop/BOARD.md
+- Gotchas: a picked font is stored by PostScript name and dropped to Sans on read if missing. Bold uses the family's bold face or none (no fake bold); the Japanese fallback follows Bold (W6, except Maru W4). Don't drive a selection inside the system picker in UI tests; seed `pickedFontName` instead
