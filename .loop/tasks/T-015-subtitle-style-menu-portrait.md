@@ -57,6 +57,7 @@ CI only:
 Unverified for Brent: the feel on a real iPhone, and dark mode (unless a screenshot covers it).
 
 ### Agent notes
+- Carried over from T-014's review (Could fix): C2: the subtitle line overlay is now drawn above RecordingBadge (PlayerView.swift:436), so a line moved up and left can cover the badge. Keep the badge on top, or keep the line clear of it. C3: SubtitleStyle step mutators (SubtitleStyle.swift:86-103) can overflow if a field is set to Int.max in code; clamp before adding.
 - Depends on: T-014 (`SubtitleStyle`, its mutators, the seed and keep flags). Source: the spec's "Menu" section, and D-5, D-8.
 - Learned: on iOS 26, a gesture on a `Menu` doesn't fire, so the opener is a Button with `@State` presentation.
 - Call it "position", never "offset". `player.offset` is the timing offset.
