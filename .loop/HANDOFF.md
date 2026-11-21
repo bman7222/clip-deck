@@ -514,3 +514,27 @@
 - Left: build order T-014 → T-015 → T-017 → T-016
 - Files: .loop/specs/subtitle-style.md, .loop/tasks/T-014..T-017, .loop/BOARD.md
 - Gotchas: a picked font is stored by PostScript name and dropped to Sans on read if missing. Bold uses the family's bold face or none (no fake bold); the Japanese fallback follows Bold (W6, except Maru W4). Don't drive a selection inside the system picker in UI tests; seed `pickedFontName` instead
+
+## 2026-11-20 · loop-frontend · T-014 · round 1 (sonnet)
+- Done: AC-1..AC-7 written (nothing compiled): SubtitleStyle/SubtitleFont, pure SubtitlePlacement + SubtitleLineLayout, SelectableText hugsWidth/font, line drawn from the saved style, launch flags, player.topBar/bottomBar ids, unit + UI tests, docs
+- Left: CI run (scope=all); T-015 can call `SubtitleStyle` mutators and write `style.json` to `player.subtitleStyle` (AppStorage string, PlayerView already observes it)
+- Files: Features/Player/SubtitleStyle.swift, SubtitlePlacement.swift, PlayerView.swift, DesignSystem/Components.swift, App/ClipDeckApp.swift, ClipDeckTests/SubtitleStyleTests.swift, ClipDeckUITests/SubtitleStyleUITests.swift, CLAUDE.md, docs/ARCHITECTURE.md, docs/PRODUCT_SPEC.md
+- Gotchas: the line is a video overlay placed by a Layout; font size keeps today's double Dynamic Type scaling so the default is identical; T-017 adds `pickedFontName` (decoding already ignores unknown fields) and extends `SubtitleStyle.uiFont`
+
+## 2026-11-20 22:53 · loop-tester · T-014 · round 1
+- Done: read CI 44860511457 (6fc17c1, scope=all). The ipa job is green. The simulator ran 295/298 with no Swift warnings, and all 4 SubtitleStyleUITests pass with frames that match the spec formula. Against 44836733690 (main's tree; main's only green run is pre-landscape), the default line is pixel-identical in portrait and 1 px (⅓ pt) shifted in landscape
+- Fails: the builder's `landscapeInsetsAndThePanelHandleClearance` expected 752/75 where the spec formula gives 734.3/92.7 (fixed in the test). Known flake testControlsStayWhilePausedAndAutoHideWhilePlaying. AboutUITests/testSourceLinksAreShownAndOpenInSafari (Safari didn't launch; the diff doesn't touch it)
+- Verdict: Blocked, NEEDED: verify-only pass with `-f scope=tests` and no only_testing (the deciding tests span both targets). No product finding above Could fix: C1 1 px landscape rounding, C2 line drawn over RecordingBadge, C3 step overflow from code
+- Tests: SubtitleStyleTests.swift (fix), new SubtitleStyleTesterTests.swift (default font equivalence; hugged width keeps the same lines and is stable, via UIHostingController), new SubtitleStyleTesterUITests.swift (keep flag across relaunch; extreme-left line clear of the leading safe inset)
+- Gotchas: the simulator-results artifact is now about 180 MB (screen recordings), so unzip only screenshots/ui-tests/*.png, *.txt, manifest.json and the xcresult database.sqlite3. Main run 44838534920 failed EpisodeImporterTests.copiesAnMP4… once; it passes here, so it may be a new flake
+
+## 2026-11-20 23:32 · loop-tester · T-014 · round 1 addendum
+- Done: verify-only run 44863556968 (b289a5b, scope=tests, full suite) is green: 308/308, 0 skipped. The corrected placement test, the default-font equivalence, the hugged-width test (no re-wrap or clip; stable), keep/clear across relaunch, and the extreme-left line clear of the leading safe inset (minX 78 ≥ back 74) all pass
+- Done: both re-checks pass on unchanged app code (the PlayerLandscapeBehaviour flake; AboutUITests Safari). The Safari failure is a runner flake, added to CONTEXT.md Learned
+- Verdict: Pass. AC-1..AC-7 met. Open Could fix: C1 (1 px landscape rounding). C2/C3 are carried into T-015
+- Files: .loop/tasks/T-014-subtitle-style-renderer.md (Round 1 addendum), .loop/CONTEXT.md (Learned)
+- Gotchas: this full scope=tests run took about 34 min; its artifact was about 135 MB
+
+## 2026-11-20 · orchestrator · T-014 · landed
+- Done: T-014 passed (1 sonnet round + 1 verify-only pass). Squashed to 93d3c08. CI 44860511457 + 44863556968 green.
+- Left: T-015 (portrait style sheet) is next; it carries Could fix C2 (badge overlap) and C3 (step overflow).
