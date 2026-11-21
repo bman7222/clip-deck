@@ -538,3 +538,54 @@
 ## 2026-11-20 · orchestrator · T-014 · landed
 - Done: T-014 passed (1 sonnet round + 1 verify-only pass). Squashed to 93d3c08. CI 44860511457 + 44863556968 green.
 - Left: T-015 (portrait style sheet) is next; it carries Could fix C2 (badge overlap) and C3 (step overflow).
+
+## 2026-11-21 02:05 · loop-frontend · T-015 · round 1 (sonnet)
+- Done: portrait style sheet (SubtitleStyleSheet.swift) + `player.subtitleStyle` Button after the subtitles button; DeckIconButtonStyle disabled look + Reduce Motion; C2 badge above the line; C3 overflow-safe step mutators (`clampedSum`); unit + UI tests; DESIGN/PRODUCT_SPEC (nothing compiled)
+- Left: CI run (scope=all). T-017 adds "More fonts…" under the presets in the sheet. T-016 replaces the landscape opener's sheet with its card and must prove the 50% bar fit
+- Files: Features/Player/SubtitleStyleSheet.swift, PlayerView.swift, SubtitleStyle.swift, DesignSystem/Components.swift, ClipDeckTests/SubtitleStyleTests.swift, ClipDeckUITests/SubtitleStyleUITests.swift, docs/DESIGN.md, docs/PRODUCT_SPEC.md
+- Gotchas: landscape button currently opens the portrait sheet; sheet state is its own @AppStorage on `player.subtitleStyle`
+
+## 2026-11-21 02:38 · loop-tester · T-015 · round 1
+- Done: read CI 44878628011 (08f286b, scope=all). The ipa job is green. The simulator job ran 315/316: all 5 new SubtitleStyleUITests, 3 new unit tests and 14 landscape tests pass, and the 50% panel bar still fits (style button at x 246–290, Make a Card ends at 393, handle at 405). The 1 failure is EpisodeImporterTests.copiesAnMP4… `.timedOut`, a pre-existing flake (added to CONTEXT Learned)
+- Verdict: Fail. S1: the 520 pt detent covers the bottom 8 pt of the video on iPhone 17 Pro (sheet top 334 pt against video maxY 342, measured in style-01). C1: Reset press-scales under Reduce Motion. C2: back is tappable while the sheet is open
+- Tests: new ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (12 controls below the video plus a sheet-top pixel check, which fails until S1 is fixed; labels and values; every limit; playback not paused). Not run yet
+- Files: .loop/tasks/T-015-subtitle-style-menu-portrait.md (Test report round 1), .loop/CONTEXT.md (Learned)
+- Gotchas: the simulator-results artifact was 148 MB. `unzip -x "*/Data/*"` keeps only the screenshots, manifest and database.sqlite3 (9 MB). The visible sheet top is about 20 pt higher than screen height minus the detent
+
+## 2026-11-21 04:18 · loop-frontend · T-015 · round 2 (sonnet)
+- Done: S1 first detent computed from the measured video maxY (window - videoMaxY - 8 - 20 rise, min 120; landscape .large only); C1 primary button skips press-scale under Reduce Motion; C2 back button hidden while the sheet is open (nothing compiled)
+- Left: CI run; the tester's pixel check decides S1 (constant `systemSheetRise` = 20 is from the round-1 measurement)
+- Files: Features/Player/SubtitleStyleSheet.swift, PlayerView.swift, DesignSystem/Components.swift, ClipDeckTests/SubtitleStyleTests.swift, docs/DESIGN.md
+- Gotchas: SubtitleStyleSheet now takes `firstDetent: CGFloat?` (T-017/T-016 callers must pass it)
+
+## 2026-11-21 04:57 · loop-tester · T-015 · round 2
+- Done: read CI 44888942981 (89ae32f, scope=all). The ipa job is green; the simulator ran 319/320 with 0 build issues, and every earlier suite plus all known flakes pass. S1 is fixed on iPhone 17 Pro / iOS 26.5: the pixel check passes, and the sheet top is at 349.4 against the video's maxY of 342 (a 7.4 pt gap). C2 is fixed: no BackButton while the sheet is open, and the nav bar, title and video frames are unchanged. C1 is fixed by reading
+- Fails: my own testUsingTheSheetDoesNotPausePlayback read the label after the 6 s sample had ended (Play at 209.4 s, read at 216.5 s). It's a test flaw; the test is rewritten to read with the sheet open
+- Verdict: Fail on S2 (Should fix). `systemSheetRise = 20` is iOS 26's floating-sheet geometry (an 8 pt inset plus 12.6); iOS 17/18 and Home-button iPhones likely differ and could cover the video. Fix: measure the sheet's own global minY and correct the detent once. C3: Done is reported as Selected
+- Files: ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (rewritten playback test; back hidden/restored and no-jump asserts), .loop/tasks/T-015-subtitle-style-menu-portrait.md
+- Gotchas: the player stays in the accessibility tree under the open sheet, so `player.*` can be read while it is open. On iOS 26 the sheet is a floating card at x 8–394 with an 8 pt bottom inset. The artifact was 195 MB zipped and 15 MB after unzipping without */Data/*
+
+## 2026-11-21 05:16 · loop-frontend · T-015 · round 3 (opus)
+- Done: S2: the first detent is measured, not assumed. A hidden UIKit probe behind the sheet reads its real top (UIKit convert includes iOS 26's ~0.96 sheet scale); after it settles, `SheetFit.correction` fixes the detent once (set and selection together), and the rise is cached in `player.styleSheetRise`. C3: Done gets `.accessibilityRemoveTraits(.isSelected)` (likely the checkmark symbol). Nothing compiled
+- Left: CI run (scope=all). The tester's test now also asserts the sheet's top is 0 to 16 pt below the video via the new `subtitleStyle.sheet` container
+- Files: Features/Player/SubtitleStyleSheet.swift, PlayerView.swift, ClipDeckTests/SubtitleStyleTests.swift, ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (gap check added), SubtitleStyleUITests.swift, docs/DESIGN.md
+- Gotchas: `SubtitleStyleSheet(clearance: SheetClearance?)` replaces `firstDetent:` (T-016/T-017 callers). The round-2 tree shows iOS 26 draws the lower-detent sheet scaled about 0.96, so frames inside it are scaled too
+
+## 2026-11-21 05:55 · loop-tester · T-015 · round 3
+- Done: read CI 44893660834 (24a676d, scope=all). The ipa job is green; the simulator ran 325/326 with 0 build issues, and every earlier suite and known flake passes. The tester's rewritten playback test passes, reading "Pause" twice with the sheet open. C3 is fixed (Done is not Selected). All 7 SheetFit unit tests pass
+- Fail: the builder's gap check in testEveryControlStartsBelowTheVideoAndIsLabelled (22.8 > 16). It's a test-hook flaw: XCUITest gives the `subtitleStyle.sheet` container the union of its children (Done's top, 364.8). The sheet itself is at 349.4, a 7.4 pt gap
+- Evidence for S2: the first open (20 pt guess) has its sheet top at 349.33; a later launch's style-01-sheet has it at 350.0, matching a cached 20.6 rise. So the probe measures the scaled top and the cache works
+- Verdict: Blocked, NEEDED: verify-only pass with `-f scope=tests -f only_testing=ClipDeckUITests/SubtitleStyleSheetTesterUITests`. No Must or Should fix. Could fix C1: a still mid-drag sample can be cached (it heals on the next open)
+- Tests: SubtitleStyleSheetTesterUITests.swift (sheetTop helper for the gap check; new testAWrongSavedRiseIsCorrectedOnceTheSheetHasSettled seeds `-player.styleSheetRise` with an XML plist real 0)
+- Gotchas: the artifact was about 149 MB. Attachments are mapped by screenshots/ui-tests/manifest.json, and the failure text is in the xcresult database.sqlite3 TestIssues table
+
+## 2026-11-21 15:01 · loop-tester · T-015 · round 3 addendum
+- Done: read verify run 44896666698 (859dd94, only SubtitleStyleSheetTesterUITests): 2/4 pass. Both failures are my sheetTop helper returning the container's union frame (364.8): the containing query includes the container itself, and my filter was `<=`
+- Product evidence from the same run: with the 0 pt rise seed the sheet covered the video at 0.87 s (difference 213), then from 1.27 s it was uncovered, and it settled at 349.4 (7.4 pt gap). The default open is also at 349.4. S2 is proven end to end on iOS 26.5
+- Verdict: Blocked, Brent's call. No Must or Should fix, and all ACs are decided by run evidence. Land as is, or approve a 5th dispatch (scope=tests, only_testing=ClipDeckUITests/SubtitleStyleSheetTesterUITests) to turn the fixed test green
+- Files: ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (sheetTop excludes the container by identifier and by a strict top; uncommitted), .loop/tasks/T-015-subtitle-style-menu-portrait.md (Round 3 addendum)
+- Gotchas: XCUIElementQuery `containing(.any, identifier: X)` also returns the X element itself
+
+## 2026-11-21 · orchestrator · T-015 · landed
+- Done: T-015 passed (rounds: sonnet, sonnet, opus; 2 verify-only passes; 5 CI runs, the 5th approved by Brent). Squashed to fab9468.
+- Left: T-017 (More fonts…) is next, then T-016 (landscape card).
