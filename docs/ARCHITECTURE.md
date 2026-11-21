@@ -52,9 +52,14 @@ flowchart LR
 - **Persistence:**
   - SwiftData for the library and the card queue;
   - UserDefaults (JSON) for Anki settings;
+  - UserDefaults for player preferences: `player.panelFraction` (landscape panel width) and `player.subtitleStyle` (below);
   - files in the app sandbox.
 
   Paths are stored **relative to Documents**, because the container path changes on re-install (which happens every 7 days with a free Apple ID).
+- **Subtitle style (`Features/Player/SubtitleStyle.swift`, `SubtitlePlacement.swift`):**
+  - one global `SubtitleStyle` (font Sans/Rounded/Serif, bold, size step -4...10, up steps 0...18, right steps -8...8) saved as JSON under the `UserDefaults.standard` key `player.subtitleStyle`. Each field is decoded on its own (missing or invalid fields take the default, unknown fields are ignored) and clamped on read. The default is the look the line always had. Japanese falls back to a fixed Hiragino face for Rounded and Serif;
+  - placement rule (`SubtitlePlacement.frame`, a pure function): the resting region is the video inset by the margins (`Spacing.l` sideways plus the landscape insets and the open panel's handle clearance, `Spacing.m` plus the bottom inset below, `Spacing.s` plus the top inset above). Each up step is 5% of the region's height, each sideways step 5% of its width. While the landscape top or bottom bar shows, the region's top or bottom is pulled in to clear it (bar height + `Spacing.s`), so a bar only moves a line it would cover. The line is then moved fully inside, and a line taller than the region is pinned to its bottom. `SubtitleLineLayout` applies it to a `SelectableText` that hugs its text (`hugsWidth`), so the line's frame is the frame of the visible text;
+  - Debug launch flags: see CLAUDE.md (`-uiTestingKeepSubtitleStyle`, `-uiTestingSubtitleStyle <json>`).
 
 ## Backend
 
