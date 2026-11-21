@@ -69,16 +69,30 @@ struct DeckIconButtonStyle: ButtonStyle {
     var isActive = false
 
     func makeBody(configuration: Configuration) -> some View {
-        configuration.label
-            .font(.system(size: 18, weight: .bold, design: .rounded))
-            .foregroundStyle(isActive ? .white : Theme.ink)
-            .frame(width: 44, height: 44)
-            .background(
-                isActive ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.shell),
-                in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-            )
-            .scaleEffect(configuration.isPressed ? 0.92 : 1)
-            .animation(.spring(duration: 0.2), value: configuration.isPressed)
+        StyledLabel(configuration: configuration, isActive: isActive)
+    }
+
+    /// A View so it can read the environment: a disabled button is dimmed to 0.45 (like `DeckPrimaryButtonStyle`),
+    /// and the press-scale is skipped under Reduce Motion.
+    private struct StyledLabel: View {
+        let configuration: Configuration
+        let isActive: Bool
+        @Environment(\.isEnabled) private var isEnabled
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: 18, weight: .bold, design: .rounded))
+                .foregroundStyle(isActive ? .white : Theme.ink)
+                .frame(width: 44, height: 44)
+                .background(
+                    isActive ? AnyShapeStyle(Theme.accent) : AnyShapeStyle(Theme.shell),
+                    in: RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
+                )
+                .opacity(isEnabled ? 1 : 0.45)
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.92 : 1)
+                .animation(reduceMotion ? nil : .spring(duration: 0.2), value: configuration.isPressed)
+        }
     }
 }
 

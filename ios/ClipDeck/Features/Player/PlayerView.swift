@@ -13,6 +13,8 @@ struct PlayerView: View {
     @State private var showSidePanel = false
     @State private var showOffset = false
     @State private var showSubtitlePicker = false
+    /// The subtitle style sheet. T-016 gives landscape its own card; until then the sheet serves both.
+    @State private var showStyleSheet = false
     @State private var miningRange: ClipRange?
     @State private var miningError: String?
     @State private var draft: CardDraft?
@@ -78,6 +80,8 @@ struct PlayerView: View {
                     // Entering or leaving landscape always starts with the controls hidden.
                     controlsVisible = false
                     subtitleDialogOpen = false
+                    // Rotating closes the style menu.
+                    showStyleSheet = false
                     hideTask?.cancel()
                 }
             }
@@ -105,6 +109,9 @@ struct PlayerView: View {
         }
         .sheet(isPresented: $showOffset) {
             if let model { OffsetSheet(model: model, onChange: { episode.offsetMs = $0 }) }
+        }
+        .sheet(isPresented: $showStyleSheet) {
+            SubtitleStyleSheet()
         }
         .sheet(isPresented: $showSubtitlePicker, onDismiss: reloadSubtitles) {
             SubtitlePickerSheet(episode: episode)
@@ -424,13 +431,6 @@ struct PlayerView: View {
             PlayerLayerView(player: model.player)
                 .accessibilityIdentifier("player.video")
                 .onTapGesture(perform: onTap)
-            if let miningRange {
-                RecordingBadge(range: miningRange)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-                    .padding(.top, badgeTopPadding)
-                    .padding(.leading, edgeInsets.leading)
-                    .padding(Spacing.s)
-            }
         }
         // The line is an overlay, so it takes the video's size and never changes the video's layout.
         .overlay {
@@ -438,6 +438,16 @@ struct PlayerView: View {
                 subtitleLine(
                     cue.text, margins: subtitleMargins,
                     topObstruction: subtitleTopObstruction, bottomObstruction: subtitleBottomObstruction)
+            }
+        }
+        // The recording badge is drawn after (above) the line, so a line moved up and left can't cover it.
+        .overlay {
+            if let miningRange {
+                RecordingBadge(range: miningRange)
+                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                    .padding(.top, badgeTopPadding)
+                    .padding(.leading, edgeInsets.leading)
+                    .padding(Spacing.s)
             }
         }
         .background { Color.black }
@@ -472,7 +482,7 @@ struct PlayerView: View {
 
     /// While any of these hold, the controls never auto-hide.
     private var keepsControlsUp: Bool {
-        voiceOverOn || showOffset || showSubtitlePicker || subtitleDialogOpen || draft != nil
+        voiceOverOn || showOffset || showSubtitlePicker || showStyleSheet || subtitleDialogOpen || draft != nil
             || miningRange != nil || panelDrag != nil || !(model?.isPlaying ?? false) || (model?.isScrubbing ?? false)
     }
 
@@ -554,6 +564,14 @@ struct PlayerView: View {
             .accessibilityLabel("Subtitles")
             .accessibilityIdentifier("player.subtitlesMenu")
         }
+        // Directly after the subtitles button, in portrait and in all landscape rows. A Button with a presented
+        // state, not a Menu: gestures on a Menu don't fire on iOS 26. Aqua when the style isn't the default.
+        let styleIsDefault = SubtitleStyle.decoded(from: storedSubtitleStyle).isDefault
+        Button { showStyleSheet = true; restartHideTimer() } label: { Image(systemName: "textformat") }
+            .buttonStyle(DeckIconButtonStyle(isActive: !styleIsDefault))
+            .accessibilityLabel("Subtitle style")
+            .accessibilityValue(styleIsDefault ? "Default" : "Changed")
+            .accessibilityIdentifier("player.subtitleStyle")
     }
 
     private func makeCardButton(

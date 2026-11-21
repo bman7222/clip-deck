@@ -3,9 +3,9 @@ id: T-015
 title: Adjust the subtitle style from a menu in the portrait player
 lane: frontend
 depends_on: [T-014]
-status: todo
-round: 0
-base_sha:
+status: testing
+round: 1
+base_sha: 29491a8a99698de0de6b9141cd3e1ee961b711ca
 issue: 16
 spec: .loop/specs/subtitle-style.md
 model:
@@ -67,3 +67,19 @@ Unverified for Brent: the feel on a real iPhone, and dark mode (unless a screens
 - "More fonts…" and the system font picker (T-017).
 - The landscape card, landscape keep-up, and the 50% bar fit (T-016).
 - Changes to the timing offset sheet.
+
+## Implementation notes (round 1) · sonnet
+_by loop-frontend · 
+- Changed (nothing compiled here, CI only):
+  - New `Features/Player/SubtitleStyleSheet.swift`: `SubtitleStyleSheet` (the portrait sheet) and a `nonisolated extension SubtitleStyle` with the menu texts (`sizeText` "130%", `positionText`, spoken values). The sheet owns its own `@AppStorage(SubtitleStyle.storageKey)`, so each tap writes the JSON the player already observes and the line changes live. The playback model is never touched, so it isn't paused.
+  - `PlayerView`: `showStyleSheet` state, the sheet, and the `player.subtitleStyle` Button (`textformat`, label "Subtitle style", value Default/Changed, aqua when not default) placed after `player.subtitlesMenu` in `transportButtons`, so it is in portrait and in all three landscape rows. In landscape it opens the same sheet for now (T-016 replaces that with the card); rotating closes it, and it holds the landscape controls up (`keepsControlsUp`).
+  - `DeckIconButtonStyle`: now a small View-backed style with the 0.45-opacity disabled look; the press-scale is skipped under Reduce Motion.
+  - C2: the `RecordingBadge` moved from the ZStack into an `.overlay` after the line overlay, so it is drawn above the line.
+  - C3: new `SubtitleStyle.clampedSum` (clamp, then `addingReportingOverflow`, then clamp) used by the three step mutators.
+  - Docs: DESIGN.md (new "Subtitle style menu" section, components, motion, accessibility, player row), PRODUCT_SPEC.md.
+- Sheet: header (title + Done pinned), then a ScrollView: Font rows (name + "Aa あア漢字" in that font, aqua+white when selected; stacked at accessibility sizes), Bold, Size ([smaller] value [larger]), Position (left, up, down, right + value line), full-width Reset. Detents `.height(520)` + `.large`, `presentationBackground(Theme.panel)`, background interaction on at the first detent so the video isn't dimmed. The "More fonts…" row goes where the comment says (under the presets, before Bold).
+- Icons (all distinct): textformat, bold, textformat.size.smaller/larger, arrow.left/up/down/right, arrow.counterclockwise, checkmark. Colours only Theme tokens.
+- Identifiers: `subtitleStyle.font.sans|rounded|serif`, `.bold`, `.sizeDown`, `.sizeUp`, `.left`, `.up`, `.down`, `.right`, `.reset`, `.done`, plus `.sizeValue`, `.positionValue`, `.title`.
+- Tests: SubtitleStyleTests (+3: overflow, texts, limits); SubtitleStyleUITests (+5: sheet live + video uncovered + font/bold/size/position, keep flag relaunch, reset, 200% limit, XXXL scroll to Reset; attachments `style-01-sheet`, `style-02-large-text`).
+- Gotchas: the sheet's frame checks use `player.video` read before opening; the line is measured after Done (an open sheet may hide the player from the accessibility tree). The tests use `reveal()` (swipe up until hittable) for controls under the first detent. Landscape bar fit at 50%: the third `ViewThatFits` row (icon Make a Card, no skips) gains one 44 pt button plus 8 pt, about 280 of about 320 pt; T-016 must prove it.
+- Tester, look at: `style-01-sheet` screenshot (icons distinct, aqua only on selected/on, line changed, video uncovered); that background interaction doesn't let a tap on the video misbehave; the landscape bottom bar with the extra button at a 50% panel; the three Could-fix items above; XXXL (`style-02-large-text`).

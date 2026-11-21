@@ -352,4 +352,44 @@ struct SubtitlePlacementTests {
         #expect(frame.minY >= 60 - 0.01)
         #expect(frame.maxY <= 125 + 0.01)
     }
+
+    // MARK: Menu (T-015)
+
+    @Test func stepsDoNotOverflowWhenAFieldIsSetToTheExtremesInCode() {
+        var style = SubtitleStyle.default
+        style.sizeStep = Int.max
+        style.upSteps = Int.max
+        style.rightSteps = Int.min
+        let size = style.stepSize(1)
+        let up = style.stepUp(1)
+        let left = style.stepRight(-1)
+        #expect(!size && !up && !left)
+        #expect(style.sizeStep == 10)
+        #expect(style.upSteps == 18)
+        #expect(style.rightSteps == -8)
+        #expect(SubtitleStyle.clampedSum(0, Int.max, to: SubtitleStyle.sizeRange) == 10)
+        #expect(SubtitleStyle.clampedSum(0, Int.min, to: SubtitleStyle.sizeRange) == -4)
+        #expect(SubtitleStyle.clampedSum(Int.max, Int.max, to: SubtitleStyle.upRange) == 18)
+    }
+
+    @Test func menuTextsShowSizeAndPosition() {
+        #expect(SubtitleStyle.default.sizeText == "100%")
+        #expect(SubtitleStyle(sizeStep: 3).sizeText == "130%")
+        #expect(SubtitleStyle(sizeStep: -4).sizeText == "60%")
+        #expect(SubtitleStyle(sizeStep: 3).sizeSpoken == "130 percent")
+        #expect(SubtitleStyle.default.positionText == "Default place")
+        #expect(SubtitleStyle(upSteps: 4, rightSteps: -2).positionText == "Up 20% \u{00B7} Left 10%")
+        #expect(SubtitleStyle(rightSteps: 3).positionText == "Right 15%")
+        #expect(SubtitleStyle(upSteps: 4).verticalSpoken == "20 percent up")
+        #expect(SubtitleStyle(rightSteps: -2).horizontalSpoken == "10 percent left")
+        #expect(SubtitleStyle.default.horizontalSpoken == "Centred")
+    }
+
+    @Test func eachMutatorDisablesItsButtonAtTheLimit() {
+        let top = SubtitleStyle(sizeStep: 10, upSteps: 18, rightSteps: 8)
+        #expect(!top.canSizeUp && top.canSizeDown && !top.canMoveUp && top.canMoveDown)
+        #expect(!top.canMoveRight && top.canMoveLeft)
+        let bottom = SubtitleStyle(sizeStep: -4, upSteps: 0, rightSteps: -8)
+        #expect(bottom.canSizeUp && !bottom.canSizeDown && !bottom.canMoveDown && !bottom.canMoveLeft)
+    }
 }
