@@ -125,7 +125,7 @@ _2026-11-19 · Brent approved the backup fork: bman7222/FFmpegBuild (public; tag
 ## Test report (round 1)
 _by loop-tester · 2026-11-19 23:45_
 
-CI run 44674913642 (workflow_dispatch, headSha 4ba67bc). Both jobs passed on the first attempt. Simulator job: 69/69 test runs passed (xcresult database), including the six FFmpegFixtureTests, AboutUITests, MiningFlowUITests, every player test and ClipExtractorTests (the known flake passed). run-ios launched `dev.brent.clipdeck` (pid 27232) and took a screenshot. Scratch: `C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-012-r1`.
+CI run 44674913642 (workflow_dispatch, headSha 4ba67bc). Both jobs passed on the first attempt. Simulator job: 69/69 test runs passed (xcresult database), including the six FFmpegFixtureTests, AboutUITests, MiningFlowUITests, every player test and ClipExtractorTests (the known flake passed). run-ios launched `dev.brent.clipdeck` (pid 27232) and took a screenshot. Scratch: `%TEMP%\clip-deck-loop\T-012-r1`.
 
 | Criterion | Result | Evidence |
 |-----------|--------|----------|
@@ -204,7 +204,7 @@ _by loop-backend · 2026-11-19_
 ## Test report (round 2)
 _by loop-tester · 2026-11-20 00:08_
 
-CI run 44677264701 (workflow_dispatch, headSha 6e0a299). **ipa job: success. simulator job: failure, but only in the last step.** "Unit and UI tests" passed (`Tests passed`; xcodebuild exit 0; all five fixtures generated), and run-ios launched `dev.brent.clipdeck` (pid 31404). Then "Upload screenshots and test results" failed with `Failed to CreateArtifact: ... Request timeout` after 5 attempts. That is a GitHub artifact-service timeout, not caused by this diff. So the run has **no simulator-results artifact** (no xcresult, no screenshots). Scratch: `C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-012-r2`.
+CI run 44677264701 (workflow_dispatch, headSha 6e0a299). **ipa job: success. simulator job: failure, but only in the last step.** "Unit and UI tests" passed (`Tests passed`; xcodebuild exit 0; all five fixtures generated), and run-ios launched `dev.brent.clipdeck` (pid 31404). Then "Upload screenshots and test results" failed with `Failed to CreateArtifact: ... Request timeout` after 5 attempts. That is a GitHub artifact-service timeout, not caused by this diff. So the run has **no simulator-results artifact** (no xcresult, no screenshots). Scratch: `%TEMP%\clip-deck-loop\T-012-r2`.
 
 Round-1 findings, checked:
 - Should fix, DEVELOPMENT.md: **fixed.** The Environment section names `brew install ffmpeg` (test-only). The variables table has `SIM_NAME`, `CLIPDECK_FIXTURES` and `TEST_RUNNER_CLIPDECK_FIXTURES`, and every row matches the code (`test-ios.sh:20-22`, `FFmpegFixtureTests.swift:11-16`, `pick-simulator.py`). The Fixtures paragraph matches `make-test-media.sh` (8 s, 320x180, beep 0.2 s on even seconds, the five names). Leaving out `SIMCTL_CHILD_CLIPDECK_FIXTURES` is right, because nothing in the app reads it.
@@ -258,7 +258,7 @@ REVIEWED_AT: 6e0a2999787d6ff6f3f9e604d398a0d061c37900 (+ 2 tester test edits in 
 ### Round 2 addendum
 _by loop-tester · 2026-11-20 00:25_
 
-CI run 44679269822 (workflow_dispatch, headSha ac3ba1a = HEAD; that commit adds only the two tester tests and the task file). ipa: success. simulator: failure in "Unit and UI tests" (exit 65); run-ios was skipped. The artifact uploaded this time. Scratch: `C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-012-r2\ci2`.
+CI run 44679269822 (workflow_dispatch, headSha ac3ba1a = HEAD; that commit adds only the two tester tests and the task file). ipa: success. simulator: failure in "Unit and UI tests" (exit 65); run-ios was skipped. The artifact uploaded this time. Scratch: `%TEMP%\clip-deck-loop\T-012-r2\ci2`.
 
 xcresult (database.sqlite3): 72 test runs, 70 Success and 2 Failure.
 - `ClipExtractorTests.cutsExactAudioAndScreenshot`: `Caught error: .timedOut` at MediaAndFileTests.swift:52. This is the known flake (CONTEXT "Learned"). This diff doesn't touch it, so it is pre-existing.
@@ -304,7 +304,7 @@ REVIEWED_AT: ac3ba1adaa4c38f81edc69a40fb8eb3346a7c2bb (+ fixed AboutUITests.swif
 ### Round 2 addendum 2
 _by loop-tester · 2026-11-20 00:39_
 
-CI run 44681060076 (workflow_dispatch, headSha cb9c452 = HEAD; that commit adds only the fixed AboutUITests.swift and the task file). **Both jobs succeeded, every step green**, including the artifact upload and run-ios launch. xcresult: **72/72 Success, 0 issues**. That covers `testAboutShowsVersionAndNoticeTextIntact` (the deciding test), `testSourceLinksAreShownAndOpenInSafari`, `testAboutShowsLicences`, `missingFileErrorCarriesFFmpegMessage`, fixture1-5 (tightened fixture-3 bounds) and `ClipExtractorTests.cutsExactAudioAndScreenshot` (the flake passed this time). ipa: check-ipa-notices 3 `ok:` + passed; no `init(cString:)` warning anywhere in the run log. Screenshot `about-06` (`C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-012-r2\ci3\png`) shows "Copyright © 2018-2025, VideoLAN and dav1d authors" rendered correctly. The ñ/í lines are proven by the passing label assertions. All AC-1..AC-8 are proven by run evidence; no Must fix or Should fix is open. Could fix left: the THIRD_PARTY_NOTICES.md ure.* copyright cell (see the round-2 report).
+CI run 44681060076 (workflow_dispatch, headSha cb9c452 = HEAD; that commit adds only the fixed AboutUITests.swift and the task file). **Both jobs succeeded, every step green**, including the artifact upload and run-ios launch. xcresult: **72/72 Success, 0 issues**. That covers `testAboutShowsVersionAndNoticeTextIntact` (the deciding test), `testSourceLinksAreShownAndOpenInSafari`, `testAboutShowsLicences`, `missingFileErrorCarriesFFmpegMessage`, fixture1-5 (tightened fixture-3 bounds) and `ClipExtractorTests.cutsExactAudioAndScreenshot` (the flake passed this time). ipa: check-ipa-notices 3 `ok:` + passed; no `init(cString:)` warning anywhere in the run log. Screenshot `about-06` (`%TEMP%\clip-deck-loop\T-012-r2\ci3\png`) shows "Copyright © 2018-2025, VideoLAN and dav1d authors" rendered correctly. The ñ/í lines are proven by the passing label assertions. All AC-1..AC-8 are proven by run evidence; no Must fix or Should fix is open. Could fix left: the THIRD_PARTY_NOTICES.md ure.* copyright cell (see the round-2 report).
 
 ```text
 VERDICT: Pass

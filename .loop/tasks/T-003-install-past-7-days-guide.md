@@ -70,7 +70,7 @@ Tester: verify the doc against AC-1 to AC-7, curl the external links, and grep f
 ## Test report (round 1)
 _by loop-tester · 2026-11-20 10:11_
 
-Reviewed `git diff 8d69c32..HEAD` (8644303). Only README.md, docs/ARCHITECTURE.md, docs/DEVELOPMENT.md, docs/INSTALL_ON_IPHONE.md and this task file changed: no code, config or CI file. Sources read at the cited SHAs with `gh api`: SideStore-Docs@7e441d3 and SideStore@4f3d18d tarballs, plus LocalDevVPN@17740a2 VPNShortcuts.swift. Copies are in C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-003-r1. Also fetched Apple's Shortcuts User Guide pages for iOS 26 and iOS 27.
+Reviewed `git diff 8d69c32..HEAD` (8644303). Only README.md, docs/ARCHITECTURE.md, docs/DEVELOPMENT.md, docs/INSTALL_ON_IPHONE.md and this task file changed: no code, config or CI file. Sources read at the cited SHAs with `gh api`: SideStore-Docs@7e441d3 and SideStore@4f3d18d tarballs, plus LocalDevVPN@17740a2 VPNShortcuts.swift. Copies are in %TEMP%\clip-deck-loop\T-003-r1. Also fetched Apple's Shortcuts User Guide pages for iOS 26 and iOS 27.
 
 | Criterion | Result | Evidence |
 |-----------|--------|----------|
@@ -233,7 +233,7 @@ Follow-up for the orchestrator to raise with Brent: a task "Export and import th
 ## Test report (round 2)
 _by loop-tester · 2026-11-20 10:36_
 
-Reviewed `git diff 8644303..HEAD -- docs README.md` (e071866) and read all of docs/INSTALL_ON_IPHONE.md the way Brent would on his phone. `git diff --name-only 8644303..HEAD`: only README.md, docs/{INSTALL_ON_IPHONE,DEVELOPMENT,ARCHITECTURE}.md and this task file changed, so no code, config or CI. I fetched or re-read every source myself. Copies are in C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-003-r2-test:
+Reviewed `git diff 8644303..HEAD -- docs README.md` (e071866) and read all of docs/INSTALL_ON_IPHONE.md the way Brent would on his phone. `git diff --name-only 8644303..HEAD`: only README.md, docs/{INSTALL_ON_IPHONE,DEVELOPMENT,ARCHITECTURE}.md and this task file changed, so no code, config or CI. I fetched or re-read every source myself. Copies are in %TEMP%\clip-deck-loop\T-003-r2-test:
 - Apple's Shortcuts guide, fetched today: iOS 26 "Create a new personal automation" and "Enable or disable…", and iOS 27 "Add automations".
 - The SideStore 0.7.0-alpha tarball: tag object 193ae6e, commit 6032424. It is `releases/latest`, per `gh api` (published 2026-09-15).
 - SideStore develop 4f3d18d, from the round-1 tarball.
@@ -378,7 +378,7 @@ Tester, look at:
 ## Test report (round 3)
 _by loop-tester · 2026-11-20 10:44_
 
-I reviewed `git diff e071866..HEAD -- docs README.md` (8f72f8e), then read all of docs/INSTALL_ON_IPHONE.md top to bottom and followed it literally, as Brent would on his phone. `git diff --name-only 8d69c32..HEAD` lists only README.md, docs/{INSTALL_ON_IPHONE,DEVELOPMENT,ARCHITECTURE}.md and this task file, so no code, config or CI file changed. The working tree has only the orchestrator's .loop/BOARD.md and .loop/HANDOFF.md edits. Fresh downloads are in C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-003-r3-test: iloader@7364ae6 en.json, SideStore-Docs@7e441d3 install.mdx, and the live install and faq pages. The SideStore 0.7.0 sources were re-read from T-003-r2-test\ss070.
+I reviewed `git diff e071866..HEAD -- docs README.md` (8f72f8e), then read all of docs/INSTALL_ON_IPHONE.md top to bottom and followed it literally, as Brent would on his phone. `git diff --name-only 8d69c32..HEAD` lists only README.md, docs/{INSTALL_ON_IPHONE,DEVELOPMENT,ARCHITECTURE}.md and this task file, so no code, config or CI file changed. The working tree has only the orchestrator's .loop/BOARD.md and .loop/HANDOFF.md edits. Fresh downloads are in %TEMP%\clip-deck-loop\T-003-r3-test: iloader@7364ae6 en.json, SideStore-Docs@7e441d3 install.mdx, and the live install and faq pages. The SideStore 0.7.0 sources were re-read from T-003-r2-test\ss070.
 
 | Criterion | Result | Evidence |
 |-----------|--------|----------|

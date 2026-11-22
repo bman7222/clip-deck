@@ -124,7 +124,7 @@ _by loop-frontend · 2026-11-19_
 ## Test report (round 2)
 _by loop-tester · 2026-11-19 19:52_
 
-CI run 44648208663 (headSha e615c89, started by hand): **ipa green; simulator red, but only from the known flake.** Of 58 test runs, 57 pass. The one failure is `ClipExtractorTests.cutsExactAudioAndScreenshot()` with "Caught error: .timedOut". It is listed in CONTEXT "Learned", and the diff does not touch it. The tester tried `gh run rerun 44648208663 --failed`, but the permission system denied it, so the simulator job has no green attempt yet. Every UI test passes in attempt 1, including the two round-1 tester tests, which ran here for the first time. The results come from the xcresult `database.sqlite3` (TestCaseRuns, TestIssues and Activities). Downloads are in `C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-002-r2`, outside the repo.
+CI run 44648208663 (headSha e615c89, started by hand): **ipa green; simulator red, but only from the known flake.** Of 58 test runs, 57 pass. The one failure is `ClipExtractorTests.cutsExactAudioAndScreenshot()` with "Caught error: .timedOut". It is listed in CONTEXT "Learned", and the diff does not touch it. The tester tried `gh run rerun 44648208663 --failed`, but the permission system denied it, so the simulator job has no green attempt yet. Every UI test passes in attempt 1, including the two round-1 tester tests, which ran here for the first time. The results come from the xcresult `database.sqlite3` (TestCaseRuns, TestIssues and Activities). Downloads are in `%TEMP%\clip-deck-loop\T-002-r2`, outside the repo.
 
 Round-1 findings:
 - Must fix (line-134 assert): **fixed.** `testLoadDifferentSubtitlesFromLandscapeDialog` passes (16.5 s) and reaches the picker sheet.

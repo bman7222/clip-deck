@@ -49,7 +49,7 @@ _by loop-frontend Â· 2026-11-22_
 ## Test report (round 1)
 _by loop-tester Â· 2026-11-22 03:14_
 
-CI run 44997338718 (ios-simulator.yml, scope=all, 45f32d4): ipa job green (the app compiles); simulator job failed after 36 min with 374/377 tests passing, 0 build issues. All three failures come from one cause (M1). The known flakes all passed this time (AboutUITests Ã—3, PlayerLandscapeBehaviourUITests Ã—2, EpisodeImporterTests/copiesAnMP4â€¦). Artifacts are in C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-018-r1.
+CI run 44997338718 (ios-simulator.yml, scope=all, 45f32d4): ipa job green (the app compiles); simulator job failed after 36 min with 374/377 tests passing, 0 build issues. All three failures come from one cause (M1). The known flakes all passed this time (AboutUITests Ã—3, PlayerLandscapeBehaviourUITests Ã—2, EpisodeImporterTests/copiesAnMP4â€¦). Artifacts are in %TEMP%\clip-deck-loop\T-018-r1.
 
 | Criterion | Result | Evidence |
 |-----------|--------|----------|
@@ -111,7 +111,7 @@ _by loop-frontend · 2026-11-22_
 ## Test report (round 2)
 _by loop-tester · 2026-11-22 04:10_
 
-CI run 45002423211 (ios-simulator.yml, scope=all, headSha b698119 = the pushed SHA): both jobs passed. The ipa job took 2 min. The simulator job took 46 min (limit 60) and ran **390/390 tests, 0 failures, 0 issues** (377 from round 1 plus 13 new: 5 builder unit, 5 tester unit, 1 builder UI, 2 tester UI). Every step passed, including "Launch in simulator and screenshot". Every known flake passed: AboutUITests ×3, PlayerLandscapeBehaviourUITests ×2, EpisodeImporterTests/copiesAnMP4…, ClipExtractorTests/cutsExactAudioAndScreenshot, ExpiryBannerUITests ×5 and SubtitleStyleSheetTesterUITests/testEveryLimitDisablesItsOwnButton. Artifacts: C:\Users\Brent\AppData\Local\Temp\clip-deck-loop\T-018-r2. Geometry was checked with a Python port of `SubtitlePlacement` (frame, canStepUpWithCardOpen, highestReachableUpStep, upStepAfterDownWithCardOpen). With this run's real sizes (874×402, top bar 60, card 80/132/184, line 24 pt), it reproduces every measured line position to within 0.15 pt.
+CI run 45002423211 (ios-simulator.yml, scope=all, headSha b698119 = the pushed SHA): both jobs passed. The ipa job took 2 min. The simulator job took 46 min (limit 60) and ran **390/390 tests, 0 failures, 0 issues** (377 from round 1 plus 13 new: 5 builder unit, 5 tester unit, 1 builder UI, 2 tester UI). Every step passed, including "Launch in simulator and screenshot". Every known flake passed: AboutUITests ×3, PlayerLandscapeBehaviourUITests ×2, EpisodeImporterTests/copiesAnMP4…, ClipExtractorTests/cutsExactAudioAndScreenshot, ExpiryBannerUITests ×5 and SubtitleStyleSheetTesterUITests/testEveryLimitDisablesItsOwnButton. Artifacts: %TEMP%\clip-deck-loop\T-018-r2. Geometry was checked with a Python port of `SubtitlePlacement` (frame, canStepUpWithCardOpen, highestReachableUpStep, upStepAfterDownWithCardOpen). With this run's real sizes (874×402, top bar 60, card 80/132/184, line 24 pt), it reproduces every measured line position to within 0.15 pt.
 
 | Criterion | Result | Evidence |
 |-----------|--------|----------|

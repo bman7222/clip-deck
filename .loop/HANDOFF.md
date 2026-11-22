@@ -688,3 +688,15 @@
 - Brent revised AC-3 after round 1 (a 0.0 weight lets the name decide) and added AC-5 (the first Down from above the reachable top jumps)
 - Open Could fix, no later task on the board: C1, the video size is measured only while a line shows (fix: measure on videoScreen). C2, a line taller than the room makes the first Down drop to 0. Both go to Brent with the goal summary
 - Goal subtitle-style: every task done (T-014, T-015, T-017, T-016, T-018)
+
+## 2026-11-22 13:13 · loop-planner · T-019..T-033 · planning
+- Done: turned the approved roadmap (.loop/specs/player-lookup-timeline.md) into 18 task files and issues #21-#38, board order T-019 → T-020 → T-021 → T-022 → T-023 → T-024a → T-024b → T-025 → T-032 → T-033 → T-026 → T-027 → T-028 → T-029a → T-029b → T-030a → T-030b → T-031. Split T-024 (Move-Text menu / Font menu cleanup), T-029 (formatted popup / move-resize-reset) and T-030 (tap-and-hold lookup / Use for a card) into a/b parts
+- Left: 3 open questions block T-024a (Q3: centre overlay while Move-Text is open), T-029a (Q1: popup default position) and T-031 (Q2: editor Lookup toggle shared with the player's or its own). Everything else is todo; the first ready tasks are T-019, T-020, T-021, T-032 and T-026
+- Files: .loop/tasks/T-019..T-033 (18 new), .loop/BOARD.md (new goal section first; earlier goals under History)
+- Gotchas: T-022 seeds `upSteps: 9` (fractions only arrive in T-023). The dictionary fixture JSON must live outside every XcodeGen target (several index.json files in one bundle collide), so T-026 zips them in make-test-media.sh into build/fixtures/dictionaries. After T-020, config.yml `ci.artifacts` needs the new `simulator-results-*` names. UI tests take 34.8 of the 46 CI minutes (45002423211); unit tests are fast
+
+## 2026-11-22 13:40 · loop-planner · T-024a,T-029a,T-029b,T-031 · replan after Brent's answers
+- Done: Q1 (popup out of the way: portrait over the subtitle list just above the bottom safe area, landscape top-trailing 16 pt in; also the ↺📄 target), Q2 (editor keeps its own remembered Lookup setting) and Q3 (overlay hidden while Move-Text is open, back on Done) written into T-029a, T-029b, T-031 and T-024a. All four are todo, and the spec's section G lists the answers. Issues #21, #24, #26, #34, #35, #38 updated to match
+- Privacy: removed every absolute local path with the user's name from .loop/ (the spec, T-019, and old task files T-002, T-003, T-012, T-018: scratch folders now read `%TEMP%\clip-deck-loop\...`)
+- Files: .loop/specs/player-lookup-timeline.md, .loop/tasks/T-019, T-022, T-024a, T-029a, T-029b, T-031, T-002, T-003, T-012, T-018, .loop/BOARD.md
+- Gotchas: the old paths are still in git history for the four committed task files; only the working tree is clean
