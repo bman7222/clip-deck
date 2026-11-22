@@ -614,3 +614,46 @@
 ## 2026-11-21 · orchestrator · T-017 · landed
 - Done: T-017 passed (1 sonnet round + 1 verify-only pass). Squashed to 31bc513.
 - Left: T-016 (landscape card) is the last task; it carries T-017 C1 and the ExpiryBanner flake re-check.
+
+## 2026-11-21 20:30 · loop-frontend · T-016 · round 1 (sonnet)
+- Done: landscape style card `SubtitleStyleCard` replaces the bottom bar (13 controls, ViewThatFits 13 / 7+6 / 5+4+4), line pushed above it, controls kept up with the card and the font picker, closes on Done, video tap or rotation, Reduce Motion fade; landscape .large fallback removed; T-017 C1 bold-only note (nothing compiled)
+- Left: CI run (scope=all); re-check ExpiryBannerUITests/testOpenSideStoreWithoutSideStoreKeepsBannerAndExplains; measure the 50% panel from the new SubtitleStyleCardUITests frames
+- Files: Features/Player/SubtitleStyleCard.swift, PlayerView.swift, SubtitleStyleSheet.swift, SubtitleStyle.swift, ClipDeckTests/SubtitleFontTests.swift, ClipDeckUITests/SubtitleStyleCardUITests.swift, docs/DESIGN.md, docs/PRODUCT_SPEC.md
+- Gotchas: the card's accessibility frame is the union of its controls; tests tap the video at x 0.3 (0.5 is the handle at 50%)
+
+## 2026-11-21 20:39 · loop-tester · T-016 · round 1
+- Done: read CI 44971851033 (ecc866e, scope=all). The ipa job is green (the app compiles). The simulator job failed at build time: SubtitleFontTests.swift:219 and :222 put a `mutating` call (`pickFont`) inside `#expect` ("cannot use mutating member on immutable value: '$0' is immutable"). 0 tests ran
+- Fixed in test code (uncommitted): those two lines read into `let`s first. Added SubtitleStyleCardTesterUITests.swift with 3 tests: the ViewThatFits rows and the safe area at closed/25/50%, the line against the card's real top (union minY − 8), the rest place after closing, and per-tap Up evidence
+- Verdict: Blocked, NEEDED: verify-only pass `-f scope=tests` (full suite). No Must or Should fix found by reading. Could fix C1 (Brent's call): with the card open, the first ~3 (1 row) to ~6 (2 rows) Up taps may not move the line, because T-014 pins it above the card. Could fix C2: a stale timing comment in the keep-up test
+- Files: ios/ClipDeckTests/SubtitleFontTests.swift, ios/ClipDeckUITests/SubtitleStyleCardTesterUITests.swift (new), .loop/tasks/T-016-subtitle-style-menu-landscape.md
+- Gotchas: Swift Testing `#expect(x.mutatingCall())` doesn't compile. A build-failure artifact is only about 46 KB (no screenshots); the errors are in the xcresult BuildIssues table
+
+## 2026-11-21 21:30 · loop-tester · T-016 · round 1 addendum
+- Done: read verify run 44972664549 (34ca7e6, scope=tests): 362/365. All 7 card tests except the bold-only one pass. Rows are 13 / 7+6 / 5+4+4, every control sits inside the column and the safe area, and the line ends 8 pt above the card's real top (314 vs 322; 262 vs 270). After a close the line rests exactly at its styled place. Portrait suites, landscape suites and the ExpiryBanner re-check all pass
+- Fail: M1. `pickedFontIsAlwaysBold` relies on `.traitBold`, which ArialRoundedMTBold lacks, so the sheet says "This font has no bold weight." and 2 tests fail. Fix: detect bold by the weight trait or the face name (SubtitleStyle.swift:245/255/262), or drop the carried-over feature
+- C1 numbers for Brent: with a one-row card, Up 1–3 don't move the line (measured), Up 4 does. With two rows, 6 taps show nothing (computed). With three rows, about 8–9
+- Files: ios/ClipDeckUITests/SubtitleStyleCardTesterUITests.swift (bottom reference fixed; uncommitted), .loop/tasks/T-016-subtitle-style-menu-landscape.md (Round 1 addendum), .loop/CONTEXT.md (Learned)
+- Gotchas: the card has a background, so XCUITest reports its real frame (unlike the T-015 sheet). The landscape bar's play button sits 1.8 pt above the row's bottom (Make a Card is taller). Extracting only screenshots and the DB cut the 213 MB artifact to 22 MB
+
+## 2026-11-21 22:10 · loop-frontend · T-016 · round 2 (sonnet)
+- Done: M1 one `isBoldFace` rule (trait, weight >= 0.3, or name) in boldFace/always-bold; C1 live preview: `SubtitlePlacement.frame(stepsFromObstruction:)` counts up steps from just above the open card (closed/portrait unchanged) with 4 unit tests; C2 comment fixed; DESIGN.md. Tester's test file kept (one assertion added). Nothing compiled
+- Left: CI run; check the up-taps log and the ArialRoundedMTBold tests
+- Files: Features/Player/SubtitleStyle.swift, SubtitlePlacement.swift, PlayerView.swift, ClipDeckTests/SubtitleStyleTests.swift, ClipDeckUITests/SubtitleStyleCardUITests.swift, SubtitleStyleCardTesterUITests.swift, docs/DESIGN.md
+- Gotchas: at 50 % (card 184 pt, 3 rows) the 8 Up taps may hit the top-bar clamp near the end
+
+## 2026-11-21 22:47 · loop-tester · T-016 · round 2
+- Done: read CI 44976839046 (472e414, scope=all). ipa green; 272/272 unit; 44 UI pass, 0 fail. M1 fixed (both bold-only tests pass; Georgia/Zapfino/Hiragino unchanged). C1 works: Up 1–8 with the card open move 18.0–18.33 pt each (314 → 169.33); after Done the line rests at 370/333.67/297.67 as before. The per-width test ran in full (13 / 7+6 / 5+4+4, 200% line maxY 210 < card top 218)
+- Blocked: the simulator job hit its 45-min timeout. SubtitleStyleCardUITests/testUpAndSize… hung on "App animations complete notification not received" (60 s per action), starting before the card opened, so it wasn't caused by the diff. The portrait SubtitleStyle*/SheetTester/StyleTester UI suites (15 tests) never ran. NEEDED: re-run `-f scope=tests -f only_testing=ClipDeckUITests`
+- Could fix: C3 the live preview stops at the top-bar clamp after about 12/9/6 taps (1/2/3 rows); C4 the `isBoldFace` name fallback overrides a light weight trait (user-installed "Black…" families)
+- Files: .loop/tasks/T-016-subtitle-style-menu-landscape.md (Test report round 2), .loop/CONTEXT.md (Learned)
+- Gotchas: a timed-out job uploads only `Staging` (no database). The attachments are zstd blobs in Data/ (miniconda's `zstd -d` decodes them). Two `gh run watch` processes in parallel used up the 5000/hr API limit; watch with one
+
+## 2026-11-21 23:29 · loop-tester · T-016 · round 2 addendum
+- Done: read verify run 44982440176 (f71a426, ClipDeckUITests only, 60-min limit): success in 37.5 min, 60/60 UI tests, 0 issues. AC-6 (b) passes: at 25% the line is at maxY 207.7 (was held at 262 in round 1), so Up ×3 moves it 54.3 pt with a 2-row card. SubtitleStyleUITests 9/9, SheetTester 4/4, StyleTester 2/2; no other regressions. The animations-idle hang didn't recur
+- Verdict: Pass (REVIEWED_AT f71a426). C3 (preview clamp) and C4 (bold name rule) are deferred to a follow-up task by Brent
+- Files: .loop/tasks/T-016-subtitle-style-menu-landscape.md (Round 2 addendum)
+- Gotchas: `gh run watch -i 60` keeps one watcher well under the API limit. The finished xcresult has database.sqlite3 (TestCaseRuns/TestCases/TestSuites/Attachments); attachment blobs are `Data/data.<xcResultKitPayloadRefId>`, zstd-compressed
+
+## 2026-11-22 · orchestrator · T-016 · landed; T-018 planned
+- Done: T-016 passed (2 sonnet rounds + 2 verify-only passes; 4 CI runs). Squashed to c713b66; the CI timeout (45 → 60 min) is its own commit.
+- Left: T-018 (Brent's follow-up for C3 and C4) is the last task of the subtitle-style goal.
