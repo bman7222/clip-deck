@@ -502,3 +502,189 @@
 ## 2026-11-20 · orchestrator · T-013 · landed; goal complete
 - Done: T-013 passed (2 sonnet rounds). All 12 buildable tasks are done; T-007 stays blocked (paid account). CLAUDE.md "Current status" updated.
 - Left: Brent decides whether to merge loop/mkv-landscape-sideload into main, then release v0.3.0. Open Could fix: make-source-json.py version regex accepts a trailing newline (use re.fullmatch).
+
+## 2026-11-20 22:03 · loop-planner · T-014..T-016 · planning
+- Done: spec .loop/specs/subtitle-style.md (Proposed, decisions D-1..D-8 with recommended answers); planned T-014 (style value + placement + renderer, Debug seed flag), T-015 (portrait opener + sheet), T-016 (landscape card in place of the bottom bar); issues #15-#17
+- Left: all three are blocked until Brent confirms D-1..D-8 (fonts, global scope, steps, position unit, portrait sheet, landscape card, default, aqua opener); if he accepts them, no task changes
+- Files: .loop/specs/subtitle-style.md, .loop/tasks/T-014-subtitle-style-renderer.md, T-015-subtitle-style-menu-portrait.md, T-016-subtitle-style-menu-landscape.md, .loop/BOARD.md
+- Gotchas: the ASS parser already strips all styles/tags, so the user style applies to ASS the same as to SRT. `SelectableText.sizeThatFits` returns the full width, so the line frame must be made to hug the text before frames can prove position. "Position" never "offset" (player.offset is timing). The landscape bar at panel 50% goes from about 245 to about 297 of about 320 pt
+
+## 2026-11-20 22:20 · loop-planner · T-014..T-017 · replan after Brent's answers
+- Done: spec Accepted (D-2..D-8 as recommended; D-1 "both": presets + "More fonts…" system picker with a fixed Hiragino cascade for Japanese). New T-017 (#18) picked font. T-015 preset rows show "Aa あア漢字". T-016 now depends on T-017 and has 13 controls. All four are todo; issues #15-#18 edited to match
+- Left: build order T-014 → T-015 → T-017 → T-016
+- Files: .loop/specs/subtitle-style.md, .loop/tasks/T-014..T-017, .loop/BOARD.md
+- Gotchas: a picked font is stored by PostScript name and dropped to Sans on read if missing. Bold uses the family's bold face or none (no fake bold); the Japanese fallback follows Bold (W6, except Maru W4). Don't drive a selection inside the system picker in UI tests; seed `pickedFontName` instead
+
+## 2026-11-20 · loop-frontend · T-014 · round 1 (sonnet)
+- Done: AC-1..AC-7 written (nothing compiled): SubtitleStyle/SubtitleFont, pure SubtitlePlacement + SubtitleLineLayout, SelectableText hugsWidth/font, line drawn from the saved style, launch flags, player.topBar/bottomBar ids, unit + UI tests, docs
+- Left: CI run (scope=all); T-015 can call `SubtitleStyle` mutators and write `style.json` to `player.subtitleStyle` (AppStorage string, PlayerView already observes it)
+- Files: Features/Player/SubtitleStyle.swift, SubtitlePlacement.swift, PlayerView.swift, DesignSystem/Components.swift, App/ClipDeckApp.swift, ClipDeckTests/SubtitleStyleTests.swift, ClipDeckUITests/SubtitleStyleUITests.swift, CLAUDE.md, docs/ARCHITECTURE.md, docs/PRODUCT_SPEC.md
+- Gotchas: the line is a video overlay placed by a Layout; font size keeps today's double Dynamic Type scaling so the default is identical; T-017 adds `pickedFontName` (decoding already ignores unknown fields) and extends `SubtitleStyle.uiFont`
+
+## 2026-11-20 22:53 · loop-tester · T-014 · round 1
+- Done: read CI 44860511457 (6fc17c1, scope=all). The ipa job is green. The simulator ran 295/298 with no Swift warnings, and all 4 SubtitleStyleUITests pass with frames that match the spec formula. Against 44836733690 (main's tree; main's only green run is pre-landscape), the default line is pixel-identical in portrait and 1 px (⅓ pt) shifted in landscape
+- Fails: the builder's `landscapeInsetsAndThePanelHandleClearance` expected 752/75 where the spec formula gives 734.3/92.7 (fixed in the test). Known flake testControlsStayWhilePausedAndAutoHideWhilePlaying. AboutUITests/testSourceLinksAreShownAndOpenInSafari (Safari didn't launch; the diff doesn't touch it)
+- Verdict: Blocked, NEEDED: verify-only pass with `-f scope=tests` and no only_testing (the deciding tests span both targets). No product finding above Could fix: C1 1 px landscape rounding, C2 line drawn over RecordingBadge, C3 step overflow from code
+- Tests: SubtitleStyleTests.swift (fix), new SubtitleStyleTesterTests.swift (default font equivalence; hugged width keeps the same lines and is stable, via UIHostingController), new SubtitleStyleTesterUITests.swift (keep flag across relaunch; extreme-left line clear of the leading safe inset)
+- Gotchas: the simulator-results artifact is now about 180 MB (screen recordings), so unzip only screenshots/ui-tests/*.png, *.txt, manifest.json and the xcresult database.sqlite3. Main run 44838534920 failed EpisodeImporterTests.copiesAnMP4… once; it passes here, so it may be a new flake
+
+## 2026-11-20 23:32 · loop-tester · T-014 · round 1 addendum
+- Done: verify-only run 44863556968 (b289a5b, scope=tests, full suite) is green: 308/308, 0 skipped. The corrected placement test, the default-font equivalence, the hugged-width test (no re-wrap or clip; stable), keep/clear across relaunch, and the extreme-left line clear of the leading safe inset (minX 78 ≥ back 74) all pass
+- Done: both re-checks pass on unchanged app code (the PlayerLandscapeBehaviour flake; AboutUITests Safari). The Safari failure is a runner flake, added to CONTEXT.md Learned
+- Verdict: Pass. AC-1..AC-7 met. Open Could fix: C1 (1 px landscape rounding). C2/C3 are carried into T-015
+- Files: .loop/tasks/T-014-subtitle-style-renderer.md (Round 1 addendum), .loop/CONTEXT.md (Learned)
+- Gotchas: this full scope=tests run took about 34 min; its artifact was about 135 MB
+
+## 2026-11-20 · orchestrator · T-014 · landed
+- Done: T-014 passed (1 sonnet round + 1 verify-only pass). Squashed to 93d3c08. CI 44860511457 + 44863556968 green.
+- Left: T-015 (portrait style sheet) is next; it carries Could fix C2 (badge overlap) and C3 (step overflow).
+
+## 2026-11-21 02:05 · loop-frontend · T-015 · round 1 (sonnet)
+- Done: portrait style sheet (SubtitleStyleSheet.swift) + `player.subtitleStyle` Button after the subtitles button; DeckIconButtonStyle disabled look + Reduce Motion; C2 badge above the line; C3 overflow-safe step mutators (`clampedSum`); unit + UI tests; DESIGN/PRODUCT_SPEC (nothing compiled)
+- Left: CI run (scope=all). T-017 adds "More fonts…" under the presets in the sheet. T-016 replaces the landscape opener's sheet with its card and must prove the 50% bar fit
+- Files: Features/Player/SubtitleStyleSheet.swift, PlayerView.swift, SubtitleStyle.swift, DesignSystem/Components.swift, ClipDeckTests/SubtitleStyleTests.swift, ClipDeckUITests/SubtitleStyleUITests.swift, docs/DESIGN.md, docs/PRODUCT_SPEC.md
+- Gotchas: landscape button currently opens the portrait sheet; sheet state is its own @AppStorage on `player.subtitleStyle`
+
+## 2026-11-21 02:38 · loop-tester · T-015 · round 1
+- Done: read CI 44878628011 (08f286b, scope=all). The ipa job is green. The simulator job ran 315/316: all 5 new SubtitleStyleUITests, 3 new unit tests and 14 landscape tests pass, and the 50% panel bar still fits (style button at x 246–290, Make a Card ends at 393, handle at 405). The 1 failure is EpisodeImporterTests.copiesAnMP4… `.timedOut`, a pre-existing flake (added to CONTEXT Learned)
+- Verdict: Fail. S1: the 520 pt detent covers the bottom 8 pt of the video on iPhone 17 Pro (sheet top 334 pt against video maxY 342, measured in style-01). C1: Reset press-scales under Reduce Motion. C2: back is tappable while the sheet is open
+- Tests: new ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (12 controls below the video plus a sheet-top pixel check, which fails until S1 is fixed; labels and values; every limit; playback not paused). Not run yet
+- Files: .loop/tasks/T-015-subtitle-style-menu-portrait.md (Test report round 1), .loop/CONTEXT.md (Learned)
+- Gotchas: the simulator-results artifact was 148 MB. `unzip -x "*/Data/*"` keeps only the screenshots, manifest and database.sqlite3 (9 MB). The visible sheet top is about 20 pt higher than screen height minus the detent
+
+## 2026-11-21 04:18 · loop-frontend · T-015 · round 2 (sonnet)
+- Done: S1 first detent computed from the measured video maxY (window - videoMaxY - 8 - 20 rise, min 120; landscape .large only); C1 primary button skips press-scale under Reduce Motion; C2 back button hidden while the sheet is open (nothing compiled)
+- Left: CI run; the tester's pixel check decides S1 (constant `systemSheetRise` = 20 is from the round-1 measurement)
+- Files: Features/Player/SubtitleStyleSheet.swift, PlayerView.swift, DesignSystem/Components.swift, ClipDeckTests/SubtitleStyleTests.swift, docs/DESIGN.md
+- Gotchas: SubtitleStyleSheet now takes `firstDetent: CGFloat?` (T-017/T-016 callers must pass it)
+
+## 2026-11-21 04:57 · loop-tester · T-015 · round 2
+- Done: read CI 44888942981 (89ae32f, scope=all). The ipa job is green; the simulator ran 319/320 with 0 build issues, and every earlier suite plus all known flakes pass. S1 is fixed on iPhone 17 Pro / iOS 26.5: the pixel check passes, and the sheet top is at 349.4 against the video's maxY of 342 (a 7.4 pt gap). C2 is fixed: no BackButton while the sheet is open, and the nav bar, title and video frames are unchanged. C1 is fixed by reading
+- Fails: my own testUsingTheSheetDoesNotPausePlayback read the label after the 6 s sample had ended (Play at 209.4 s, read at 216.5 s). It's a test flaw; the test is rewritten to read with the sheet open
+- Verdict: Fail on S2 (Should fix). `systemSheetRise = 20` is iOS 26's floating-sheet geometry (an 8 pt inset plus 12.6); iOS 17/18 and Home-button iPhones likely differ and could cover the video. Fix: measure the sheet's own global minY and correct the detent once. C3: Done is reported as Selected
+- Files: ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (rewritten playback test; back hidden/restored and no-jump asserts), .loop/tasks/T-015-subtitle-style-menu-portrait.md
+- Gotchas: the player stays in the accessibility tree under the open sheet, so `player.*` can be read while it is open. On iOS 26 the sheet is a floating card at x 8–394 with an 8 pt bottom inset. The artifact was 195 MB zipped and 15 MB after unzipping without */Data/*
+
+## 2026-11-21 05:16 · loop-frontend · T-015 · round 3 (opus)
+- Done: S2: the first detent is measured, not assumed. A hidden UIKit probe behind the sheet reads its real top (UIKit convert includes iOS 26's ~0.96 sheet scale); after it settles, `SheetFit.correction` fixes the detent once (set and selection together), and the rise is cached in `player.styleSheetRise`. C3: Done gets `.accessibilityRemoveTraits(.isSelected)` (likely the checkmark symbol). Nothing compiled
+- Left: CI run (scope=all). The tester's test now also asserts the sheet's top is 0 to 16 pt below the video via the new `subtitleStyle.sheet` container
+- Files: Features/Player/SubtitleStyleSheet.swift, PlayerView.swift, ClipDeckTests/SubtitleStyleTests.swift, ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (gap check added), SubtitleStyleUITests.swift, docs/DESIGN.md
+- Gotchas: `SubtitleStyleSheet(clearance: SheetClearance?)` replaces `firstDetent:` (T-016/T-017 callers). The round-2 tree shows iOS 26 draws the lower-detent sheet scaled about 0.96, so frames inside it are scaled too
+
+## 2026-11-21 05:55 · loop-tester · T-015 · round 3
+- Done: read CI 44893660834 (24a676d, scope=all). The ipa job is green; the simulator ran 325/326 with 0 build issues, and every earlier suite and known flake passes. The tester's rewritten playback test passes, reading "Pause" twice with the sheet open. C3 is fixed (Done is not Selected). All 7 SheetFit unit tests pass
+- Fail: the builder's gap check in testEveryControlStartsBelowTheVideoAndIsLabelled (22.8 > 16). It's a test-hook flaw: XCUITest gives the `subtitleStyle.sheet` container the union of its children (Done's top, 364.8). The sheet itself is at 349.4, a 7.4 pt gap
+- Evidence for S2: the first open (20 pt guess) has its sheet top at 349.33; a later launch's style-01-sheet has it at 350.0, matching a cached 20.6 rise. So the probe measures the scaled top and the cache works
+- Verdict: Blocked, NEEDED: verify-only pass with `-f scope=tests -f only_testing=ClipDeckUITests/SubtitleStyleSheetTesterUITests`. No Must or Should fix. Could fix C1: a still mid-drag sample can be cached (it heals on the next open)
+- Tests: SubtitleStyleSheetTesterUITests.swift (sheetTop helper for the gap check; new testAWrongSavedRiseIsCorrectedOnceTheSheetHasSettled seeds `-player.styleSheetRise` with an XML plist real 0)
+- Gotchas: the artifact was about 149 MB. Attachments are mapped by screenshots/ui-tests/manifest.json, and the failure text is in the xcresult database.sqlite3 TestIssues table
+
+## 2026-11-21 15:01 · loop-tester · T-015 · round 3 addendum
+- Done: read verify run 44896666698 (859dd94, only SubtitleStyleSheetTesterUITests): 2/4 pass. Both failures are my sheetTop helper returning the container's union frame (364.8): the containing query includes the container itself, and my filter was `<=`
+- Product evidence from the same run: with the 0 pt rise seed the sheet covered the video at 0.87 s (difference 213), then from 1.27 s it was uncovered, and it settled at 349.4 (7.4 pt gap). The default open is also at 349.4. S2 is proven end to end on iOS 26.5
+- Verdict: Blocked, Brent's call. No Must or Should fix, and all ACs are decided by run evidence. Land as is, or approve a 5th dispatch (scope=tests, only_testing=ClipDeckUITests/SubtitleStyleSheetTesterUITests) to turn the fixed test green
+- Files: ios/ClipDeckUITests/SubtitleStyleSheetTesterUITests.swift (sheetTop excludes the container by identifier and by a strict top; uncommitted), .loop/tasks/T-015-subtitle-style-menu-portrait.md (Round 3 addendum)
+- Gotchas: XCUIElementQuery `containing(.any, identifier: X)` also returns the X element itself
+
+## 2026-11-21 · orchestrator · T-015 · landed
+- Done: T-015 passed (rounds: sonnet, sonnet, opus; 2 verify-only passes; 5 CI runs, the 5th approved by Brent). Squashed to fab9468.
+- Left: T-017 (More fonts…) is next, then T-016 (landscape card).
+
+## 2026-11-21 · loop-frontend · T-017 · round 1 (sonnet)
+- Done: `pickedFontName` in SubtitleStyle (tolerant decode, missing font drops to Sans, closest-preset Hiragino cascade, real bold only); "More fonts…" row + UIFontPickerViewController sheet in SubtitleStyleSheet; SheetFit skips measuring while the picker is up; unit + UI tests; DESIGN/PRODUCT_SPEC (nothing compiled)
+- Left: CI run (scope=all). T-016 can reuse `SystemFontPicker` (private in SubtitleStyleSheet.swift; make it internal) and `SubtitleStyle.pickedFamilyName`
+- Files: Features/Player/SubtitleStyle.swift, SubtitleStyleSheet.swift, App/ClipDeckApp.swift, ClipDeckTests/SubtitleFontTests.swift, ClipDeckUITests/SubtitleFontUITests.swift, docs/DESIGN.md, docs/PRODUCT_SPEC.md
+- Gotchas: `-uiTestingSubtitleStyle` now seeds via `SubtitleStyle.seeded(from:)` so an uninstalled name survives into the saved JSON
+
+## 2026-11-21 18:12 · loop-tester · T-017 · round 1
+- Done: read CI 44957727655 (59383f1, scope=all). The ipa job is green; the simulator ran 345/347 with 0 build issues. SubtitleFontTests 16/16 pass (Georgia → Serif; Latin is Georgia, Japanese is HiraMinProN-W3, or W6 with Bold; no LastResort; Zapfino keeps its face; missing → Sans; old JSON). 3/4 SubtitleFontUITests pass
+- Fails: the builder's Cancel test looked for "Cancel", but the iOS 26 picker's dismiss button is an X labelled `close` (a test flaw, fixed). PlayerLandscapeBehaviourUITests/testOpenSubtitlesMenuKeepsControlsUpWhilePlaying is the known flake
+- Screenshot: style-03 shows "元気ですか" in Hiragino Mincho, legible and not tofu, and the More fonts row aqua with "Georgia" and Georgia/Mincho samples. The sheet top is 349.4 against video maxY 342
+- Verdict: Blocked, NEEDED: verify-only pass, `-f scope=tests -f only_testing=ClipDeckUITests` (the Cancel test, the sheet top after Cancel and on reopen, a preset clears the pick, the flake re-check). No Must or Should fix. Could fix C1: a bold-only family ignores Bold off
+- Tests: ios/ClipDeckUITests/SubtitleFontUITests.swift (the close label), new ios/ClipDeckUITests/SubtitleFontTesterUITests.swift (4 tests); uncommitted
+- Files: .loop/tasks/T-017-subtitle-picked-font.md (Test report round 1), .loop/CONTEXT.md (Learned: the picker's `close`)
+
+## 2026-11-21 19:43 · loop-tester · T-017 · round 1 addendum
+- Done: read verify run 44960788495 (803d088, ClipDeckUITests): 49/50. All the deciding tests pass. Cancel returns to the sheet (iOS 26 `close`). The sheet top is 349.41 before and after Cancel and 350.37 on reopen; with the picker opened early it is 350.05 after Cancel and on reopen (video maxY 342). A preset clears the picked font. The landscape flake re-check passes
+- Close-ups: "元気ですか" is Hiragino Mincho, W6 with Bold and W3 without, and legible with the outline. The row sample is Georgia Latin with Mincho Japanese, matching the Serif preset
+- Fail (unrelated): ExpiryBannerUITests/testOpenSideStoreWithoutSideStoreKeepsBannerAndExplains. The app sat on "Preparing sample episode…" for 94 s (the known sample-episode timing flake); it passed on the same app code in 44957727655
+- Verdict: Blocked, NEEDED: re-run CI for ExpiryBannerUITests only; Pass if it is green. No Must or Should fix; C1 moves to T-016 or later
+- Files: .loop/tasks/T-017-subtitle-picked-font.md (Round 1 addendum)
+
+## 2026-11-21 · orchestrator · T-017 · landed
+- Done: T-017 passed (1 sonnet round + 1 verify-only pass). Squashed to 31bc513.
+- Left: T-016 (landscape card) is the last task; it carries T-017 C1 and the ExpiryBanner flake re-check.
+
+## 2026-11-21 20:30 · loop-frontend · T-016 · round 1 (sonnet)
+- Done: landscape style card `SubtitleStyleCard` replaces the bottom bar (13 controls, ViewThatFits 13 / 7+6 / 5+4+4), line pushed above it, controls kept up with the card and the font picker, closes on Done, video tap or rotation, Reduce Motion fade; landscape .large fallback removed; T-017 C1 bold-only note (nothing compiled)
+- Left: CI run (scope=all); re-check ExpiryBannerUITests/testOpenSideStoreWithoutSideStoreKeepsBannerAndExplains; measure the 50% panel from the new SubtitleStyleCardUITests frames
+- Files: Features/Player/SubtitleStyleCard.swift, PlayerView.swift, SubtitleStyleSheet.swift, SubtitleStyle.swift, ClipDeckTests/SubtitleFontTests.swift, ClipDeckUITests/SubtitleStyleCardUITests.swift, docs/DESIGN.md, docs/PRODUCT_SPEC.md
+- Gotchas: the card's accessibility frame is the union of its controls; tests tap the video at x 0.3 (0.5 is the handle at 50%)
+
+## 2026-11-21 20:39 · loop-tester · T-016 · round 1
+- Done: read CI 44971851033 (ecc866e, scope=all). The ipa job is green (the app compiles). The simulator job failed at build time: SubtitleFontTests.swift:219 and :222 put a `mutating` call (`pickFont`) inside `#expect` ("cannot use mutating member on immutable value: '$0' is immutable"). 0 tests ran
+- Fixed in test code (uncommitted): those two lines read into `let`s first. Added SubtitleStyleCardTesterUITests.swift with 3 tests: the ViewThatFits rows and the safe area at closed/25/50%, the line against the card's real top (union minY − 8), the rest place after closing, and per-tap Up evidence
+- Verdict: Blocked, NEEDED: verify-only pass `-f scope=tests` (full suite). No Must or Should fix found by reading. Could fix C1 (Brent's call): with the card open, the first ~3 (1 row) to ~6 (2 rows) Up taps may not move the line, because T-014 pins it above the card. Could fix C2: a stale timing comment in the keep-up test
+- Files: ios/ClipDeckTests/SubtitleFontTests.swift, ios/ClipDeckUITests/SubtitleStyleCardTesterUITests.swift (new), .loop/tasks/T-016-subtitle-style-menu-landscape.md
+- Gotchas: Swift Testing `#expect(x.mutatingCall())` doesn't compile. A build-failure artifact is only about 46 KB (no screenshots); the errors are in the xcresult BuildIssues table
+
+## 2026-11-21 21:30 · loop-tester · T-016 · round 1 addendum
+- Done: read verify run 44972664549 (34ca7e6, scope=tests): 362/365. All 7 card tests except the bold-only one pass. Rows are 13 / 7+6 / 5+4+4, every control sits inside the column and the safe area, and the line ends 8 pt above the card's real top (314 vs 322; 262 vs 270). After a close the line rests exactly at its styled place. Portrait suites, landscape suites and the ExpiryBanner re-check all pass
+- Fail: M1. `pickedFontIsAlwaysBold` relies on `.traitBold`, which ArialRoundedMTBold lacks, so the sheet says "This font has no bold weight." and 2 tests fail. Fix: detect bold by the weight trait or the face name (SubtitleStyle.swift:245/255/262), or drop the carried-over feature
+- C1 numbers for Brent: with a one-row card, Up 1–3 don't move the line (measured), Up 4 does. With two rows, 6 taps show nothing (computed). With three rows, about 8–9
+- Files: ios/ClipDeckUITests/SubtitleStyleCardTesterUITests.swift (bottom reference fixed; uncommitted), .loop/tasks/T-016-subtitle-style-menu-landscape.md (Round 1 addendum), .loop/CONTEXT.md (Learned)
+- Gotchas: the card has a background, so XCUITest reports its real frame (unlike the T-015 sheet). The landscape bar's play button sits 1.8 pt above the row's bottom (Make a Card is taller). Extracting only screenshots and the DB cut the 213 MB artifact to 22 MB
+
+## 2026-11-21 22:10 · loop-frontend · T-016 · round 2 (sonnet)
+- Done: M1 one `isBoldFace` rule (trait, weight >= 0.3, or name) in boldFace/always-bold; C1 live preview: `SubtitlePlacement.frame(stepsFromObstruction:)` counts up steps from just above the open card (closed/portrait unchanged) with 4 unit tests; C2 comment fixed; DESIGN.md. Tester's test file kept (one assertion added). Nothing compiled
+- Left: CI run; check the up-taps log and the ArialRoundedMTBold tests
+- Files: Features/Player/SubtitleStyle.swift, SubtitlePlacement.swift, PlayerView.swift, ClipDeckTests/SubtitleStyleTests.swift, ClipDeckUITests/SubtitleStyleCardUITests.swift, SubtitleStyleCardTesterUITests.swift, docs/DESIGN.md
+- Gotchas: at 50 % (card 184 pt, 3 rows) the 8 Up taps may hit the top-bar clamp near the end
+
+## 2026-11-21 22:47 · loop-tester · T-016 · round 2
+- Done: read CI 44976839046 (472e414, scope=all). ipa green; 272/272 unit; 44 UI pass, 0 fail. M1 fixed (both bold-only tests pass; Georgia/Zapfino/Hiragino unchanged). C1 works: Up 1–8 with the card open move 18.0–18.33 pt each (314 → 169.33); after Done the line rests at 370/333.67/297.67 as before. The per-width test ran in full (13 / 7+6 / 5+4+4, 200% line maxY 210 < card top 218)
+- Blocked: the simulator job hit its 45-min timeout. SubtitleStyleCardUITests/testUpAndSize… hung on "App animations complete notification not received" (60 s per action), starting before the card opened, so it wasn't caused by the diff. The portrait SubtitleStyle*/SheetTester/StyleTester UI suites (15 tests) never ran. NEEDED: re-run `-f scope=tests -f only_testing=ClipDeckUITests`
+- Could fix: C3 the live preview stops at the top-bar clamp after about 12/9/6 taps (1/2/3 rows); C4 the `isBoldFace` name fallback overrides a light weight trait (user-installed "Black…" families)
+- Files: .loop/tasks/T-016-subtitle-style-menu-landscape.md (Test report round 2), .loop/CONTEXT.md (Learned)
+- Gotchas: a timed-out job uploads only `Staging` (no database). The attachments are zstd blobs in Data/ (miniconda's `zstd -d` decodes them). Two `gh run watch` processes in parallel used up the 5000/hr API limit; watch with one
+
+## 2026-11-21 23:29 · loop-tester · T-016 · round 2 addendum
+- Done: read verify run 44982440176 (f71a426, ClipDeckUITests only, 60-min limit): success in 37.5 min, 60/60 UI tests, 0 issues. AC-6 (b) passes: at 25% the line is at maxY 207.7 (was held at 262 in round 1), so Up ×3 moves it 54.3 pt with a 2-row card. SubtitleStyleUITests 9/9, SheetTester 4/4, StyleTester 2/2; no other regressions. The animations-idle hang didn't recur
+- Verdict: Pass (REVIEWED_AT f71a426). C3 (preview clamp) and C4 (bold name rule) are deferred to a follow-up task by Brent
+- Files: .loop/tasks/T-016-subtitle-style-menu-landscape.md (Round 2 addendum)
+- Gotchas: `gh run watch -i 60` keeps one watcher well under the API limit. The finished xcresult has database.sqlite3 (TestCaseRuns/TestCases/TestSuites/Attachments); attachment blobs are `Data/data.<xcResultKitPayloadRefId>`, zstd-compressed
+
+## 2026-11-22 · orchestrator · T-016 · landed; T-018 planned
+- Done: T-016 passed (2 sonnet rounds + 2 verify-only passes; 4 CI runs). Squashed to c713b66; the CI timeout (45 → 60 min) is its own commit.
+- Left: T-018 (Brent's follow-up for C3 and C4) is the last task of the subtitle-style goal.
+
+## 2026-11-22 · loop-frontend · T-018 · round 1 (sonnet)
+- Done: card Up disables (value "Highest") when the next step wouldn't move the line (SubtitlePlacement.canStepUpWithCardOpen); isBoldFace trusts the weight trait over the name. Nothing compiled
+- Left: CI run (scope=all, or unit + the new card UI test)
+- Files: Features/Player/SubtitlePlacement.swift, SubtitleStyleCard.swift, SubtitleStyle.swift, PlayerView.swift, ClipDeckTests/SubtitleStyleTests.swift, SubtitleFontTests.swift, ClipDeckUITests/SubtitleStyleCardTesterUITests.swift, docs/DESIGN.md
+- Gotchas: video/line sizes come from state set by onChange, so the first frame after opening may use stale sizes; unmeasured video keeps Up enabled
+
+## 2026-11-22 03:14 · loop-tester · T-018 · round 1
+- Done: read CI 44997338718 (45f32d4, scope=all). ipa green, simulator 374/377, 0 build issues. AC-2 passes: the 14/11/9-tap unit tests pass, and the card UI test dims Up after 13 taps, each moving > 1 pt, with value "Highest". The known flakes all passed
+- Fail: M1. ArialRoundedMTBold reports weight trait 0.0 and no traitBold on iOS 26.5, so the new "trust the weight" rule makes it not bold. 3 tests fail (the new arialRounded test, plus the two existing bold-only tests from T-016). AC-3's premise ("bold by its weight trait") is false; it needs a decision: use the name when the weight is 0.0, or read OS/2 usWeightClass
+- Could fix: C1 Down from a stored place past the clamp doesn't move the line; C2 the video and line sizes are measured only while a cue shows; C3 the builder's UI test bound `< 20` can't tell the top bar from the stored limit
+- Tests: new ios/ClipDeckTests/SubtitleUpLimitTesterTests.swift (5) and ios/ClipDeckUITests/SubtitleUpLimitTesterUITests.swift (2: the 2/3-row cards, the stored percent, the clamp position, the portrait 90 % rule); uncommitted, not yet run
+- Files: .loop/tasks/T-018-subtitle-style-limits-and-bold-rule.md (Test report round 1), .loop/CONTEXT.md (Learned)
+- Gotchas: `python -I` ignores PYTHONIOENCODING; use sys.stdout.reconfigure(encoding="utf-8") when printing xcresult issues
+
+## 2026-11-22 · loop-frontend · T-018 · round 2 (sonnet)
+- Done: isBoldFace ignores a 0.0 weight (name decides); card Down jumps from above the clamp to one below the highest reachable step; tests and DESIGN.md updated. Nothing compiled
+- Files: SubtitleStyle.swift, SubtitlePlacement.swift, SubtitleStyleCard.swift, PlayerView.swift, SubtitleFontTests.swift, SubtitleStyleTests.swift, SubtitleStyleCardTesterUITests.swift, docs/DESIGN.md
+
+## 2026-11-22 04:10 · loop-tester · T-018 · round 2
+- Done: read CI 45002423211 (b698119, scope=all). Both jobs green. Simulator 390/390 in 46 min, 0 issues, and every known flake passed. M1 is fixed: Arial Rounded counts as bold again, and both bold-only tests pass
+- AC-1/2: Up dims at 13 / 10 / 7 taps (1 / 2 / 3 rows), always at the clamp 68.0 (top bar 60 + 8). Each tap moves the line ~18 pt and Down reads the stored percent. With a stored 85 %, the portrait sheet still goes to 90 %. AC-5: Down from 85 % moves the line 68.0 → 72.67, which is step 12, one below the dimming step 13
+- Verdict: Pass, with no Must or Should fix. Could fix: C1, a stale portrait video size with no line showing now also sets the Down jump target. C2, a line taller than the room makes the first Down drop the stored place to 0
+- Files: .loop/tasks/T-018-subtitle-style-limits-and-bold-rule.md (Test report round 2); no tests added
+- Gotchas: in the artifact, `screenshots/ui-tests/<Attachments.uuid>.txt|png` are the exported attachments; join Attachments → Activities → TestCaseRuns in database.sqlite3 to find which test made each one
+
+## 2026-11-22 · orchestrator · T-018 · landed
+- Done: Pass in round 2 (Sonnet builder, Opus tester). Landed as df44e8b. CI 45002423211 (scope=all): ipa green, 390/390 tests. 2 of the 4 CI runs used
+- Brent revised AC-3 after round 1 (a 0.0 weight lets the name decide) and added AC-5 (the first Down from above the reachable top jumps)
+- Open Could fix, no later task on the board: C1, the video size is measured only while a line shows (fix: measure on videoScreen). C2, a line taller than the room makes the first Down drop to 0. Both go to Brent with the goal summary
+- Goal subtitle-style: every task done (T-014, T-015, T-017, T-016, T-018)

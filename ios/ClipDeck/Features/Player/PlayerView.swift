@@ -1,5 +1,6 @@
 import SwiftData
 import SwiftUI
+import UIKit
 
 /// Episode player. Portrait is laid out like a 3DS: video is the "top screen", and the controls
 /// plus the subtitle list form the "bottom screen". In landscape the list is a side panel (a quarter of the screen).
@@ -13,6 +14,21 @@ struct PlayerView: View {
     @State private var showSidePanel = false
     @State private var showOffset = false
     @State private var showSubtitlePicker = false
+    /// The portrait subtitle style sheet. Landscape has its own card (`styleMenuOpen`).
+    @State private var showStyleSheet = false
+    /// The landscape subtitle style card, shown in place of the bottom bar. Plain state, not a Menu: gestures on a
+    /// Menu don't fire on iOS 26. It is part of `keepsControlsUp`.
+    @State private var styleMenuOpen = false
+    /// The system font picker opened from the card. A presented state SwiftUI clears itself, so it can hold the
+    /// controls up, and the card stays open under it.
+    @State private var showCardFontPicker = false
+    /// The card's measured height, so the line can be pushed above it like it is above the bottom bar.
+    @State private var styleCardHeight: CGFloat = 100
+    /// The measured video and subtitle line sizes, so the landscape card knows when Up can't move the line.
+    @State private var subtitleVideoSize: CGSize = .zero
+    @State private var subtitleLineSize: CGSize = .zero
+    /// The bottom of the portrait video in global coordinates, so the style sheet's first detent can stay under it.
+    @State private var videoMaxY: CGFloat = 0
     @State private var miningRange: ClipRange?
     @State private var miningError: String?
     @State private var draft: CardDraft?
@@ -34,8 +50,13 @@ struct PlayerView: View {
     /// save in `onEnded` both read it, so a drag that resizes live is always saved and one that doesn't never moves the panel.
     @State private var panelDragOrigin: CGPoint?
     @State private var panelDragResizes = false
+    /// The saved subtitle style (JSON). A string AppStorage, so a later menu that writes it updates the line live.
+    @AppStorage(SubtitleStyle.storageKey) private var storedSubtitleStyle = ""
     @Environment(\.dismiss) private var dismiss
+    /// Read so a text size change redraws the line (its font is built from the current Dynamic Type size).
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityVoiceOverEnabled) private var voiceOverOn
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     private let store = FileStore.live
 
@@ -74,12 +95,19 @@ struct PlayerView: View {
                     // Entering or leaving landscape always starts with the controls hidden.
                     controlsVisible = false
                     subtitleDialogOpen = false
+                    // Rotating closes the style menu (the portrait sheet, and the landscape card with its font picker).
+                    showStyleSheet = false
+                    styleMenuOpen = false
+                    showCardFontPicker = false
                     hideTask?.cancel()
                 }
             }
         }
         .navigationTitle(episode.title)
         .navigationBarTitleDisplayMode(.inline)
+        // The sheet leaves the video and the bar usable, so the back button is hidden while it is open
+        // (otherwise the player could be popped with the sheet still presented).
+        .navigationBarBackButtonHidden(showStyleSheet)
         .toolbarBackground(Theme.shell, for: .navigationBar)
         .toolbar(isLandscape ? .hidden : .automatic, for: .navigationBar)
         .statusBarHidden(isLandscape && !controlsShown)
@@ -101,6 +129,20 @@ struct PlayerView: View {
         }
         .sheet(isPresented: $showOffset) {
             if let model { OffsetSheet(model: model, onChange: { episode.offsetMs = $0 }) }
+        }
+        .sheet(isPresented: $showStyleSheet) {
+            SubtitleStyleSheet(clearance: styleSheetClearance)
+        }
+        .sheet(isPresented: $showCardFontPicker) {
+            SystemFontPicker(
+                onPick: { name in
+                    var next = SubtitleStyle.decoded(from: storedSubtitleStyle)
+                    if next.pickFont(name) { storedSubtitleStyle = next.clamped().json }
+                    showCardFontPicker = false
+                },
+                onCancel: { showCardFontPicker = false }
+            )
+            .accessibilityIdentifier("subtitleStyle.fontPicker")
         }
         .sheet(isPresented: $showSubtitlePicker, onDismiss: reloadSubtitles) {
             SubtitlePickerSheet(episode: episode)
@@ -138,6 +180,13 @@ struct PlayerView: View {
         VStack(spacing: 0) {
             videoScreen(model, onTap: { model.togglePlay() })
                 .aspectRatio(16 / 9, contentMode: .fit)
+                .background {
+                    GeometryReader { proxy in
+                        Color.clear.onChange(of: proxy.frame(in: .global).maxY, initial: true) { _, value in
+                            videoMaxY = value
+                        }
+                    }
+                }
             VStack(spacing: 0) {
                 controls(model)
                     .padding(Spacing.m)
@@ -151,6 +200,19 @@ struct PlayerView: View {
             .background(Theme.panel, in: UnevenRoundedRectangle(topLeadingRadius: Radius.panel, topTrailingRadius: Radius.panel, style: .continuous))
             .padding(.top, Spacing.s)
         }
+    }
+
+    /// Where the portrait video ends, so the style sheet's first detent can stay under it (the sheet measures itself
+    /// and corrects the detent). Nil before the video is measured, which makes the sheet `.large` only (landscape
+    /// uses the card, not the sheet).
+    private var styleSheetClearance: SheetClearance? {
+        guard !isLandscape, videoMaxY > 0 else { return nil }
+        let scenes = UIApplication.shared.connectedScenes.compactMap { $0 as? UIWindowScene }
+        let scene = scenes.first(where: { $0.activationState == .foregroundActive }) ?? scenes.first
+        guard let windowHeight = scene?.keyWindow?.bounds.height ?? scene?.screen.bounds.height,
+              windowHeight > videoMaxY
+        else { return nil }
+        return SheetClearance(windowHeight: windowHeight, videoMaxY: videoMaxY)
     }
 
     private func landscape(_ model: PlayerModel, size: CGSize, insets: EdgeInsets) -> some View {
@@ -169,10 +231,27 @@ struct PlayerView: View {
             top: insets.top, leading: insets.leading,
             bottom: insets.bottom, trailing: showSidePanel ? Self.panelHandleClearance : insets.trailing
         )
+        let lineMargins = SubtitleMargins(
+            top: Spacing.s + insets.top, leading: Spacing.l + barInsets.leading,
+            bottom: Spacing.m + insets.bottom, trailing: Spacing.l + barInsets.trailing)
+        let lineTopObstruction: CGFloat = shown ? topBarHeight + Spacing.s : 0
+        let lineBottomObstruction: CGFloat = shown ? (styleMenuOpen ? styleCardHeight : bottomBarHeight) + Spacing.s : 0
+        let cardCanStepUp = SubtitlePlacement.canStepUpWithCardOpen(
+            videoSize: subtitleVideoSize, margins: lineMargins,
+            topObstruction: lineTopObstruction, bottomObstruction: lineBottomObstruction,
+            lineSize: model.currentCue == nil ? .zero : subtitleLineSize,
+            style: SubtitleStyle.decoded(from: storedSubtitleStyle))
+        let cardHighestUpStep = SubtitlePlacement.highestReachableUpStep(
+            videoSize: subtitleVideoSize, margins: lineMargins,
+            topObstruction: lineTopObstruction, bottomObstruction: lineBottomObstruction,
+            lineSize: model.currentCue == nil ? .zero : subtitleLineSize)
         return HStack(spacing: 0) {
             videoScreen(
                 model,
-                subtitleBottomPadding: shown ? bottomBarHeight + Spacing.s : Spacing.m + insets.bottom,
+                subtitleMargins: lineMargins,
+                subtitleTopObstruction: lineTopObstruction,
+                subtitleBottomObstruction: lineBottomObstruction,
+                subtitleStepsFromCard: shown && styleMenuOpen,
                 badgeTopPadding: shown ? topBarHeight + Spacing.s : insets.top,
                 edgeInsets: EdgeInsets(top: 0, leading: barInsets.leading, bottom: 0, trailing: barInsets.trailing),
                 onTap: toggleControls
@@ -188,9 +267,24 @@ struct PlayerView: View {
                         topBar(insets: barInsets)
                             .measuredHeight($topBarHeight)
                         Spacer(minLength: 0)
-                        bottomBar(model, insets: barInsets)
-                            .measuredHeight($bottomBarHeight)
+                        // The style card replaces the bottom bar while it is open; the top bar stays.
+                        if styleMenuOpen {
+                            SubtitleStyleCard(
+                                insets: barInsets,
+                                canStepUp: cardCanStepUp,
+                                highestUpStep: cardHighestUpStep,
+                                onMoreFonts: { showCardFontPicker = true },
+                                onDone: closeStyleMenu
+                            )
+                            .measuredHeight($styleCardHeight)
+                            .transition(styleCardTransition)
+                        } else {
+                            bottomBar(model, insets: barInsets)
+                                .measuredHeight($bottomBarHeight)
+                                .transition(.opacity)
+                        }
                     }
+                    .animation(.easeInOut(duration: 0.25), value: styleMenuOpen)
                     .frame(width: videoWidth, alignment: .leading)
                     .clipped()
                     .environment(\.colorScheme, .dark)
@@ -363,6 +457,8 @@ struct PlayerView: View {
         .padding(.leading, insets.leading)
         .padding(.trailing, insets.trailing)
         .background(Color.black.opacity(0.55))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("player.topBar")
     }
 
     /// Landscape bottom bar: scrubber, then transport and Make a Card on one row.
@@ -387,6 +483,8 @@ struct PlayerView: View {
         .padding(.leading, insets.leading)
         .padding(.trailing, insets.trailing)
         .background(Color.black.opacity(0.55))
+        .accessibilityElement(children: .contain)
+        .accessibilityIdentifier("player.bottomBar")
     }
 
     private func bottomRow(_ model: PlayerModel, iconOnly: Bool, skips: Bool = true) -> some View {
@@ -400,7 +498,11 @@ struct PlayerView: View {
     /// The video with its subtitle line. `onTap` differs by orientation: play/pause or show/hide controls.
     private func videoScreen(
         _ model: PlayerModel,
-        subtitleBottomPadding: CGFloat = Spacing.m,
+        subtitleMargins: SubtitleMargins = SubtitleMargins(
+            top: Spacing.s, leading: Spacing.l, bottom: Spacing.m, trailing: Spacing.l),
+        subtitleTopObstruction: CGFloat = 0,
+        subtitleBottomObstruction: CGFloat = 0,
+        subtitleStepsFromCard: Bool = false,
         badgeTopPadding: CGFloat = 0,
         edgeInsets: EdgeInsets = EdgeInsets(),
         onTap: @escaping () -> Void
@@ -409,14 +511,18 @@ struct PlayerView: View {
             PlayerLayerView(player: model.player)
                 .accessibilityIdentifier("player.video")
                 .onTapGesture(perform: onTap)
+        }
+        // The line is an overlay, so it takes the video's size and never changes the video's layout.
+        .overlay {
             if let cue = model.currentCue {
-                SelectableText(text: cue.text, textStyle: .title3, weight: .bold, color: .white, outlined: true, identifier: "player.subtitle")
-                    .padding(.horizontal, Spacing.l)
-                    .padding(.leading, edgeInsets.leading)
-                    .padding(.trailing, edgeInsets.trailing)
-                    .padding(.bottom, subtitleBottomPadding)
-                    .animation(.easeInOut(duration: 0.2), value: subtitleBottomPadding)
+                subtitleLine(
+                    cue.text, margins: subtitleMargins,
+                    topObstruction: subtitleTopObstruction, bottomObstruction: subtitleBottomObstruction,
+                    stepsFromCard: subtitleStepsFromCard)
             }
+        }
+        // The recording badge is drawn after (above) the line, so a line moved up and left can't cover it.
+        .overlay {
             if let miningRange {
                 RecordingBadge(range: miningRange)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
@@ -429,18 +535,62 @@ struct PlayerView: View {
         .clipped()
     }
 
+    /// The line on the video, drawn in the saved style and placed by `SubtitlePlacement` (it stays inside the
+    /// video, below the top bar and above the bottom bar while they show).
+    private func subtitleLine(
+        _ text: String, margins: SubtitleMargins, topObstruction: CGFloat, bottomObstruction: CGFloat,
+        stepsFromCard: Bool
+    ) -> some View {
+        _ = dynamicTypeSize
+        let style = SubtitleStyle.decoded(from: storedSubtitleStyle)
+        return GeometryReader { geometry in
+            let regionHeight = max(0, geometry.size.height - margins.top - margins.bottom)
+            SubtitleLineLayout(
+                style: style, margins: margins, topObstruction: topObstruction, bottomObstruction: bottomObstruction,
+                stepsFromObstruction: stepsFromCard
+            ) {
+                SelectableText(
+                    text: text, textStyle: .title3, weight: .bold, color: .white, outlined: true,
+                    font: style.uiFont(regionHeight: regionHeight), hugsWidth: true, identifier: "player.subtitle")
+                .measuredSize($subtitleLineSize)
+            }
+            .frame(width: geometry.size.width, height: geometry.size.height)
+            .measuredSize($subtitleVideoSize)
+        }
+        .animation(.easeInOut(duration: 0.2), value: bottomObstruction)
+        .animation(.easeInOut(duration: 0.2), value: topObstruction)
+    }
+
     // MARK: Overlay timing
 
     private var controlsShown: Bool { controlsVisible || voiceOverOn }
 
     /// While any of these hold, the controls never auto-hide.
     private var keepsControlsUp: Bool {
-        voiceOverOn || showOffset || showSubtitlePicker || subtitleDialogOpen || draft != nil
-            || miningRange != nil || panelDrag != nil || !(model?.isPlaying ?? false) || (model?.isScrubbing ?? false)
+        let dialogs = showOffset || showSubtitlePicker || showStyleSheet || subtitleDialogOpen || draft != nil
+        let styleMenu = styleMenuOpen || showCardFontPicker
+        let busy = miningRange != nil || panelDrag != nil || !(model?.isPlaying ?? false) || (model?.isScrubbing ?? false)
+        return voiceOverOn || dialogs || styleMenu || busy
+    }
+
+    /// The card rises from the bottom while fading in, or only fades under Reduce Motion; it leaves the same way.
+    private var styleCardTransition: AnyTransition {
+        reduceMotion ? AnyTransition.opacity : AnyTransition.move(edge: .bottom).combined(with: AnyTransition.opacity)
     }
 
     private func toggleControls() {
+        // A tap on the video while the card is open only closes the card; the controls stay.
+        if styleMenuOpen {
+            closeStyleMenu()
+            return
+        }
         controlsVisible.toggle()
+        restartHideTimer()
+    }
+
+    /// Closes the landscape style card (Done, or a tap on the video) and restarts the hide countdown.
+    private func closeStyleMenu() {
+        styleMenuOpen = false
         restartHideTimer()
     }
 
@@ -517,6 +667,18 @@ struct PlayerView: View {
             .accessibilityLabel("Subtitles")
             .accessibilityIdentifier("player.subtitlesMenu")
         }
+        // Directly after the subtitles button, in portrait and in all landscape rows. A Button with a presented
+        // state, not a Menu: gestures on a Menu don't fire on iOS 26. Aqua when the style isn't the default.
+        let styleIsDefault = SubtitleStyle.decoded(from: storedSubtitleStyle).isDefault
+        Button {
+            // Landscape opens the card in place of the bottom bar; portrait presents the sheet.
+            if landscape { styleMenuOpen = true } else { showStyleSheet = true }
+            restartHideTimer()
+        } label: { Image(systemName: "textformat") }
+            .buttonStyle(DeckIconButtonStyle(isActive: !styleIsDefault))
+            .accessibilityLabel("Subtitle style")
+            .accessibilityValue(styleIsDefault ? "Default" : "Changed")
+            .accessibilityIdentifier("player.subtitleStyle")
     }
 
     private func makeCardButton(
@@ -642,6 +804,15 @@ private struct MakeCardLabelStyle: LabelStyle {
 }
 
 private extension View {
+    /// Writes this view's size into `size` whenever it changes.
+    func measuredSize(_ size: Binding<CGSize>) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.onChange(of: proxy.size, initial: true) { _, value in size.wrappedValue = value }
+            }
+        }
+    }
+
     /// Writes this view's height into `height` whenever it changes.
     func measuredHeight(_ height: Binding<CGFloat>) -> some View {
         background {
