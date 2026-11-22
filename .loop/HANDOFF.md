@@ -657,3 +657,34 @@
 ## 2026-11-22 · orchestrator · T-016 · landed; T-018 planned
 - Done: T-016 passed (2 sonnet rounds + 2 verify-only passes; 4 CI runs). Squashed to c713b66; the CI timeout (45 → 60 min) is its own commit.
 - Left: T-018 (Brent's follow-up for C3 and C4) is the last task of the subtitle-style goal.
+
+## 2026-11-22 · loop-frontend · T-018 · round 1 (sonnet)
+- Done: card Up disables (value "Highest") when the next step wouldn't move the line (SubtitlePlacement.canStepUpWithCardOpen); isBoldFace trusts the weight trait over the name. Nothing compiled
+- Left: CI run (scope=all, or unit + the new card UI test)
+- Files: Features/Player/SubtitlePlacement.swift, SubtitleStyleCard.swift, SubtitleStyle.swift, PlayerView.swift, ClipDeckTests/SubtitleStyleTests.swift, SubtitleFontTests.swift, ClipDeckUITests/SubtitleStyleCardTesterUITests.swift, docs/DESIGN.md
+- Gotchas: video/line sizes come from state set by onChange, so the first frame after opening may use stale sizes; unmeasured video keeps Up enabled
+
+## 2026-11-22 03:14 · loop-tester · T-018 · round 1
+- Done: read CI 44997338718 (45f32d4, scope=all). ipa green, simulator 374/377, 0 build issues. AC-2 passes: the 14/11/9-tap unit tests pass, and the card UI test dims Up after 13 taps, each moving > 1 pt, with value "Highest". The known flakes all passed
+- Fail: M1. ArialRoundedMTBold reports weight trait 0.0 and no traitBold on iOS 26.5, so the new "trust the weight" rule makes it not bold. 3 tests fail (the new arialRounded test, plus the two existing bold-only tests from T-016). AC-3's premise ("bold by its weight trait") is false; it needs a decision: use the name when the weight is 0.0, or read OS/2 usWeightClass
+- Could fix: C1 Down from a stored place past the clamp doesn't move the line; C2 the video and line sizes are measured only while a cue shows; C3 the builder's UI test bound `< 20` can't tell the top bar from the stored limit
+- Tests: new ios/ClipDeckTests/SubtitleUpLimitTesterTests.swift (5) and ios/ClipDeckUITests/SubtitleUpLimitTesterUITests.swift (2: the 2/3-row cards, the stored percent, the clamp position, the portrait 90 % rule); uncommitted, not yet run
+- Files: .loop/tasks/T-018-subtitle-style-limits-and-bold-rule.md (Test report round 1), .loop/CONTEXT.md (Learned)
+- Gotchas: `python -I` ignores PYTHONIOENCODING; use sys.stdout.reconfigure(encoding="utf-8") when printing xcresult issues
+
+## 2026-11-22 · loop-frontend · T-018 · round 2 (sonnet)
+- Done: isBoldFace ignores a 0.0 weight (name decides); card Down jumps from above the clamp to one below the highest reachable step; tests and DESIGN.md updated. Nothing compiled
+- Files: SubtitleStyle.swift, SubtitlePlacement.swift, SubtitleStyleCard.swift, PlayerView.swift, SubtitleFontTests.swift, SubtitleStyleTests.swift, SubtitleStyleCardTesterUITests.swift, docs/DESIGN.md
+
+## 2026-11-22 04:10 · loop-tester · T-018 · round 2
+- Done: read CI 45002423211 (b698119, scope=all). Both jobs green. Simulator 390/390 in 46 min, 0 issues, and every known flake passed. M1 is fixed: Arial Rounded counts as bold again, and both bold-only tests pass
+- AC-1/2: Up dims at 13 / 10 / 7 taps (1 / 2 / 3 rows), always at the clamp 68.0 (top bar 60 + 8). Each tap moves the line ~18 pt and Down reads the stored percent. With a stored 85 %, the portrait sheet still goes to 90 %. AC-5: Down from 85 % moves the line 68.0 → 72.67, which is step 12, one below the dimming step 13
+- Verdict: Pass, with no Must or Should fix. Could fix: C1, a stale portrait video size with no line showing now also sets the Down jump target. C2, a line taller than the room makes the first Down drop the stored place to 0
+- Files: .loop/tasks/T-018-subtitle-style-limits-and-bold-rule.md (Test report round 2); no tests added
+- Gotchas: in the artifact, `screenshots/ui-tests/<Attachments.uuid>.txt|png` are the exported attachments; join Attachments → Activities → TestCaseRuns in database.sqlite3 to find which test made each one
+
+## 2026-11-22 · orchestrator · T-018 · landed
+- Done: Pass in round 2 (Sonnet builder, Opus tester). Landed as df44e8b. CI 45002423211 (scope=all): ipa green, 390/390 tests. 2 of the 4 CI runs used
+- Brent revised AC-3 after round 1 (a 0.0 weight lets the name decide) and added AC-5 (the first Down from above the reachable top jumps)
+- Open Could fix, no later task on the board: C1, the video size is measured only while a line shows (fix: measure on videoScreen). C2, a line taller than the room makes the first Down drop to 0. Both go to Brent with the goal summary
+- Goal subtitle-style: every task done (T-014, T-015, T-017, T-016, T-018)
