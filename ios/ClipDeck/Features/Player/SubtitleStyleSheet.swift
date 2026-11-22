@@ -134,6 +134,52 @@ private struct SheetTopProbeView: UIViewRepresentable {
     }
 }
 
+/// The system font picker (families only) for SwiftUI. It reports the chosen family's PostScript name, or a cancel.
+private struct SystemFontPicker: UIViewControllerRepresentable {
+    let onPick: (String) -> Void
+    let onCancel: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onPick: onPick, onCancel: onCancel)
+    }
+
+    func makeUIViewController(context: Context) -> UIFontPickerViewController {
+        let configuration = UIFontPickerViewController.Configuration()
+        configuration.includeFaces = false
+        let picker = UIFontPickerViewController(configuration: configuration)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ picker: UIFontPickerViewController, context: Context) {
+        context.coordinator.onPick = onPick
+        context.coordinator.onCancel = onCancel
+    }
+
+    final class Coordinator: NSObject, UIFontPickerViewControllerDelegate {
+        var onPick: (String) -> Void
+        var onCancel: () -> Void
+
+        init(onPick: @escaping (String) -> Void, onCancel: @escaping () -> Void) {
+            self.onPick = onPick
+            self.onCancel = onCancel
+        }
+
+        func fontPickerViewControllerDidPickFont(_ viewController: UIFontPickerViewController) {
+            guard let descriptor = viewController.selectedFontDescriptor else {
+                onCancel()
+                return
+            }
+            // A family descriptor may carry no face name, so ask the font it resolves to.
+            onPick(UIFont(descriptor: descriptor, size: SubtitleStyle.minimumPointSize).fontName)
+        }
+
+        func fontPickerViewControllerDidCancel(_ viewController: UIFontPickerViewController) {
+            onCancel()
+        }
+    }
+}
+
 /// What the first detent was fitted for. A new value (a different video bottom or window, or a new text size)
 /// refits the detent and measures again; nothing else does.
 private nonisolated struct SheetFitKey: Equatable {
@@ -177,6 +223,9 @@ struct SubtitleStyleSheet: View {
     /// The first detent's height in use, or nil for `.large` only.
     @State private var firstHeight: CGFloat?
     @State private var probe = SheetTopProbe()
+    /// The system font picker is presented over this sheet. While it is, the sheet underneath is moved and scaled by
+    /// the system, so its top must not be measured (a wrong rise would be cached).
+    @State private var showingFontPicker = false
 
     init(clearance: SheetClearance?) {
         self.clearance = clearance
@@ -216,6 +265,16 @@ struct SubtitleStyleSheet: View {
         }
         .task(id: SheetFitKey(clearance: clearance, textSize: dynamicTypeSize)) {
             await fitFirstDetent()
+        }
+        .sheet(isPresented: $showingFontPicker) {
+            SystemFontPicker(
+                onPick: { name in
+                    pickFont(name)
+                    showingFontPicker = false
+                },
+                onCancel: { showingFontPicker = false }
+            )
+            .accessibilityIdentifier("subtitleStyle.fontPicker")
         }
         // The system sheet animation is used, and it follows Reduce Motion. The video is not dimmed or covered
         // at the first detent, so the line can be judged while it changes.
@@ -259,8 +318,16 @@ struct SubtitleStyleSheet: View {
         // The sheet's presentation animation takes about a third of a second.
         try? await Task.sleep(for: .milliseconds(450))
         var previousTop: CGFloat?
-        for _ in 0 ..< 12 {
+        var attempts = 0
+        while attempts < 12 {
             if Task.isCancelled { return }
+            if showingFontPicker {
+                // The picker covers this sheet and the system moves it: wait without using up an attempt.
+                previousTop = nil
+                try? await Task.sleep(for: .milliseconds(100))
+                continue
+            }
+            attempts += 1
             if let height = firstHeight, detent == .height(height), let top = probe.top {
                 // Two equal readings 0.1 s apart: the sheet has settled (it isn't animating or being dragged).
                 if let previousTop, abs(top - previousTop) < 0.5 {
@@ -321,9 +388,16 @@ struct SubtitleStyleSheet: View {
         VStack(alignment: .leading, spacing: Spacing.s) {
             sectionTitle("Font")
             ForEach(SubtitleFont.allCases, id: \.self) { font in
-                fontRow(font, selected: current.font == font, bold: current.bold)
+                fontRow(font, selected: current.pickedFontName == nil && current.font == font, bold: current.bold)
             }
-            // T-017 adds the "More fonts…" row here, right under the presets.
+            moreFontsRow(current)
+            if current.pickedFontName != nil, !current.pickedFontHasBold {
+                Text("This font has no bold weight.")
+                    .font(.deckCaption)
+                    .foregroundStyle(Theme.inkSoft)
+                    .padding(.horizontal, Spacing.m)
+                    .accessibilityIdentifier("subtitleStyle.font.noBold")
+            }
             boldRow(current)
         }
     }
@@ -336,7 +410,10 @@ struct SubtitleStyleSheet: View {
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.xs))
             : AnyLayout(HStackLayout(spacing: Spacing.m))
         return Button {
-            update { $0.font = font }
+            update {
+                $0.font = font
+                $0.pickedFontName = nil
+            }
         } label: {
             layout {
                 Text(font.title)
@@ -360,6 +437,66 @@ struct SubtitleStyleSheet: View {
         .accessibilityLabel("\(font.title) font")
         .accessibilityAddTraits(selected ? .isSelected : [])
         .accessibilityIdentifier("subtitleStyle.font.\(font.rawValue)")
+    }
+
+    /// "More fonts…": opens the system font picker. Once a font is picked the row shows its name and the sample
+    /// "Aa あア漢字" drawn exactly as the line draws it (Japanese cascade included), and is aqua like a selected preset.
+    private func moreFontsRow(_ current: SubtitleStyle) -> some View {
+        let pickedName = current.pickedFamilyName
+        let selected = pickedName != nil
+        let sample = current.uiFont(pointSize: sampleSize)
+        let stacked = dynamicTypeSize.isAccessibilitySize
+        let layout = stacked
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: Spacing.xs))
+            : AnyLayout(HStackLayout(spacing: Spacing.m))
+        return Button {
+            showingFontPicker = true
+        } label: {
+            layout {
+                Label {
+                    VStack(alignment: .leading, spacing: 0) {
+                        Text("More fonts…")
+                            .font(.deckHeadline)
+                        if let pickedName {
+                            Text(pickedName)
+                                .font(.deckCaption)
+                        }
+                    }
+                } icon: {
+                    Image(systemName: "ellipsis.circle")
+                }
+                if !stacked { Spacer(minLength: Spacing.s) }
+                if selected {
+                    Text("Aa あア漢字")
+                        .font(Font(sample as CTFont))
+                        .accessibilityHidden(true)
+                }
+            }
+            .foregroundStyle(selected ? Color.white : Theme.ink)
+            .padding(.horizontal, Spacing.m)
+            .padding(.vertical, Spacing.s)
+            .frame(maxWidth: .infinity, minHeight: 48, alignment: .leading)
+            .background(
+                selected ? Theme.accent : Theme.shell,
+                in: RoundedRectangle(cornerRadius: Radius.control, style: .continuous)
+            )
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .accessibilityLabel("More fonts")
+        .accessibilityValue(pickedName ?? "None")
+        .accessibilityAddTraits(selected ? .isSelected : [])
+        .accessibilityIdentifier("subtitleStyle.font.more")
+    }
+
+    /// Saves a font chosen in the picker (by PostScript name) in place of the preset. Nothing happens for a name
+    /// that can't be built.
+    private func pickFont(_ postScriptName: String) {
+        guard SubtitleStyle.isInstalled(postScriptName) else { return }
+        update {
+            $0.pickedFontName = postScriptName
+            $0.font = .sans
+        }
     }
 
     private func boldRow(_ current: SubtitleStyle) -> some View {
