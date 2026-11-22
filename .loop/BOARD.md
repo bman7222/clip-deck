@@ -1,5 +1,5 @@
 # Board: clip-deck
-Goal: subtitle style controls (font, bold, offset, size, reset) · Branch: loop/subtitle-style · Updated: 2026-11-20
+Goal: subtitle style controls (font, bold, offset, size, reset) · Branch: loop/subtitle-style · Updated: 2026-11-22
 
 | ID | Title | Lane | Depends on | Status | Round | Result |
 |----|-------|------|------------|--------|-------|--------|
@@ -20,4 +20,4 @@ Goal: subtitle style controls (font, bold, offset, size, reset) · Branch: loop/
 | T-015 | Adjust the subtitle style from a menu in the portrait player #16 | frontend | T-014 | done | 3 | fab9468 |
 | T-017 | Pick any installed font for subtitles, with Japanese that always renders cleanly #18 | frontend | T-015 | done | 1 | 31bc513 |
 | T-016 | Adjust the subtitle style in landscape from a card in the bottom bar #17 | frontend | T-015, T-017 | done | 2 | c713b66 |
-| T-018 | Stop Up when the line can't go higher, and trust a font's weight over its name #19 | frontend | T-016 | todo | | |
+| T-018 | Stop Up when the line can't go higher, and trust a font's weight over its name #19 | frontend | T-016 | done | 2 | df44e8b |
