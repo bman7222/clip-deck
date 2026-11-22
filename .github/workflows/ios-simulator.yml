@@ -28,7 +28,7 @@ jobs:
   simulator:
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'ipa'
     runs-on: macos-latest
-    timeout-minutes: 45
+    timeout-minutes: 60
     steps:
       - uses: actions/checkout@v5
 
