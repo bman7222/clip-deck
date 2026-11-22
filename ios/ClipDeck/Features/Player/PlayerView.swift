@@ -24,6 +24,9 @@ struct PlayerView: View {
     @State private var showCardFontPicker = false
     /// The card's measured height, so the line can be pushed above it like it is above the bottom bar.
     @State private var styleCardHeight: CGFloat = 100
+    /// The measured video and subtitle line sizes, so the landscape card knows when Up can't move the line.
+    @State private var subtitleVideoSize: CGSize = .zero
+    @State private var subtitleLineSize: CGSize = .zero
     /// The bottom of the portrait video in global coordinates, so the style sheet's first detent can stay under it.
     @State private var videoMaxY: CGFloat = 0
     @State private var miningRange: ClipRange?
@@ -228,14 +231,26 @@ struct PlayerView: View {
             top: insets.top, leading: insets.leading,
             bottom: insets.bottom, trailing: showSidePanel ? Self.panelHandleClearance : insets.trailing
         )
+        let lineMargins = SubtitleMargins(
+            top: Spacing.s + insets.top, leading: Spacing.l + barInsets.leading,
+            bottom: Spacing.m + insets.bottom, trailing: Spacing.l + barInsets.trailing)
+        let lineTopObstruction: CGFloat = shown ? topBarHeight + Spacing.s : 0
+        let lineBottomObstruction: CGFloat = shown ? (styleMenuOpen ? styleCardHeight : bottomBarHeight) + Spacing.s : 0
+        let cardCanStepUp = SubtitlePlacement.canStepUpWithCardOpen(
+            videoSize: subtitleVideoSize, margins: lineMargins,
+            topObstruction: lineTopObstruction, bottomObstruction: lineBottomObstruction,
+            lineSize: model.currentCue == nil ? .zero : subtitleLineSize,
+            style: SubtitleStyle.decoded(from: storedSubtitleStyle))
+        let cardHighestUpStep = SubtitlePlacement.highestReachableUpStep(
+            videoSize: subtitleVideoSize, margins: lineMargins,
+            topObstruction: lineTopObstruction, bottomObstruction: lineBottomObstruction,
+            lineSize: model.currentCue == nil ? .zero : subtitleLineSize)
         return HStack(spacing: 0) {
             videoScreen(
                 model,
-                subtitleMargins: SubtitleMargins(
-                    top: Spacing.s + insets.top, leading: Spacing.l + barInsets.leading,
-                    bottom: Spacing.m + insets.bottom, trailing: Spacing.l + barInsets.trailing),
-                subtitleTopObstruction: shown ? topBarHeight + Spacing.s : 0,
-                subtitleBottomObstruction: shown ? (styleMenuOpen ? styleCardHeight : bottomBarHeight) + Spacing.s : 0,
+                subtitleMargins: lineMargins,
+                subtitleTopObstruction: lineTopObstruction,
+                subtitleBottomObstruction: lineBottomObstruction,
                 subtitleStepsFromCard: shown && styleMenuOpen,
                 badgeTopPadding: shown ? topBarHeight + Spacing.s : insets.top,
                 edgeInsets: EdgeInsets(top: 0, leading: barInsets.leading, bottom: 0, trailing: barInsets.trailing),
@@ -256,6 +271,8 @@ struct PlayerView: View {
                         if styleMenuOpen {
                             SubtitleStyleCard(
                                 insets: barInsets,
+                                canStepUp: cardCanStepUp,
+                                highestUpStep: cardHighestUpStep,
                                 onMoreFonts: { showCardFontPicker = true },
                                 onDone: closeStyleMenu
                             )
@@ -535,8 +552,10 @@ struct PlayerView: View {
                 SelectableText(
                     text: text, textStyle: .title3, weight: .bold, color: .white, outlined: true,
                     font: style.uiFont(regionHeight: regionHeight), hugsWidth: true, identifier: "player.subtitle")
+                .measuredSize($subtitleLineSize)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
+            .measuredSize($subtitleVideoSize)
         }
         .animation(.easeInOut(duration: 0.2), value: bottomObstruction)
         .animation(.easeInOut(duration: 0.2), value: topObstruction)
@@ -785,6 +804,15 @@ private struct MakeCardLabelStyle: LabelStyle {
 }
 
 private extension View {
+    /// Writes this view's size into `size` whenever it changes.
+    func measuredSize(_ size: Binding<CGSize>) -> some View {
+        background {
+            GeometryReader { proxy in
+                Color.clear.onChange(of: proxy.size, initial: true) { _, value in size.wrappedValue = value }
+            }
+        }
+    }
+
     /// Writes this view's height into `height` whenever it changes.
     func measuredHeight(_ height: Binding<CGFloat>) -> some View {
         background {

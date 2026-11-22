@@ -227,4 +227,39 @@ struct SubtitleFontTests {
         #expect(style.pickedFontName == "Georgia")
         #expect(style.font == .sans)
     }
+
+    // MARK: Bold rule (T-018)
+
+    @Test func arialRoundedCountsAsBold() throws {
+        let rounded = try #require(UIFont(name: "ArialRoundedMTBold", size: 20))
+        #expect(SubtitleStyle.isBoldFace(rounded))
+        // The real face reports weight 0.0 (no information), so its name decides. A light weight with the same
+        // name would not be bold, which shows the rule is not the name alone.
+        #expect(SubtitleStyle.isBoldFace(weight: 0, hasBoldTrait: false, name: rounded.fontName))
+        #expect(!SubtitleStyle.isBoldFace(weight: -0.4, hasBoldTrait: false, name: rounded.fontName))
+    }
+
+    @Test func aLightFaceNamedBlackIsNotBold() {
+        #expect(!SubtitleStyle.isBoldFace(weight: -0.4, hasBoldTrait: false, name: "SomeFamily-BlackLight"))
+        #expect(!SubtitleStyle.isBoldFace(weight: 0.1, hasBoldTrait: false, name: "Some-Heavy"))
+    }
+
+    @Test func weightZeroWithABoldNameIsBold() {
+        #expect(SubtitleStyle.isBoldFace(weight: 0, hasBoldTrait: false, name: "Some-Bold"))
+        #expect(!SubtitleStyle.isBoldFace(weight: 0, hasBoldTrait: false, name: "Some-Regular"))
+        #expect(SubtitleStyle.isBoldFace(weight: 0, hasBoldTrait: true, name: "Plain"))
+    }
+
+    @Test func aNonZeroWeightOfSemiboldOrMoreIsBoldWithAPlainName() {
+        #expect(SubtitleStyle.isBoldFace(weight: 0.4, hasBoldTrait: false, name: "Plain"))
+        #expect(SubtitleStyle.isBoldFace(weight: 0.3, hasBoldTrait: false, name: "Plain"))
+        #expect(!SubtitleStyle.isBoldFace(weight: 0.2, hasBoldTrait: false, name: "Plain"))
+    }
+
+    @Test func theNameCountsWhenThereIsNoWeightInformation() {
+        #expect(SubtitleStyle.isBoldFace(weight: nil, hasBoldTrait: false, name: "Some-Black"))
+        #expect(SubtitleStyle.isBoldFace(weight: nil, hasBoldTrait: false, name: "Some-Heavy"))
+        #expect(SubtitleStyle.isBoldFace(weight: nil, hasBoldTrait: false, name: "Some-Bold"))
+        #expect(!SubtitleStyle.isBoldFace(weight: nil, hasBoldTrait: false, name: "Some-Regular"))
+    }
 }

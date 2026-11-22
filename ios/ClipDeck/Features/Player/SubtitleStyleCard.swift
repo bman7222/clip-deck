@@ -12,6 +12,11 @@ struct SubtitleStyleCard: View {
     /// The bars' insets (safe area, and the handle clearance while the panel is open), so the card stays inside the
     /// video column and the safe area exactly like the bottom bar.
     let insets: EdgeInsets
+    /// False when one more Up step would not move the line (it already sits under the top bar), so Up dims.
+    var canStepUp = true
+    /// The highest up step the line can reach with the card open. A stored step above it jumps to one below it on
+    /// the first Down tap, so Down always shows. The default means "no limit known".
+    var highestUpStep = SubtitleStyle.upRange.upperBound
     let onMoreFonts: () -> Void
     let onDone: () -> Void
 
@@ -105,13 +110,20 @@ struct SubtitleStyleCard: View {
             )
         case .up:
             StyleIconButton(
-                symbol: "arrow.up", id: "up", label: "Move subtitles up", value: current.verticalSpoken,
-                enabled: current.canMoveUp, action: { update { _ = $0.stepUp(1) } }
+                symbol: "arrow.up", id: "up", label: "Move subtitles up",
+                value: canStepUp ? current.verticalSpoken : "Highest",
+                enabled: current.canMoveUp && canStepUp, action: { update { _ = $0.stepUp(1) } }
             )
         case .down:
             StyleIconButton(
                 symbol: "arrow.down", id: "down", label: "Move subtitles down", value: current.verticalSpoken,
-                enabled: current.canMoveDown, action: { update { _ = $0.stepUp(-1) } }
+                enabled: current.canMoveDown,
+                action: {
+                    update {
+                        $0.upSteps = SubtitlePlacement.upStepAfterDownWithCardOpen(
+                            stored: $0.upSteps, highestReachable: highestUpStep)
+                    }
+                }
             )
         case .right:
             StyleIconButton(

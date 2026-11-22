@@ -137,6 +137,51 @@ final class SubtitleStyleCardTesterUITests: XCTestCase {
         attachEvidence(app, name: "tester-up-taps-card-open")
     }
 
+    /// T-018: Up stays enabled only while one more tap still moves the line. Every tap before it dims moves the line
+    /// by more than 1 pt, and the dimmed Up says "Highest".
+    @MainActor
+    func testUpDisablesWhenTheLineCanNoLongerMoveUp() throws {
+        let app = launchLandscape(seed: nil)
+        _ = showSecondLineAndClosePanel(app)
+        openCard(app)
+        settle()
+        let up = app.buttons["subtitleStyle.up"]
+        var previousMaxY = app.textViews["player.subtitle"].frame.maxY
+        var taps = 0
+        while up.isEnabled && taps < 20 {
+            up.tap()
+            taps += 1
+            settle()
+            let maxY = app.textViews["player.subtitle"].frame.maxY
+            XCTAssertLessThan(maxY, previousMaxY - 1, "Up tap \(taps) moves the line by more than 1 pt")
+            previousMaxY = maxY
+        }
+        XCTAssertGreaterThan(taps, 0, "Up starts enabled")
+        XCTAssertLessThan(taps, 18, "The top bar, not the stored 90 % limit, stopped Up")
+        XCTAssertFalse(up.isEnabled, "Up is disabled once the line can't go higher")
+        XCTAssertEqual(up.value as? String, "Highest")
+        attachText("up taps before disabling: \(taps)", name: "up-disables-card-open")
+    }
+
+    /// T-018 AC-5: with a stored place above what the card allows, the first Down tap already moves the line.
+    @MainActor
+    func testFirstDownTapMovesTheLineWhenTheStoredPlaceIsAboveTheClamp() throws {
+        let app = launchLandscape(seed: #"{"upSteps":17}"#)
+        _ = showSecondLineAndClosePanel(app)
+        openCard(app)
+        settle()
+        let up = app.buttons["subtitleStyle.up"]
+        let down = app.buttons["subtitleStyle.down"]
+        XCTAssertFalse(up.isEnabled, "Up opens dimmed")
+        XCTAssertTrue(down.isEnabled, "Down is enabled")
+        let pinned = app.textViews["player.subtitle"].frame
+        down.tap()
+        settle()
+        let after = app.textViews["player.subtitle"].frame
+        XCTAssertGreaterThan(after.minY - pinned.minY, 1, "The first Down tap moves the line down")
+        attachText("pinned \(pinned), after first Down \(after)", name: "down-from-above-clamp")
+    }
+
     // MARK: Checks
 
     /// From hidden controls: shows them, opens the card, taps Up `upTaps` times, taps Done, hides the controls with a
