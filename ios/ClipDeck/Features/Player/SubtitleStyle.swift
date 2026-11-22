@@ -239,13 +239,25 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
     /// The picked font's family name for display, or nil when none is picked or it is gone.
     var pickedFamilyName: String? { pickedBaseFont(size: Self.minimumPointSize)?.familyName }
 
+    /// The one rule for "this face is bold": the bold symbolic trait, or a weight of semibold or heavier (some
+    /// bold-only families, such as Arial Rounded MT Bold, carry only the weight), or a name that says so.
+    static func isBoldFace(_ font: UIFont) -> Bool {
+        if font.fontDescriptor.symbolicTraits.contains(.traitBold) { return true }
+        if let traits = font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any],
+           let weight = (traits[.weight] as? NSNumber)?.doubleValue, weight >= 0.3 {
+            return true
+        }
+        let name = font.fontName.lowercased()
+        return name.contains("bold") || name.contains("heavy") || name.contains("black")
+    }
+
     /// The family's bold face, or nil when it has none. A font that is already bold is its own bold face. There is
     /// no faux bold: without a real bold face the regular one is drawn unchanged.
     private static func boldFace(of base: UIFont, size: CGFloat) -> UIFont? {
-        if base.fontDescriptor.symbolicTraits.contains(.traitBold) { return base }
+        if isBoldFace(base) { return base }
         guard let descriptor = base.fontDescriptor.withSymbolicTraits(.traitBold) else { return nil }
         let face = UIFont(descriptor: descriptor, size: size)
-        guard face.fontDescriptor.symbolicTraits.contains(.traitBold), face.familyName == base.familyName else {
+        guard isBoldFace(face), face.familyName == base.familyName else {
             return nil
         }
         return face
@@ -255,6 +267,18 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
     var pickedFontHasBold: Bool {
         guard let base = pickedBaseFont(size: Self.minimumPointSize) else { return false }
         return Self.boldFace(of: base, size: Self.minimumPointSize) != nil
+    }
+
+    /// True when a picked font's family has only bold faces (for example Arial Rounded MT Bold), so it is drawn bold
+    /// even with Bold off. False when none is picked or the family also has a face that is not bold.
+    var pickedFontIsAlwaysBold: Bool {
+        guard let base = pickedBaseFont(size: Self.minimumPointSize), Self.isBoldFace(base) else { return false }
+        let faceNames = UIFont.fontNames(forFamilyName: base.familyName)
+        let hasLighterFace = faceNames.contains { name in
+            guard let face = UIFont(name: name, size: Self.minimumPointSize) else { return false }
+            return !Self.isBoldFace(face)
+        }
+        return !hasLighterFace
     }
 
     /// Point size for a text style: today's Dynamic Type size x the size scale, never more than a quarter of the

@@ -16,6 +16,9 @@ nonisolated struct SubtitleMargins: Equatable, Sendable {
 /// - While the top bar, the bottom bar or the landscape style card show, the region's top or bottom is pulled
 ///   in to clear them (the obstruction is the distance from that video edge). A line already clear of a bar
 ///   doesn't move, and the default line sits where it always sat.
+/// - While the landscape style card is open (`stepsFromObstruction`), the up steps are counted from the line's
+///   resting place just above the card, not from the video's bottom, so every Up or Down tap visibly moves the
+///   line (a live preview). Closing the card goes back to the normal rule above.
 /// - The line is then moved fully inside. A line taller than the region is pinned to the region's bottom.
 nonisolated enum SubtitlePlacement {
     static let stepFraction: CGFloat = 0.05
@@ -35,7 +38,8 @@ nonisolated enum SubtitlePlacement {
         topObstruction: CGFloat = 0,
         bottomObstruction: CGFloat = 0,
         lineSize: CGSize,
-        style: SubtitleStyle
+        style: SubtitleStyle,
+        stepsFromObstruction: Bool = false
     ) -> CGRect {
         let style = style.clamped()
         let resting = restingRegion(videoSize: videoSize, margins: margins)
@@ -48,7 +52,8 @@ nonisolated enum SubtitlePlacement {
         let wantedCenterX = resting.midX + CGFloat(style.rightSteps) * stepFraction * resting.width
         let x = min(max(wantedCenterX - width / 2, resting.minX), resting.maxX - width)
 
-        let wantedBottom = resting.maxY - CGFloat(style.upSteps) * stepFraction * resting.height
+        let upDistance = CGFloat(style.upSteps) * stepFraction * resting.height
+        let wantedBottom = (stepsFromObstruction ? activeBottom : resting.maxY) - upDistance
         let bottom: CGFloat
         if height >= activeBottom - activeTop {
             bottom = activeBottom
@@ -66,6 +71,8 @@ struct SubtitleLineLayout: Layout {
     var margins: SubtitleMargins
     var topObstruction: CGFloat
     var bottomObstruction: CGFloat
+    /// True while the style card is open: the up steps start from just above the card.
+    var stepsFromObstruction = false
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         proposal.replacingUnspecifiedDimensions(by: CGSize(width: 320, height: 180))
@@ -81,7 +88,8 @@ struct SubtitleLineLayout: Layout {
             topObstruction: topObstruction,
             bottomObstruction: bottomObstruction,
             lineSize: measured,
-            style: style
+            style: style,
+            stepsFromObstruction: stepsFromObstruction
         )
         line.place(
             at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),
