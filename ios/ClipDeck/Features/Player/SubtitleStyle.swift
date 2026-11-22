@@ -239,16 +239,24 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
     /// The picked font's family name for display, or nil when none is picked or it is gone.
     var pickedFamilyName: String? { pickedBaseFont(size: Self.minimumPointSize)?.familyName }
 
-    /// The one rule for "this face is bold": the bold symbolic trait, or a weight of semibold or heavier (some
-    /// bold-only families, such as Arial Rounded MT Bold, carry only the weight), or a name that says so.
+    /// The one rule for "this face is bold". A font that reports a non-zero weight trait is judged by it: a weight
+    /// of semibold or heavier (0.3), or the bold symbolic trait. A missing or exactly 0.0 weight says nothing (iOS
+    /// reports 0.0 for Arial Rounded MT Bold, which is bold-only), so then the bold symbolic trait or the name
+    /// ("bold", "heavy", "black") decides. A light face (negative weight) named "...Black" is therefore not bold.
     static func isBoldFace(_ font: UIFont) -> Bool {
-        if font.fontDescriptor.symbolicTraits.contains(.traitBold) { return true }
-        if let traits = font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any],
-           let weight = (traits[.weight] as? NSNumber)?.doubleValue, weight >= 0.3 {
-            return true
-        }
-        let name = font.fontName.lowercased()
-        return name.contains("bold") || name.contains("heavy") || name.contains("black")
+        let traits = font.fontDescriptor.object(forKey: .traits) as? [UIFontDescriptor.TraitKey: Any]
+        return isBoldFace(
+            weight: (traits?[.weight] as? NSNumber)?.doubleValue,
+            hasBoldTrait: font.fontDescriptor.symbolicTraits.contains(.traitBold),
+            name: font.fontName)
+    }
+
+    /// The rule itself, on plain values so it can be tested without an installed font.
+    static func isBoldFace(weight: Double?, hasBoldTrait: Bool, name: String) -> Bool {
+        if let weight, weight != 0 { return weight >= 0.3 || hasBoldTrait }
+        if hasBoldTrait { return true }
+        let lowered = name.lowercased()
+        return lowered.contains("bold") || lowered.contains("heavy") || lowered.contains("black")
     }
 
     /// The family's bold face, or nil when it has none. A font that is already bold is its own bold face. There is

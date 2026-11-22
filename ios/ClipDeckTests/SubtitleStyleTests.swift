@@ -514,3 +514,95 @@ struct SubtitlePlacementTests {
         #expect(fix.detentHeight == SheetFit.minimumDetentHeight)
     }
 }
+
+// MARK: Up with the landscape card open (T-018)
+
+extension SubtitlePlacementTests {
+    /// A landscape video 800 x 360, margins 8 / 75 / 33 / 48 (resting y 8...327, 319 high, so a step is 15.95 pt),
+    /// a 52 pt top bar clearance and a 30 pt line (so the line's bottom can't go above 82).
+    private func upTapsPossible(cardClearance: CGFloat) -> Int {
+        let size = CGSize(width: 800, height: 360)
+        let margins = SubtitleMargins(top: 8, leading: 75, bottom: 33, trailing: 48)
+        let lineSize = CGSize(width: 100, height: 30)
+        var style = SubtitleStyle.default
+        var taps = 0
+        while taps < 40 {
+            let canStep = SubtitlePlacement.canStepUpWithCardOpen(
+                videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: cardClearance,
+                lineSize: lineSize, style: style)
+            if !canStep { break }
+            let before = SubtitlePlacement.frame(
+                videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: cardClearance,
+                lineSize: lineSize, style: style, stepsFromObstruction: true)
+            style.upSteps += 1
+            let after = SubtitlePlacement.frame(
+                videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: cardClearance,
+                lineSize: lineSize, style: style, stepsFromObstruction: true)
+            #expect(before.minY - after.minY > 1)   // every enabled tap shows
+            taps += 1
+        }
+        return taps
+    }
+
+    @Test func oneRowCardAllowsFourteenUpTaps() {
+        #expect(upTapsPossible(cardClearance: 68) == 14)
+    }
+
+    @Test func twoRowCardAllowsElevenUpTaps() {
+        #expect(upTapsPossible(cardClearance: 108) == 11)
+    }
+
+    @Test func threeRowCardAllowsNineUpTaps() {
+        #expect(upTapsPossible(cardClearance: 148) == 9)
+    }
+
+    @Test func theStoredLimitStillStopsUpAndAnUnmeasuredVideoDoesNot() {
+        let size = CGSize(width: 800, height: 360)
+        let margins = SubtitleMargins(top: 8, leading: 75, bottom: 33, trailing: 48)
+        let atLimit = SubtitlePlacement.canStepUpWithCardOpen(
+            videoSize: size, margins: margins, topObstruction: 0, bottomObstruction: 68,
+            lineSize: CGSize(width: 100, height: 4), style: SubtitleStyle(upSteps: 18))
+        #expect(!atLimit)
+        let unmeasured = SubtitlePlacement.canStepUpWithCardOpen(
+            videoSize: .zero, margins: margins, topObstruction: 52, bottomObstruction: 68,
+            lineSize: .zero, style: .default)
+        #expect(unmeasured)
+    }
+
+    private func highest(cardClearance: CGFloat) -> Int {
+        SubtitlePlacement.highestReachableUpStep(
+            videoSize: CGSize(width: 800, height: 360), margins: SubtitleMargins(top: 8, leading: 75, bottom: 33, trailing: 48),
+            topObstruction: 52, bottomObstruction: cardClearance, lineSize: CGSize(width: 100, height: 30))
+    }
+
+    @Test func theHighestReachableStepMatchesTheUpTaps() {
+        #expect(highest(cardClearance: 68) == 14)
+        #expect(highest(cardClearance: 108) == 11)
+        #expect(highest(cardClearance: 148) == 9)
+    }
+
+    @Test func aStoredStepAboveTheHighestReachableJumpsToOneBelowItOnTheFirstDown() {
+        let top = highest(cardClearance: 68)
+        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 17, highestReachable: top) == top - 1)
+        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 18, highestReachable: top) == top - 1)
+        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: top + 1, highestReachable: top) == top - 1)
+        // At or below the highest reachable step, Down is one step as before, and never below the default.
+        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: top, highestReachable: top) == top - 1)
+        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 5, highestReachable: top) == 4)
+        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 0, highestReachable: top) == 0)
+    }
+
+    @Test func theJumpedStepMovesTheLineByMoreThanOnePoint() {
+        let size = CGSize(width: 800, height: 360)
+        let margins = SubtitleMargins(top: 8, leading: 75, bottom: 33, trailing: 48)
+        let lineSize = CGSize(width: 100, height: 30)
+        let target = SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 17, highestReachable: highest(cardClearance: 68))
+        let pinned = SubtitlePlacement.frame(
+            videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 68,
+            lineSize: lineSize, style: SubtitleStyle(upSteps: 17), stepsFromObstruction: true)
+        let moved = SubtitlePlacement.frame(
+            videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 68,
+            lineSize: lineSize, style: SubtitleStyle(upSteps: target), stepsFromObstruction: true)
+        #expect(moved.minY - pinned.minY > 1)
+    }
+}

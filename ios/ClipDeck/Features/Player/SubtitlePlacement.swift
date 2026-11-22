@@ -62,6 +62,61 @@ nonisolated enum SubtitlePlacement {
         }
         return CGRect(x: x, y: bottom - height, width: width, height: height)
     }
+
+    /// The smallest move (in points) that counts as "the line moved" when the landscape card is open.
+    static let visibleMove: CGFloat = 1
+
+    /// While the landscape style card is open: can one more Up step still move the line? False at the stored
+    /// limit, and false when the placement for step n+1 is clamped to the same place as step n (the line has
+    /// reached the top bar, or the top of the video). Used only with the card open (steps counted from the card).
+    static func canStepUpWithCardOpen(
+        videoSize: CGSize,
+        margins: SubtitleMargins,
+        topObstruction: CGFloat,
+        bottomObstruction: CGFloat,
+        lineSize: CGSize,
+        style: SubtitleStyle
+    ) -> Bool {
+        let current = style.clamped()
+        guard current.canMoveUp else { return false }
+        // Not measured yet (no line has been drawn): nothing to judge, so leave Up enabled.
+        guard videoSize.width > 0, videoSize.height > 0 else { return true }
+        var next = current
+        next.upSteps += 1
+        let now = frame(
+            videoSize: videoSize, margins: margins, topObstruction: topObstruction,
+            bottomObstruction: bottomObstruction, lineSize: lineSize, style: current, stepsFromObstruction: true)
+        let after = frame(
+            videoSize: videoSize, margins: margins, topObstruction: topObstruction,
+            bottomObstruction: bottomObstruction, lineSize: lineSize, style: next, stepsFromObstruction: true)
+        return abs(now.minY - after.minY) > visibleMove
+    }
+
+    /// While the landscape card is open: the highest up step the line can reach, that is the first step from which
+    /// one more Up would not move it. A stored step above it is pinned under the top bar.
+    static func highestReachableUpStep(
+        videoSize: CGSize,
+        margins: SubtitleMargins,
+        topObstruction: CGFloat,
+        bottomObstruction: CGFloat,
+        lineSize: CGSize
+    ) -> Int {
+        for steps in SubtitleStyle.upRange {
+            let canStep = canStepUpWithCardOpen(
+                videoSize: videoSize, margins: margins, topObstruction: topObstruction,
+                bottomObstruction: bottomObstruction, lineSize: lineSize, style: SubtitleStyle(upSteps: steps))
+            if !canStep { return steps }
+        }
+        return SubtitleStyle.upRange.upperBound
+    }
+
+    /// The up step after one Down tap with the card open. A stored step above the highest reachable one jumps to one
+    /// step below it, so the line moves at once; otherwise it is one step down (never below the default).
+    static func upStepAfterDownWithCardOpen(stored: Int, highestReachable: Int) -> Int {
+        let current = SubtitleStyle.clamp(stored, to: SubtitleStyle.upRange)
+        let target = current > highestReachable ? highestReachable - 1 : current - 1
+        return SubtitleStyle.clamp(target, to: SubtitleStyle.upRange)
+    }
 }
 
 /// Places its one child with `SubtitlePlacement`. The child is measured at the resting region's width and
