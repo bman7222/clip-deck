@@ -31,6 +31,23 @@ nonisolated extension SubtitleStyle {
     /// "20 percent up", or "At the default height".
     var verticalSpoken: String { upPercent > 0 ? "\(upPercent) percent up" : "At the default height" }
 
+    /// The Bold control's spoken value: "On" or "Off", or why Bold can't change the picked font.
+    var boldSpoken: String {
+        if pickedFontIsAlwaysBold { return "This font is always bold" }
+        if pickedFontName != nil, !pickedFontHasBold { return "This font has no bold weight" }
+        return bold ? "On" : "Off"
+    }
+
+    /// Saves a font chosen in the picker (by PostScript name) in place of the preset. False, and nothing changes,
+    /// for a name that can't be built.
+    @discardableResult
+    mutating func pickFont(_ postScriptName: String) -> Bool {
+        guard Self.isInstalled(postScriptName) else { return false }
+        pickedFontName = postScriptName
+        font = .sans
+        return true
+    }
+
     /// "10 percent left", "10 percent right" or "Centred".
     var horizontalSpoken: String {
         if rightPercent < 0 { return "\(-rightPercent) percent left" }
@@ -134,8 +151,8 @@ private struct SheetTopProbeView: UIViewRepresentable {
     }
 }
 
-/// The system font picker (families only) for SwiftUI. It reports the chosen family's PostScript name, or a cancel.
-private struct SystemFontPicker: UIViewControllerRepresentable {
+/// The system font picker (families only) for SwiftUI, shared by the portrait sheet and the landscape card. It reports the chosen family's PostScript name, or a cancel.
+struct SystemFontPicker: UIViewControllerRepresentable {
     let onPick: (String) -> Void
     let onCancel: () -> Void
 
@@ -187,8 +204,29 @@ private nonisolated struct SheetFitKey: Equatable {
     var textSize: DynamicTypeSize
 }
 
+/// One 44 pt icon control of the style menu: its label and value are spoken, and its identifier is
+/// `subtitleStyle.<id>`. The portrait sheet and the landscape card both build their controls from it.
+struct StyleIconButton: View {
+    let symbol: String
+    let id: String
+    let label: String
+    let value: String
+    var active = false
+    var enabled = true
+    let action: () -> Void
+
+    var body: some View {
+        Button(action: action) { Image(systemName: symbol) }
+            .buttonStyle(DeckIconButtonStyle(isActive: active))
+            .disabled(!enabled)
+            .accessibilityLabel(label)
+            .accessibilityValue(value)
+            .accessibilityIdentifier("subtitleStyle.\(id)")
+    }
+}
+
 /// The portrait subtitle style menu: a bottom sheet that changes the saved style (and so the line on the video)
-/// with every tap. The video stays visible above it. Landscape gets a card in T-016.
+/// with every tap. The video stays visible above it. Landscape has its own card (`SubtitleStyleCard`).
 /// Colours come only from the Theme tokens: idle Shell and Ink, on or selected Accent with white, values InkSoft.
 struct SubtitleStyleSheet: View {
     /// Where the last measured rise is kept, so later opens (also after a relaunch) are right from the start.
@@ -398,6 +436,13 @@ struct SubtitleStyleSheet: View {
                     .padding(.horizontal, Spacing.m)
                     .accessibilityIdentifier("subtitleStyle.font.noBold")
             }
+            if current.pickedFontIsAlwaysBold {
+                Text("This font is always bold.")
+                    .font(.deckCaption)
+                    .foregroundStyle(Theme.inkSoft)
+                    .padding(.horizontal, Spacing.m)
+                    .accessibilityIdentifier("subtitleStyle.font.alwaysBold")
+            }
             boldRow(current)
         }
     }
@@ -492,11 +537,7 @@ struct SubtitleStyleSheet: View {
     /// Saves a font chosen in the picker (by PostScript name) in place of the preset. Nothing happens for a name
     /// that can't be built.
     private func pickFont(_ postScriptName: String) {
-        guard SubtitleStyle.isInstalled(postScriptName) else { return }
-        update {
-            $0.pickedFontName = postScriptName
-            $0.font = .sans
-        }
+        update { _ = $0.pickFont(postScriptName) }
     }
 
     private func boldRow(_ current: SubtitleStyle) -> some View {
@@ -507,7 +548,7 @@ struct SubtitleStyleSheet: View {
                 .accessibilityHidden(true)
             Spacer(minLength: Spacing.s)
             iconButton(
-                "bold", id: "bold", label: "Bold", value: current.bold ? "On" : "Off", active: current.bold
+                "bold", id: "bold", label: "Bold", value: current.boldSpoken, active: current.bold
             ) { $0.bold.toggle() }
         }
         .padding(.leading, Spacing.m)
@@ -585,16 +626,9 @@ struct SubtitleStyleSheet: View {
         _ symbol: String, id: String, label: String, value: String, active: Bool = false, enabled: Bool = true,
         change: @escaping (inout SubtitleStyle) -> Void
     ) -> some View {
-        Button {
-            update(change)
-        } label: {
-            Image(systemName: symbol)
-        }
-        .buttonStyle(DeckIconButtonStyle(isActive: active))
-        .disabled(!enabled)
-        .accessibilityLabel(label)
-        .accessibilityValue(value)
-        .accessibilityIdentifier("subtitleStyle.\(id)")
+        StyleIconButton(
+            symbol: symbol, id: id, label: label, value: value, active: active, enabled: enabled,
+            action: { update(change) })
     }
 
     /// Applies a change to the saved style. The mutators clamp, so a change never leaves the allowed ranges.

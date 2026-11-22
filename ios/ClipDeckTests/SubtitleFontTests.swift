@@ -191,4 +191,40 @@ struct SubtitleFontTests {
         #expect(SubtitleStyle.seeded(from: #"{"pickedFontName":"Georgia"}"#).pickedFontName == "Georgia")
         #expect(SubtitleStyle.seeded(from: nil) == .default)
     }
+
+    // MARK: T-016: bold-only families, the card's spoken values and picking
+
+    @Test func aBoldOnlyFamilyIsAlwaysBoldAndSaysSo() {
+        let rounded = SubtitleStyle(bold: false, pickedFontName: "ArialRoundedMTBold")
+        #expect(rounded.pickedFontIsAlwaysBold)
+        #expect(rounded.boldSpoken == "This font is always bold")
+    }
+
+    @Test func aFamilyWithARegularFaceIsNotAlwaysBold() {
+        let georgia = SubtitleStyle(bold: false, pickedFontName: "Georgia")
+        #expect(!georgia.pickedFontIsAlwaysBold)
+        #expect(georgia.boldSpoken == "Off")
+        #expect(SubtitleStyle(bold: true, pickedFontName: "Georgia").boldSpoken == "On")
+        #expect(!SubtitleStyle.default.pickedFontIsAlwaysBold)
+        #expect(SubtitleStyle.default.boldSpoken == "On")
+    }
+
+    @Test func aFontWithoutBoldSaysSoWhenSpoken() {
+        let zapfino = SubtitleStyle(pickedFontName: "Zapfino")
+        #expect(zapfino.boldSpoken == "This font has no bold weight")
+    }
+
+    @Test func pickFontTakesThePlaceOfThePresetAndIgnoresAMissingName() {
+        var style = SubtitleStyle(font: .serif)
+        // #expect can't take a mutating call (its macro expansion passes the value as an immutable `$0`), so the
+        // results are read into lets first (CI 44971851033: "cannot use mutating member on immutable value").
+        let pickedGeorgia = style.pickFont("Georgia")
+        #expect(pickedGeorgia)
+        #expect(style.pickedFontName == "Georgia")
+        #expect(style.font == .sans)
+        let pickedMissing = style.pickFont("NoSuchFont-Regular")
+        #expect(!pickedMissing)
+        #expect(style.pickedFontName == "Georgia")
+        #expect(style.font == .sans)
+    }
 }

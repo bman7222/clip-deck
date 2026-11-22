@@ -236,11 +236,11 @@ struct SubtitlePlacementTests {
     private let line = CGSize(width: 200, height: 40)
 
     private func place(
-        _ style: SubtitleStyle, line: CGSize? = nil, top: CGFloat = 0, bottom: CGFloat = 0
+        _ style: SubtitleStyle, line: CGSize? = nil, top: CGFloat = 0, bottom: CGFloat = 0, fromCard: Bool = false
     ) -> CGRect {
         SubtitlePlacement.frame(
             videoSize: video, margins: margins, topObstruction: top, bottomObstruction: bottom,
-            lineSize: line ?? self.line, style: style)
+            lineSize: line ?? self.line, style: style, stepsFromObstruction: fromCard)
     }
 
     private func expectFrame(_ frame: CGRect, _ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) {
@@ -351,6 +351,45 @@ struct SubtitlePlacementTests {
         let frame = place(SubtitleStyle(upSteps: 18), top: 60, bottom: 100)
         #expect(frame.minY >= 60 - 0.01)
         #expect(frame.maxY <= 125 + 0.01)
+    }
+
+    // MARK: Landscape card open (T-016)
+
+    /// A 100 pt card: the active bottom is 225 - 100 = 125, and one step is 5% of the 205 pt region = 10.25 pt.
+    @Test func withTheCardOpenEachUpStepMovesTheLineOneStepFromJustAboveIt() {
+        for steps in 0...7 {
+            let frame = place(SubtitleStyle(upSteps: steps), bottom: 100, fromCard: true)
+            #expect(abs(frame.maxY - (125 - CGFloat(steps) * 10.25)) < 0.01)
+        }
+        // Down is the same move the other way: back at the card's edge at 0 steps, and never below it.
+        #expect(abs(place(SubtitleStyle(upSteps: 0), bottom: 100, fromCard: true).maxY - 125) < 0.01)
+    }
+
+    @Test func withTheCardOpenTheLineStillStopsBelowTheTopBar() {
+        let frame = place(SubtitleStyle(upSteps: 18), top: 30, bottom: 100, fromCard: true)
+        #expect(abs(frame.minY - 30) < 0.01)
+        #expect(frame.maxY <= 125 + 0.01)
+        let inside = place(SubtitleStyle(upSteps: 18, rightSteps: 8), top: 30, bottom: 100, fromCard: true)
+        #expect(video.width >= inside.maxX)
+        #expect(inside.minX >= 16 - 0.01)
+    }
+
+    @Test func withTheCardOpenSidewaysStepsAreUnchanged() {
+        let style = SubtitleStyle(upSteps: 3, rightSteps: -4)
+        #expect(abs(place(style, bottom: 100, fromCard: true).minX - place(style, bottom: 100).minX) < 0.01)
+    }
+
+    @Test func afterTheCardClosesThePlacementIsTheNormalRule() {
+        let style = SubtitleStyle(upSteps: 12)
+        let plain = SubtitlePlacement.frame(
+            videoSize: video, margins: margins, bottomObstruction: 0, lineSize: line, style: style)
+        let closed = place(style, bottom: 0, fromCard: false)
+        #expect(plain == closed)
+        // 213 - 12 x 10.25 = 90, as before; only the open card changes where the steps start.
+        #expect(abs(closed.maxY - 90) < 0.01)
+        #expect(abs(place(style, bottom: 100, fromCard: false).maxY - 90) < 0.01)
+        // With the card open the same 12 steps run past the top and are clamped to the region's top.
+        #expect(abs(place(style, bottom: 100, fromCard: true).maxY - 48) < 0.01)
     }
 
     // MARK: Menu (T-015)
