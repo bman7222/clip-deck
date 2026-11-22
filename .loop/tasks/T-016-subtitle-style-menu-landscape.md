@@ -52,6 +52,7 @@ CI only:
 Unverified for Brent: how it feels on his iPhone, and the iPhone SE / mini widths.
 
 ### Agent notes
+- Carried over from T-017 (31bc513): SystemFontPicker is private in SubtitleStyleSheet.swift, so make it internal to reuse it. Could fix C1: a family whose only face is bold (e.g. ArialRoundedMTBold) draws bold even with Bold off, with no note (SubtitleStyle.swift:245/255); show the no-bold note there too, or say 'This font is always bold'. Re-check ExpiryBannerUITests/testOpenSideStoreWithoutSideStoreKeepsBannerAndExplains (failed in 44960788495 on the sample-episode timing flake) in this task's CI run.
 - Depends on: T-015 (button, controls view, identifiers) and T-017 (the picker wrapper, `pickedFontName`, the More fonts control). Source: the spec's "Menu" and "Picked font" sections, and D-1 and D-6 (accepted 2026-11-20).
 - `PlayerView.landscape` overlay (:184-199), `bottomBar`/`bottomRow` (:369-398), `keepsControlsUp` (:437), the rotation reset (:70-78), `toggleControls` (`onTap`).
 - The tightest row today is about 245 of about 320 pt at 50%, and the new button adds about 52 pt. Measure it, don't assume.

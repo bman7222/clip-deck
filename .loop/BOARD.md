@@ -18,5 +18,5 @@ Goal: subtitle style controls (font, bold, offset, size, reset) · Branch: loop/
 | T-007 | Upload a build to TestFlight from GitHub Actions #7 | backend | T-003 | blocked | | Needs a paid Apple Developer account; Brent is staying on the free account for now |
 | T-014 | Draw the on-video subtitle line in a saved style that always stays inside the video #15 | frontend | — | done | 1 | 93d3c08 |
 | T-015 | Adjust the subtitle style from a menu in the portrait player #16 | frontend | T-014 | done | 3 | fab9468 |
-| T-017 | Pick any installed font for subtitles, with Japanese that always renders cleanly #18 | frontend | T-015 | todo | | |
+| T-017 | Pick any installed font for subtitles, with Japanese that always renders cleanly #18 | frontend | T-015 | done | 1 | 31bc513 |
 | T-016 | Adjust the subtitle style in landscape from a card in the bottom bar #17 | frontend | T-015, T-017 | todo | | |

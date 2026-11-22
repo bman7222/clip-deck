@@ -589,3 +589,28 @@
 ## 2026-11-21 · orchestrator · T-015 · landed
 - Done: T-015 passed (rounds: sonnet, sonnet, opus; 2 verify-only passes; 5 CI runs, the 5th approved by Brent). Squashed to fab9468.
 - Left: T-017 (More fonts…) is next, then T-016 (landscape card).
+
+## 2026-11-21 · loop-frontend · T-017 · round 1 (sonnet)
+- Done: `pickedFontName` in SubtitleStyle (tolerant decode, missing font drops to Sans, closest-preset Hiragino cascade, real bold only); "More fonts…" row + UIFontPickerViewController sheet in SubtitleStyleSheet; SheetFit skips measuring while the picker is up; unit + UI tests; DESIGN/PRODUCT_SPEC (nothing compiled)
+- Left: CI run (scope=all). T-016 can reuse `SystemFontPicker` (private in SubtitleStyleSheet.swift; make it internal) and `SubtitleStyle.pickedFamilyName`
+- Files: Features/Player/SubtitleStyle.swift, SubtitleStyleSheet.swift, App/ClipDeckApp.swift, ClipDeckTests/SubtitleFontTests.swift, ClipDeckUITests/SubtitleFontUITests.swift, docs/DESIGN.md, docs/PRODUCT_SPEC.md
+- Gotchas: `-uiTestingSubtitleStyle` now seeds via `SubtitleStyle.seeded(from:)` so an uninstalled name survives into the saved JSON
+
+## 2026-11-21 18:12 · loop-tester · T-017 · round 1
+- Done: read CI 44957727655 (59383f1, scope=all). The ipa job is green; the simulator ran 345/347 with 0 build issues. SubtitleFontTests 16/16 pass (Georgia → Serif; Latin is Georgia, Japanese is HiraMinProN-W3, or W6 with Bold; no LastResort; Zapfino keeps its face; missing → Sans; old JSON). 3/4 SubtitleFontUITests pass
+- Fails: the builder's Cancel test looked for "Cancel", but the iOS 26 picker's dismiss button is an X labelled `close` (a test flaw, fixed). PlayerLandscapeBehaviourUITests/testOpenSubtitlesMenuKeepsControlsUpWhilePlaying is the known flake
+- Screenshot: style-03 shows "元気ですか" in Hiragino Mincho, legible and not tofu, and the More fonts row aqua with "Georgia" and Georgia/Mincho samples. The sheet top is 349.4 against video maxY 342
+- Verdict: Blocked, NEEDED: verify-only pass, `-f scope=tests -f only_testing=ClipDeckUITests` (the Cancel test, the sheet top after Cancel and on reopen, a preset clears the pick, the flake re-check). No Must or Should fix. Could fix C1: a bold-only family ignores Bold off
+- Tests: ios/ClipDeckUITests/SubtitleFontUITests.swift (the close label), new ios/ClipDeckUITests/SubtitleFontTesterUITests.swift (4 tests); uncommitted
+- Files: .loop/tasks/T-017-subtitle-picked-font.md (Test report round 1), .loop/CONTEXT.md (Learned: the picker's `close`)
+
+## 2026-11-21 19:43 · loop-tester · T-017 · round 1 addendum
+- Done: read verify run 44960788495 (803d088, ClipDeckUITests): 49/50. All the deciding tests pass. Cancel returns to the sheet (iOS 26 `close`). The sheet top is 349.41 before and after Cancel and 350.37 on reopen; with the picker opened early it is 350.05 after Cancel and on reopen (video maxY 342). A preset clears the picked font. The landscape flake re-check passes
+- Close-ups: "元気ですか" is Hiragino Mincho, W6 with Bold and W3 without, and legible with the outline. The row sample is Georgia Latin with Mincho Japanese, matching the Serif preset
+- Fail (unrelated): ExpiryBannerUITests/testOpenSideStoreWithoutSideStoreKeepsBannerAndExplains. The app sat on "Preparing sample episode…" for 94 s (the known sample-episode timing flake); it passed on the same app code in 44957727655
+- Verdict: Blocked, NEEDED: re-run CI for ExpiryBannerUITests only; Pass if it is green. No Must or Should fix; C1 moves to T-016 or later
+- Files: .loop/tasks/T-017-subtitle-picked-font.md (Round 1 addendum)
+
+## 2026-11-21 · orchestrator · T-017 · landed
+- Done: T-017 passed (1 sonnet round + 1 verify-only pass). Squashed to 31bc513.
+- Left: T-016 (landscape card) is the last task; it carries T-017 C1 and the ExpiryBanner flake re-check.
