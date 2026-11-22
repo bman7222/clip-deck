@@ -30,7 +30,7 @@ struct ClipDeckApp: App {
                 UserDefaults.standard.removeObject(forKey: SubtitleStyle.storageKey)
             }
             if let seed = SubtitleStyle.seedJSON(in: arguments) {
-                UserDefaults.standard.set(SubtitleStyle.decoded(from: seed).json, forKey: SubtitleStyle.storageKey)
+                UserDefaults.standard.set(SubtitleStyle.seeded(from: seed).json, forKey: SubtitleStyle.storageKey)
             }
         }
         _settings = State(initialValue: isUITesting
