@@ -700,3 +700,23 @@
 - Privacy: removed every absolute local path with the user's name from .loop/ (the spec, T-019, and old task files T-002, T-003, T-012, T-018: scratch folders now read `%TEMP%\clip-deck-loop\...`)
 - Files: .loop/specs/player-lookup-timeline.md, .loop/tasks/T-019, T-022, T-024a, T-029a, T-029b, T-031, T-002, T-003, T-012, T-018, .loop/BOARD.md
 - Gotchas: the old paths are still in git history for the four committed task files; only the working tree is clean
+
+## 2026-11-22 · loop-frontend · T-019 · round 1 (sonnet)
+- Done: AppIcon.png replaced by a byte-for-byte copy of the new 1024 px icon; SHA-256 1aed1007...08f8 on both sides. Contents.json unchanged. Nothing compiled
+- Files: ios/ClipDeck/Resources/Assets.xcassets/AppIcon.appiconset/AppIcon.png
+
+## 2026-11-22 14:52 · loop-tester · T-019 · round 1
+- Done: read CI 45055876049 (8192e71, scope=all). AC-1 to AC-3 pass. The hashes and `cmp` are identical, and the PNG is 1024×1024 8-bit RGB with no tRNS. The ipa job is green with no AppIcon/actool warning. The IPA has AppIcon60x60@2x.png and Assets.car, and the decoded icon matches the new art (diff 2.49/255; the old placeholder scores 43.12)
+- Blocked: the simulator run was 389/390. SubtitleStyleCardTesterUITests/testUpDisablesWhenTheLineCanNoLongerMoveUp lost Up tap 7: in the recording the line never moved and Up stayed enabled. Not caused by the PNG-only diff. NEEDED: re-run `-f scope=tests -f only_testing=ClipDeckUITests/SubtitleStyleCardTesterUITests`
+- Files: .loop/tasks/T-019-new-app-icon.md (Test report round 1), .loop/CONTEXT.md (2 Learned lines: this flake, the 57/60-min job); no tests added
+- Gotchas: IPA icons are Apple CgBI PNGs (BGRA, raw deflate) and must be decoded before viewing. This xcresult's screen recording blob in Data/ was a plain QuickTime file, not zstd. Without ffmpeg, frames come from headless Chrome over CDP (open a file:// page, seek, Page.captureScreenshot)
+
+## 2026-11-22 16:10 · loop-tester · T-019 · round 1 addendum
+- Done: read verify run 45069006816 (8192e71, SubtitleStyleCardTesterUITests only): 4/5. testUpDisablesWhenTheLineCanNoLongerMoveUp passed (Up dims after 13 taps). testFirstDownTap… failed at the known "Seeded show should appear" flake: the library was still empty after 66 s on a slow runner, and the test passed in 45055876049
+- Verdict: Pass (REVIEWED_AT 8192e71). Across the two runs, all 390 tests pass on this SHA, and each run's single failure is a pre-existing flake. No run was all green on its own; for one, re-run only testFirstDownTap… (would be CI run 3 of 4)
+- Files: .loop/tasks/T-019-new-app-icon.md (Round 1 addendum), .loop/CONTEXT.md (+1 Learned line)
+- Gotchas: C: is low on space. I pruned the xcresult Data/ blobs from my %TEMP%\clip-deck-loop\T-019-r1 and -r1v downloads (now 37 MB and 3.6 MB)
+
+## 2026-11-22 · orchestrator · T-019 · landed
+- Done: Pass in round 1 (Sonnet builder, Opus tester). Landed as aa89224. CI 45055876049 (scope=all): ipa green, simulator 389/390 (a lost Up tap). Brent approved the re-check: verify run 45069006816 (SubtitleStyleCardTesterUITests only) passed that test, while the known "Seeded show should appear" flake failed in a test that passed in run 1. Every test has a pass on 8192e71. 2 of the 4 CI runs used
+- Next: T-020 (split the simulator job, #22). The full job took 57 of its 60 minutes in 45055876049
