@@ -826,3 +826,34 @@
 - Open Could fix C1/C2 (readValue snapshot, a stale 6 s comment) moved to T-034's Agent notes, with the reused flag, the 375-name baseline and the auto-hide race cause
 - Unverified for Brent: fade feel and readability on bright scenes, Reduce Motion, VoiceOver, landscape bar variant 3 (narrow phones), dark mode
 - Next: T-034 (harden the known flaky tests, #39)
+
+## 2026-11-23 · loop-backend · T-034 · round 1 (sonnet; entry written by the orchestrator)
+- Done: a shared UITestSupport helper (launchSeeded with relaunch, tapStep with a stored-value check, readTogether, and others); the 17 seeded-show waits moved to it; TestMediaFactory uses a 60 s time deadline and the seeder tries twice (DEBUG only); About, the lost-tap tests and the PlayerLandscapeBehaviour clip tests hardened; T-021 C1/C2
+- Left: the AC-2 seed cause is unconfirmed (no app stdout in the pruned xcresults); the AC-3 idle stall is not fixed (it starts after the landscape rotation; cause unknown)
+- Files: ios/ClipDeckUITests/UITestSupport.swift (new), TestMediaFactory.swift, RootView.swift, 13 UI test files, docs/DEVELOPMENT.md, .loop/CONTEXT.md
+
+## 2026-11-23 01:30 · loop-tester · T-034 · round 1
+- Done: read CI 45119953687 (8d036e0, scope=all, CI run 1 of 4). It compiles (0 build issues); ipa and shard 2 green; 410/412 runs; the name union is exactly the 375-name landing set (AC-4). Shards took 29:33, 26:16 and 24:22. AC-2 seed cause confirmed: the old failures were a seed that threw (an empty library), and in this run a seed still running at 44 s (no "UITestSeeder failed") was rescued by launchSeeded's relaunch
+- Fail: M1, PlaybackOverlayUITests/testBarValueIsReadAfterTheBarHidLandscape (shard 1). The idle stall started right after the rotation and the 30 s clip ended during the Play tap's 60 s idle wait. S1, AboutUITests launches twice (+70 s in one test). S2, testOpenSubtitlesMenu… still races the 3 s auto-hide (menu tap ends 1.8-3.3 s after Play). Shard 3's ExpiryBanner "Failed to terminate" at launch is pre-existing
+- Files: .loop/tasks/T-034-harden-flaky-ui-tests.md (Test report round 1), .loop/CONTEXT.md (+2 Learned); no tests added
+- Gotchas: the app's stdout is in the xcresult (Diagnostics blobs; see CONTEXT); the stalled app keeps idling its main run loop but never answers "animations idle" again. M1's fix may need Brent's call (a stall guard that relaunches is close to a retry). Evidence: %TEMP%\clip-deck-loop\T-034-r1 (Data/ pruned, 23 MB); scripts: %TEMP%\clip-deck-loop\tools-T-034
+
+## 2026-11-23 02:31 · loop-backend · T-034 · round 2 (opus)
+- Done: M1 traced to XCTest's UIView-animation ledger (one started UIView animation never reports a stop, right after a portrait-to-landscape player rotation; 6 of 375 rotations in 25 xcresults). It is not an app loop, and the view is not identified, so there is no product change. Added the setup stall guard `UITestSupport.rotateToLandscape` in all 17 setup rotations: a same-orientation probe (only XCTest's idle wait), and one terminate plus relaunch when over 50 s, logged as an activity, an `idle-stall-guard` attachment and stdout. test-ios.sh turns those into GitHub warnings "UI test idle stall". Added a DEBUG `-uiTesting` `UITestAnimationWatch` that prints animations stuck on a layer for 3 s or more. S1 (About launches once), S2 (re-show the bar before the menu tap), C1 (20 s clip) done
+- Left: CI proof (not compiled). If the guard fires, the watch lines name the stuck animation, or show none, meaning its layer left the window; then fix the cause in PlayerView. Mid-test rotations (6) stay unguarded
+- Files: ios/ClipDeckUITests/UITestSupport.swift + 10 UI test files, ios/ClipDeck/App/UITestAnimationWatch.swift (new), ios/ClipDeck/App/ClipDeckApp.swift, scripts/test-ios.sh, docs/DEVELOPMENT.md, CLAUDE.md, .loop/CONTEXT.md (+1 Learned)
+- Gotchas: setting the orientation the device already has costs about 0.01 s and is just a "Wait for idle", a handy idle probe. stallscan.py and idlemap.py are now in %TEMP%\clip-deck-loop\tools-T-034. Test names unchanged (86 UI, 289 @Test)
+
+## 2026-11-23 03:11 · loop-tester · T-034 · round 2
+- Done: read CI 45132085072 (04ceed0, scope=all, CI run 2 of 4). All green on the first attempt: ipa 2:11, shards 23:23 / 28:07 / 21:30, 412/412 runs, 0 issues. The name union is the 375-name landing set (I rebuilt it from 45110218499). S1 and S2 are fixed, C1 is done, and every AC-2 test passed, round 1's failing overlay test included
+- Verdict: Pass. AC-3 is met on its wording only: the cause is narrowed to a UIKit animation and not fixed. No stall occurred, so the guard never fired (0 activities, attachments or warnings). Its 40 probes took 0.01–0.38 s, and each probe sends a real animations-idle request. The relaunch branch is still unexercised
+- Watch: it started in every `-uiTesting` process, and the Release IPA has none of its strings. 436 of 442 lines are Liquid Glass match-animation noise (Could fix C1). Its only `UIViewAnimationState` lines were a 0.35 s push held by a 20 s main-thread freeze, which cleared
+- Files: .loop/tasks/T-034-harden-flaky-ui-tests.md (Test report round 2), .loop/CONTEXT.md (+1 Learned); no tests added
+- Gotchas: evidence is in %TEMP%\clip-deck-loop\T-034-r2 (Data/ pruned, 29 MB: filtered app logs, gzipped full stdout, job logs, IPA). probes.py (rotation and probe timings, guard activities) is now in tools-T-034
+
+## 2026-11-23 · orchestrator · T-034 · landed
+- Done: Pass in round 2 (round 1 Sonnet, round 2 Opus by Brent's choice; Opus testers). Landed as d3c4fa2. CI 45132085072 (scope=all): every job green on the first attempt, 412/412 runs, 375 names (the T-021 landing set), shards 23:23 / 28:07 / 21:30. 2 of the 4 CI runs used
+- Seed flake cause confirmed (a slow test video writer) and fixed. The idle stall is narrowed to a UIKit rotation animation that never stops; it is guarded (relaunch once, CI warning "UI test idle stall") and has a DEBUG diagnostic (UITestAnimationWatch), but no product fix. No stall happened in the proving run, so the guard's relaunch branch is unproven
+- Could fix C1 (filter the Liquid Glass noise out of the watch) and C2 (6 unguarded mid-test rotations) moved to T-022's Agent notes
+- Disk: C: has about 127 GB free now, so the "nearly full" warning is out of date
+- Next: T-022 (subtitles avoid the overlay, #24)

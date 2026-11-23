@@ -39,6 +39,12 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 - Code: `SubtitlePlacement.frame` is at SubtitlePlacement.swift:35-64. `SubtitleLineLayout` (124-155) must pass the band through. `subtitleLine` is at PlayerView.swift:540-562.
 - The menu helpers (`canStepUpWithCardOpen`, `highestReachableUpStep`, `upStepAfterDownWithCardOpen`) don't take the band, because menus judge steps without the overlay.
 - Learned: in landscape, use element screenshots and `app.debugDescription`. Don't put a mutating call inside `#expect`.
+- From T-021/T-034 (orchestrator, 2026-11-23):
+  - The overlay hides while the Aa style card is open (T-021 AC-7), and PlayerView.swift:258 is `showsOverlay: shown && !styleMenuOpen`. Avoid the overlay only while it's actually shown.
+  - Build new UI tests on `ios/ClipDeckUITests/UITestSupport.swift`: `launchAndOpenSampleEpisode(sampleSeconds:)`, `rotateToLandscape` (the idle-stall guard), `readTogether`, `tapStep` and so on. For anything checked while playing, use `-uiTestingSampleSeconds 30`. Put a new UI class in `SHARD1_UI`, since shard 2 is the tightest at about 28 min.
+  - Optional Could fix carried over from T-034's tester:
+    - C1: `UITestAnimationWatch` (ios/ClipDeck/App/UITestAnimationWatch.swift:65-80) logs iOS 26 Liquid Glass animations with infinite duration and no delegate, which is noise. Skip those, and reword docs/DEVELOPMENT.md:167-170 to say "no `delegate UIViewAnimationState` line".
+    - C2: the 6 mid-test landscape rotations aren't guarded. A stall there costs time, not a red run.
 
 ### Out of scope
 - Hiding the overlay while the Move-Text menu is open (T-024a; Q3, decided by Brent on 2026-11-22).
