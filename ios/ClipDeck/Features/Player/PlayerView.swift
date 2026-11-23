@@ -35,6 +35,9 @@ struct PlayerView: View {
     @State private var toast: String?
     @State private var isLandscape = false
     @State private var controlsVisible = false
+    /// The portrait playback overlay (the landscape one follows `controlsVisible`). Starts hidden; a tap on the
+    /// video shows or hides it, and a real pause shows it.
+    @State private var portraitOverlayVisible = false
     @State private var hideTask: Task<Void, Never>?
     @State private var topBarHeight: CGFloat = 60
     @State private var bottomBarHeight: CGFloat = 100
@@ -94,6 +97,7 @@ struct PlayerView: View {
                     isLandscape = landscape
                     // Entering or leaving landscape always starts with the controls hidden.
                     controlsVisible = false
+                    portraitOverlayVisible = false
                     subtitleDialogOpen = false
                     // Rotating closes the style menu (the portrait sheet, and the landscape card with its font picker).
                     showStyleSheet = false
@@ -113,10 +117,12 @@ struct PlayerView: View {
         .statusBarHidden(isLandscape && !controlsShown)
         .persistentSystemOverlays(isLandscape ? .hidden : .automatic)
         .onChange(of: model?.isPlaying) { wasPlaying, playing in
-            // Pausing (or a finished clip) brings the controls back; playing starts the countdown.
+            // Pausing (or a finished clip) brings the controls (and the portrait overlay) back; playing starts the countdown.
             // Only a real pause counts (true -> false). The model appearing paused (nil -> false) does not, so
             // landscape always starts with the controls hidden, also when the player opens already in landscape.
-            if isLandscape, wasPlaying == true, playing == false { controlsVisible = true }
+            if wasPlaying == true, playing == false {
+                if isLandscape { controlsVisible = true } else { portraitOverlayVisible = true }
+            }
             restartHideTimer()
         }
         .onChange(of: keepsControlsUp) { restartHideTimer() }
@@ -178,7 +184,7 @@ struct PlayerView: View {
 
     private func portrait(_ model: PlayerModel) -> some View {
         VStack(spacing: 0) {
-            videoScreen(model, onTap: { model.togglePlay() })
+            videoScreen(model, showsOverlay: overlayShown, onTap: togglePortraitOverlay)
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .background {
                     GeometryReader { proxy in
@@ -248,6 +254,8 @@ struct PlayerView: View {
         return HStack(spacing: 0) {
             videoScreen(
                 model,
+                // The overlay gives way to the subtitle style card (as it will to the Move-Text menu) and returns on Done.
+                showsOverlay: shown && !styleMenuOpen,
                 subtitleMargins: lineMargins,
                 subtitleTopObstruction: lineTopObstruction,
                 subtitleBottomObstruction: lineBottomObstruction,
@@ -412,6 +420,7 @@ struct PlayerView: View {
                     .padding(Spacing.s)
             }
             // Full label when it fits, icon only on a very narrow panel.
+            // T-030a: the Lookup Mode toggle goes just left of Make a Card.
             ViewThatFits(in: .horizontal) {
                 makeCardButton(model, fullWidth: true, identifier: "player.panel.makeCard")
                     .fixedSize(horizontal: false, vertical: true)
@@ -465,13 +474,12 @@ struct PlayerView: View {
     private func bottomBar(_ model: PlayerModel, insets: EdgeInsets) -> some View {
         VStack(spacing: Spacing.xs) {
             Scrubber(model: model)
-            // With the side list open there is less room: fall back to an icon-only Make a Card, and with the
-            // panel near its 50 % maximum also drop the ±5 s skips (the scrubber still seeks). The last row needs
-            // about 245 pt; at 50 % on an 874 pt wide iPhone the row gets about 320 pt (column 438 minus insets and padding).
+            // With the side list open there is less room: fall back to an icon-only Make a Card, and when even that
+            // doesn't fit, to two rows (the transport row above an icon-only Make a Card on the trailing side).
             ViewThatFits(in: .horizontal) {
                 bottomRow(model, iconOnly: false)
                 bottomRow(model, iconOnly: true)
-                bottomRow(model, iconOnly: true, skips: false)
+                bottomStackedRows(model)
             }
             if let miningError {
                 ErrorBanner(message: miningError)
@@ -487,17 +495,35 @@ struct PlayerView: View {
         .accessibilityIdentifier("player.bottomBar")
     }
 
-    private func bottomRow(_ model: PlayerModel, iconOnly: Bool, skips: Bool = true) -> some View {
+    private func bottomRow(_ model: PlayerModel, iconOnly: Bool) -> some View {
         HStack(spacing: Spacing.s) {
-            transportButtons(model, landscape: true, skips: skips)
+            transportButtons(model, landscape: true)
             Spacer(minLength: Spacing.s)
+            // T-030a: the Lookup Mode toggle goes just left of Make a Card.
             makeCardButton(model, fullWidth: false, iconOnly: iconOnly)
         }
     }
 
-    /// The video with its subtitle line. `onTap` differs by orientation: play/pause or show/hide controls.
+    /// The tightest bar: two rows, so the transport row keeps all its buttons.
+    private func bottomStackedRows(_ model: PlayerModel) -> some View {
+        VStack(spacing: Spacing.xs) {
+            HStack(spacing: Spacing.s) {
+                transportButtons(model, landscape: true)
+                Spacer(minLength: 0)
+            }
+            HStack(spacing: Spacing.s) {
+                Spacer(minLength: 0)
+                // T-030a: the Lookup Mode toggle goes just left of Make a Card.
+                makeCardButton(model, fullWidth: false, iconOnly: true)
+            }
+        }
+    }
+
+    /// The video with its subtitle line and the centred playback overlay. A tap shows or hides the controls (landscape)
+    /// or the overlay (portrait). Z-order: video, line, overlay, recording badge; the landscape bars lie above all of it.
     private func videoScreen(
         _ model: PlayerModel,
+        showsOverlay: Bool,
         subtitleMargins: SubtitleMargins = SubtitleMargins(
             top: Spacing.s, leading: Spacing.l, bottom: Spacing.m, trailing: Spacing.l),
         subtitleTopObstruction: CGFloat = 0,
@@ -520,6 +546,18 @@ struct PlayerView: View {
                     topObstruction: subtitleTopObstruction, bottomObstruction: subtitleBottomObstruction,
                     stepsFromCard: subtitleStepsFromCard)
             }
+        }
+        // The overlay is positioned against this container (the 16:9 video in portrait, the video column in
+        // landscape), so it re-centres when the panel opens or is resized. Rendered only while shown, so the
+        // accessibility tree matches the screen; it fades in and out (opacity only, so Reduce Motion needs nothing more).
+        .overlay {
+            ZStack {
+                if showsOverlay {
+                    PlaybackOverlay(model: model, onInteract: restartHideTimer)
+                        .transition(.opacity)
+                }
+            }
+            .animation(.easeInOut(duration: 0.2), value: showsOverlay)
         }
         // The recording badge is drawn after (above) the line, so a line moved up and left can't cover it.
         .overlay {
@@ -565,6 +603,9 @@ struct PlayerView: View {
 
     private var controlsShown: Bool { controlsVisible || voiceOverOn }
 
+    /// Whether the centred playback overlay shows: landscape follows the controls, portrait has its own state.
+    private var overlayShown: Bool { isLandscape ? controlsShown : (portraitOverlayVisible || voiceOverOn) }
+
     /// While any of these hold, the controls never auto-hide.
     private var keepsControlsUp: Bool {
         let dialogs = showOffset || showSubtitlePicker || showStyleSheet || subtitleDialogOpen || draft != nil
@@ -588,6 +629,12 @@ struct PlayerView: View {
         restartHideTimer()
     }
 
+    /// A tap on the portrait video shows or hides the overlay. It no longer plays or pauses.
+    private func togglePortraitOverlay() {
+        portraitOverlayVisible.toggle()
+        restartHideTimer()
+    }
+
     /// Closes the landscape style card (Done, or a tap on the video) and restarts the hide countdown.
     private func closeStyleMenu() {
         styleMenuOpen = false
@@ -597,11 +644,13 @@ struct PlayerView: View {
     private func restartHideTimer() {
         hideTask?.cancel()
         hideTask = nil
-        guard isLandscape, controlsVisible, !keepsControlsUp else { return }
+        // Landscape hides the controls (and so the overlay); portrait hides its own overlay.
+        let inLandscape = isLandscape
+        guard inLandscape ? controlsVisible : portraitOverlayVisible, !keepsControlsUp else { return }
         hideTask = Task {
             try? await Task.sleep(for: .seconds(3))
             guard !Task.isCancelled else { return }
-            controlsVisible = false
+            if inLandscape { controlsVisible = false } else { portraitOverlayVisible = false }
         }
     }
 
@@ -612,6 +661,7 @@ struct PlayerView: View {
                 transportButtons(model, landscape: false)
                 Spacer(minLength: 0)
             }
+            // Second row. T-030a puts the Lookup Mode toggle (doc.text.magnifyingglass) just left of Make a Card.
             makeCardButton(model, fullWidth: true)
             if let miningError {
                 ErrorBanner(message: miningError)
@@ -619,25 +669,15 @@ struct PlayerView: View {
         }
     }
 
-    /// Skip buttons restart the landscape auto-hide countdown (no-op in portrait). The other controls
-    /// already do it through state changes: play/pause, scrubbing, the offset sheet, the subtitles dialog.
-    /// `skips: false` leaves out the ±5 s buttons (the tightest landscape bar).
+    /// The bar's transport row: play/pause, offset, subtitles and style. The ±5 s skips live in the centred
+    /// overlay now. Play/pause is plain while playing and aqua while paused.
     @ViewBuilder
-    private func transportButtons(_ model: PlayerModel, landscape: Bool, skips: Bool = true) -> some View {
-        if skips {
-            Button { model.skip(byMs: -5_000); restartHideTimer() } label: { Image(systemName: "gobackward.5") }
-                .buttonStyle(DeckIconButtonStyle())
-                .accessibilityLabel("Back 5 seconds")
-        }
+    private func transportButtons(_ model: PlayerModel, landscape: Bool) -> some View {
         Button { model.togglePlay() } label: { Image(systemName: model.isPlaying ? "pause.fill" : "play.fill") }
-            .buttonStyle(DeckIconButtonStyle(isActive: true))
+            .buttonStyle(DeckIconButtonStyle(isActive: !model.isPlaying))
             .accessibilityLabel(model.isPlaying ? "Pause" : "Play")
+            .accessibilityValue(model.isPlaying ? "Playing" : "Paused")
             .accessibilityIdentifier("player.playPause")
-        if skips {
-            Button { model.skip(byMs: 5_000); restartHideTimer() } label: { Image(systemName: "goforward.5") }
-                .buttonStyle(DeckIconButtonStyle())
-                .accessibilityLabel("Forward 5 seconds")
-        }
         Button { showOffset = true } label: {
             Text(TimeFormat.offset(model.offsetMs))
                 .font(.deckCaption)
@@ -679,6 +719,9 @@ struct PlayerView: View {
             .accessibilityLabel("Subtitle style")
             .accessibilityValue(styleIsDefault ? "Default" : "Changed")
             .accessibilityIdentifier("player.subtitleStyle")
+        // Reserved, in this order, in portrait and in every landscape row (later tasks insert them here):
+        // T-024a: the Move-Text button (player.moveText), right after Aa.
+        // T-029b: the popup reset (player.lookupReset), right after the Move-Text button.
     }
 
     private func makeCardButton(
@@ -791,6 +834,68 @@ private struct RecordingBadge: View {
     }
 }
 
+/// The centred playback overlay: back 5 s, play/pause, forward 5 s, on translucent dark circles so they read on
+/// bright scenes. Their centres sit at 25 %, 50 % and 75 % of the container's width, vertically centred.
+private struct PlaybackOverlay: View {
+    let model: PlayerModel
+    /// Restarts the auto-hide countdown (a skip or a play/pause tap).
+    let onInteract: () -> Void
+
+    var body: some View {
+        GeometryReader { proxy in
+            ZStack {
+                Button { model.skip(byMs: -5_000); onInteract() } label: { Image(systemName: "gobackward.5") }
+                    .buttonStyle(OverlayButtonStyle(diameter: 44, glyphSize: 20))
+                    .accessibilityLabel("Back 5 seconds")
+                    .accessibilityIdentifier("player.overlay.back5")
+                    .position(x: proxy.size.width * 0.25, y: proxy.size.height / 2)
+                Button { model.togglePlay(); onInteract() } label: {
+                    Image(systemName: model.isPlaying ? "pause.fill" : "play.fill")
+                }
+                .buttonStyle(OverlayButtonStyle(diameter: 52, glyphSize: 24))
+                .accessibilityLabel(model.isPlaying ? "Pause" : "Play")
+                .accessibilityValue(model.isPlaying ? "Playing" : "Paused")
+                .accessibilityIdentifier("player.overlay.playPause")
+                .position(x: proxy.size.width * 0.5, y: proxy.size.height / 2)
+                Button { model.skip(byMs: 5_000); onInteract() } label: { Image(systemName: "goforward.5") }
+                    .buttonStyle(OverlayButtonStyle(diameter: 44, glyphSize: 20))
+                    .accessibilityLabel("Forward 5 seconds")
+                    .accessibilityIdentifier("player.overlay.forward5")
+                    .position(x: proxy.size.width * 0.75, y: proxy.size.height / 2)
+            }
+            .frame(width: proxy.size.width, height: proxy.size.height)
+        }
+    }
+}
+
+/// A white glyph on a translucent black circle. The press-scale is skipped under Reduce Motion.
+private struct OverlayButtonStyle: ButtonStyle {
+    let diameter: CGFloat
+    let glyphSize: CGFloat
+
+    func makeBody(configuration: Configuration) -> some View {
+        StyledLabel(configuration: configuration, diameter: diameter, glyphSize: glyphSize)
+    }
+
+    private struct StyledLabel: View {
+        let configuration: Configuration
+        let diameter: CGFloat
+        let glyphSize: CGFloat
+        @Environment(\.accessibilityReduceMotion) private var reduceMotion
+
+        var body: some View {
+            configuration.label
+                .font(.system(size: glyphSize, weight: .bold, design: .rounded))
+                .foregroundStyle(.white)
+                .frame(width: diameter, height: diameter)
+                .background(Color.black.opacity(0.5), in: Circle())
+                .contentShape(Circle())
+                .scaleEffect(configuration.isPressed && !reduceMotion ? 0.92 : 1)
+                .animation(reduceMotion ? nil : .spring(duration: 0.2), value: configuration.isPressed)
+        }
+    }
+}
+
 private struct MakeCardLabelStyle: LabelStyle {
     let iconOnly: Bool
 
@@ -832,6 +937,7 @@ private struct Scrubber: View {
             Text(TimeFormat.clock(model.isScrubbing ? Int(dragValue) : model.currentMs))
                 .font(.deckTime)
                 .foregroundStyle(Theme.inkSoft)
+                .accessibilityIdentifier("player.currentTime")
             Slider(
                 value: Binding(
                     get: { model.isScrubbing ? dragValue : Double(model.currentMs) },

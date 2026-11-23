@@ -68,6 +68,15 @@ enum LaunchFlags {
     static var shouldSeedSample: Bool {
         isUITesting && !ProcessInfo.processInfo.arguments.contains("-uiTestingNoSeed") && !shouldSeedMKV
     }
+    /// `-uiTesting -uiTestingSampleSeconds <n>` (Debug): the seeded "Sample Show" video is n seconds long (1 to 600)
+    /// instead of 6, so tests that play it can't run into its end on a slow runner. The subtitles stay the same.
+    static var sampleSeconds: Int {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard let flag = arguments.firstIndex(of: "-uiTestingSampleSeconds"), flag + 1 < arguments.count,
+              let seconds = Int(arguments[flag + 1])
+        else { return 6 }
+        return min(max(seconds, 1), 600)
+    }
     /// `-uiTesting -uiTestingMKV` (Debug): instead of "Sample Show", import MKV fixture 4 through `EpisodeImporter`
     /// as "MKV Show / Episode 1" with the sample SRT. The fixture folder comes from the CLIPDECK_FIXTURES
     /// environment variable (UI tests forward it through `launchEnvironment`).

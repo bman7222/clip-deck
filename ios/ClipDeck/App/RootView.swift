@@ -26,14 +26,14 @@ struct RootView: View {
 
 #if DEBUG
 /// UI-test only (`-uiTesting` launch argument, Debug builds): creates "Sample Show" with a
-/// generated 6-second video and a 3-line SRT, so tests exercise the real player and Make a Card.
+/// generated 6-second video (`-uiTestingSampleSeconds <n>` changes the length) and a 3-line SRT, so tests exercise the real player and Make a Card.
 enum UITestSeeder {
     static func seed(context: ModelContext) async {
         let store = FileStore.live
         let videoPath = "Videos/Sample Show/Episode 1.mp4"
         let subtitlePath = "Subtitles/Sample Show/Episode 1/sample.srt"
         do {
-            try await TestMediaFactory.makeVideo(at: store.absoluteURL(videoPath))
+            try await TestMediaFactory.makeVideo(at: store.absoluteURL(videoPath), seconds: LaunchFlags.sampleSeconds)
             let subtitleURL = store.absoluteURL(subtitlePath)
             try FileManager.default.createDirectory(at: subtitleURL.deletingLastPathComponent(), withIntermediateDirectories: true)
             try TestMediaFactory.sampleSRT.write(to: subtitleURL, atomically: true, encoding: .utf8)

@@ -219,19 +219,23 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         XCTAssertFalse(panel.waitForExistence(timeout: 2), "Rotating back keeps a closed panel closed")
     }
 
-    /// AC-6: in portrait, tapping the video still plays and pauses.
+    /// T-021 AC-6: in portrait, a tap on the video shows the playback overlay and leaves the play state alone.
     @MainActor
-    func testPortraitTapStillTogglesPlay() throws {
+    func testPortraitTapShowsOverlayWithoutTogglingPlay() throws {
         let app = openSampleEpisode()
-        XCTAssertTrue(video(app).waitForExistence(timeout: 10))
+        let videoView = video(app)
+        XCTAssertTrue(videoView.waitForExistence(timeout: 10))
         let playPause = app.buttons["player.playPause"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 5))
         XCTAssertEqual(playPause.label, "Play")
+        let overlay = app.buttons["player.overlay.playPause"]
+        XCTAssertFalse(overlay.exists, "Portrait starts with the overlay hidden")
 
-        video(app).tap()
-        XCTAssertTrue(waitForLabel(playPause, "Pause", timeout: 3), "Portrait tap starts playback")
-        video(app).tap()
-        XCTAssertTrue(waitForLabel(playPause, "Play", timeout: 3), "Portrait tap pauses")
+        // Between the centre and the back button, so a second tap can never land on an overlay button.
+        videoView.coordinate(withNormalizedOffset: CGVector(dx: 0.37, dy: 0.15)).tap()
+        XCTAssertTrue(overlay.waitForExistence(timeout: 3), "A portrait tap shows the overlay")
+        XCTAssertEqual(playPause.label, "Play", "A portrait tap no longer starts playback")
+        XCTAssertEqual(playPause.value as? String, "Paused")
         XCTAssertTrue(app.navigationBars.firstMatch.exists, "Portrait keeps the navigation bar")
     }
 

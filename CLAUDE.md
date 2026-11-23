@@ -38,6 +38,8 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - `-uiTesting` launch argument (Debug): in-memory library + generated "Sample Show". `-uiTestingNoSeed` skips the sample.
   `-uiTesting -uiTestingMKV` instead imports MKV fixture 4 through `EpisodeImporter` as "MKV Show / Episode 1" (with the
   sample SRT) and fixture 1 as "Episode 2" (its embedded SRT; the ASS track is saved too); it needs `CLIPDECK_FIXTURES` in the app's environment (UI tests forward it through `launchEnvironment`).
+- `-uiTestingSampleSeconds <n>` (Debug, with `-uiTesting`): the seeded "Sample Show" video is n seconds long (1 to 600) instead of 6;
+  the subtitles don't change. Tests that play the video use it (for example 30) so a slow runner can't play the clip to its end.
 - Subtitle style (`player.subtitleStyle` in the standard defaults): every `-uiTesting` launch clears it, unless
   `-uiTestingKeepSubtitleStyle` is passed. `-uiTestingSubtitleStyle <json>` then seeds one, for example
   `{"font":"serif","bold":false,"sizeStep":5,"upSteps":4,"rightSteps":-4}` (missing or invalid fields take the default).
