@@ -184,7 +184,8 @@ struct PlayerView: View {
 
     private func portrait(_ model: PlayerModel) -> some View {
         VStack(spacing: 0) {
-            videoScreen(model, showsOverlay: overlayShown, onTap: togglePortraitOverlay)
+            // The overlay gives way to the style sheet (as it does to the landscape card) and returns when it closes.
+            videoScreen(model, showsOverlay: overlayShown && !showStyleSheet, onTap: togglePortraitOverlay)
                 .aspectRatio(16 / 9, contentMode: .fit)
                 .background {
                     GeometryReader { proxy in
@@ -544,7 +545,7 @@ struct PlayerView: View {
                 subtitleLine(
                     cue.text, margins: subtitleMargins,
                     topObstruction: subtitleTopObstruction, bottomObstruction: subtitleBottomObstruction,
-                    stepsFromCard: subtitleStepsFromCard)
+                    stepsFromCard: subtitleStepsFromCard, avoidsOverlay: showsOverlay)
             }
         }
         // The overlay is positioned against this container (the 16:9 video in portrait, the video column in
@@ -577,7 +578,7 @@ struct PlayerView: View {
     /// video, below the top bar and above the bottom bar while they show).
     private func subtitleLine(
         _ text: String, margins: SubtitleMargins, topObstruction: CGFloat, bottomObstruction: CGFloat,
-        stepsFromCard: Bool
+        stepsFromCard: Bool, avoidsOverlay: Bool
     ) -> some View {
         _ = dynamicTypeSize
         let style = SubtitleStyle.decoded(from: storedSubtitleStyle)
@@ -585,7 +586,7 @@ struct PlayerView: View {
             let regionHeight = max(0, geometry.size.height - margins.top - margins.bottom)
             SubtitleLineLayout(
                 style: style, margins: margins, topObstruction: topObstruction, bottomObstruction: bottomObstruction,
-                stepsFromObstruction: stepsFromCard
+                stepsFromObstruction: stepsFromCard, avoidsOverlay: avoidsOverlay
             ) {
                 SelectableText(
                     text: text, textStyle: .title3, weight: .bold, color: .white, outlined: true,
@@ -597,6 +598,7 @@ struct PlayerView: View {
         }
         .animation(.easeInOut(duration: 0.2), value: bottomObstruction)
         .animation(.easeInOut(duration: 0.2), value: topObstruction)
+        .animation(.easeInOut(duration: 0.2), value: avoidsOverlay)
     }
 
     // MARK: Overlay timing

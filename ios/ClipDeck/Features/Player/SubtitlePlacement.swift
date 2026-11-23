@@ -39,7 +39,8 @@ nonisolated enum SubtitlePlacement {
         bottomObstruction: CGFloat = 0,
         lineSize: CGSize,
         style: SubtitleStyle,
-        stepsFromObstruction: Bool = false
+        stepsFromObstruction: Bool = false,
+        avoid: CGRect? = nil
     ) -> CGRect {
         let style = style.clamped()
         let resting = restingRegion(videoSize: videoSize, margins: margins)
@@ -54,13 +55,46 @@ nonisolated enum SubtitlePlacement {
 
         let upDistance = CGFloat(style.upSteps) * stepFraction * resting.height
         let wantedBottom = (stepsFromObstruction ? activeBottom : resting.maxY) - upDistance
-        let bottom: CGFloat
-        if height >= activeBottom - activeTop {
-            bottom = activeBottom
-        } else {
+        let fitsRegion = height < activeBottom - activeTop
+        var bottom: CGFloat
+        if fitsRegion {
             bottom = min(max(wantedBottom, activeTop + height), activeBottom)
+        } else {
+            bottom = activeBottom
+        }
+        if let band = avoid, fitsRegion, !band.isEmpty,
+           x < band.maxX, x + width > band.minX, bottom - height < band.maxY, bottom > band.minY {
+            // The line meets the band: just above it (bottom = band.minY) or just below it (top = band.maxY).
+            let above = band.minY
+            let below = band.maxY + height
+            let aboveFits = above - height >= activeTop
+            let belowFits = below <= activeBottom
+            if aboveFits && belowFits {
+                bottom = abs(above - bottom) < abs(below - bottom) ? above : below
+            } else if aboveFits {
+                bottom = above
+            } else if belowFits {
+                bottom = below
+            } else {
+                // Neither fits: below, kept inside the region by the usual clamp.
+                bottom = min(max(below, activeTop + height), activeBottom)
+            }
         }
         return CGRect(x: x, y: bottom - height, width: width, height: height)
+    }
+
+    /// Points of clear space around the overlay buttons that the line keeps away from.
+    static let overlayPadding: CGFloat = 8
+
+    /// The band the line avoids while the centred playback overlay shows, local to the video. It comes from the
+    /// overlay's layout rule (centres at 25 / 50 / 75 % of the width, vertically centred, 44 / 52 / 44 pt circles),
+    /// not from measured views: from back 5's left edge to forward 5's right edge, 52 pt tall, plus the padding.
+    static func overlayBand(videoSize: CGSize) -> CGRect {
+        let left = videoSize.width * 0.25 - 44 / 2
+        let right = videoSize.width * 0.75 + 44 / 2
+        let top = videoSize.height / 2 - 52 / 2
+        return CGRect(x: left, y: top, width: right - left, height: 52)
+            .insetBy(dx: -overlayPadding, dy: -overlayPadding)
     }
 
     /// The smallest move (in points) that counts as "the line moved" when the landscape card is open.
@@ -128,6 +162,8 @@ struct SubtitleLineLayout: Layout {
     var bottomObstruction: CGFloat
     /// True while the style card is open: the up steps start from just above the card.
     var stepsFromObstruction = false
+    /// True while the centred overlay shows: the line keeps clear of its band (never saved).
+    var avoidsOverlay = false
 
     func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
         proposal.replacingUnspecifiedDimensions(by: CGSize(width: 320, height: 180))
@@ -144,7 +180,8 @@ struct SubtitleLineLayout: Layout {
             bottomObstruction: bottomObstruction,
             lineSize: measured,
             style: style,
-            stepsFromObstruction: stepsFromObstruction
+            stepsFromObstruction: stepsFromObstruction,
+            avoid: avoidsOverlay ? SubtitlePlacement.overlayBand(videoSize: bounds.size) : nil
         )
         line.place(
             at: CGPoint(x: bounds.minX + frame.minX, y: bounds.minY + frame.minY),

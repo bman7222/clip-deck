@@ -236,11 +236,74 @@ struct SubtitlePlacementTests {
     private let line = CGSize(width: 200, height: 40)
 
     private func place(
-        _ style: SubtitleStyle, line: CGSize? = nil, top: CGFloat = 0, bottom: CGFloat = 0, fromCard: Bool = false
+        _ style: SubtitleStyle, line: CGSize? = nil, top: CGFloat = 0, bottom: CGFloat = 0, fromCard: Bool = false,
+        avoid: CGRect? = nil
     ) -> CGRect {
         SubtitlePlacement.frame(
             videoSize: video, margins: margins, topObstruction: top, bottomObstruction: bottom,
-            lineSize: line ?? self.line, style: style, stepsFromObstruction: fromCard)
+            lineSize: line ?? self.line, style: style, stepsFromObstruction: fromCard, avoid: avoid)
+    }
+
+    // MARK: The overlay band (T-022)
+
+    /// For the 400 x 225 video the band is x 70...330 and y 78.5...146.5 (buttons 78...322 x 86.5...138.5, plus 8).
+    private var band: CGRect { SubtitlePlacement.overlayBand(videoSize: video) }
+
+    @Test func overlayBandCoversTheThreeButtonsPlusPadding() {
+        expectFrame(band, 70, 78.5, 260, 68)
+    }
+
+    @Test func aLineMeetingTheBandMovesAboveWhenThatIsSmaller() {
+        // up 9: bottom 120.75, top 80.75. Above: bottom 78.5 (move 42.25). Below: bottom 186.5 (move 65.75).
+        let frame = place(SubtitleStyle(upSteps: 9), avoid: band)
+        expectFrame(frame, 100, 38.5, 200, 40)
+        #expect(frame.maxY == band.minY)
+    }
+
+    @Test func aLineMeetingTheBandMovesBelowWhenThatIsSmaller() {
+        // up 7: bottom 141.25, top 101.25. Above: move 62.75. Below: bottom 186.5 (move 45.25).
+        let frame = place(SubtitleStyle(upSteps: 7), avoid: band)
+        expectFrame(frame, 100, 146.5, 200, 40)
+        #expect(frame.minY == band.maxY)
+    }
+
+    @Test func aLineClearOfTheBandDoesNotMove() {
+        #expect(place(.default, avoid: band) == place(.default))
+        // Moved far enough sideways that its width no longer meets the band's x range.
+        let narrow = CGSize(width: 30, height: 40)   // x 37.8...67.8, left of the band's 70
+        let style = SubtitleStyle(upSteps: 9, rightSteps: -8)
+        #expect(place(style, line: narrow, avoid: band) == place(style, line: narrow))
+    }
+
+    @Test func whenNeitherFitsTheLineGoesBelowAndStaysInTheRegion() {
+        // Region cut to y 60...165: above would start at 38.5 (< 60) and below would end at 186.5 (> 165).
+        let frame = place(SubtitleStyle(upSteps: 9), top: 60, bottom: 60, avoid: band)
+        expectFrame(frame, 100, 125, 200, 40)
+        #expect(isInside(frame, of: CGRect(x: 16, y: 60, width: 368, height: 105)))
+    }
+
+    @Test func aNilBandReproducesTodaysFrames() {
+        let styles = [SubtitleStyle.default, SubtitleStyle(upSteps: 4, rightSteps: -4), SubtitleStyle(upSteps: 18)]
+        for style in styles {
+            #expect(place(style, avoid: nil) == place(style))
+            #expect(place(style, top: 30, bottom: 70, avoid: nil) == place(style, top: 30, bottom: 70))
+        }
+        expectFrame(place(SubtitleStyle(upSteps: 4, rightSteps: -4), avoid: nil), 26.4, 132, 200, 40)
+    }
+
+    @Test func aTopBarRulesOutTheSmallerMoveAndTheLineGoesBelow() {
+        // up 9: above (move 42.25) would start at 38.5, under the top bar at 50, so it doesn't fit; below does.
+        let frame = place(SubtitleStyle(upSteps: 9), top: 50, avoid: band)
+        expectFrame(frame, 100, 146.5, 200, 40)
+        // Without the bar the smaller move (above) wins.
+        expectFrame(place(SubtitleStyle(upSteps: 9), avoid: band), 100, 38.5, 200, 40)
+    }
+
+    @Test func theBandCombinesWithTheLandscapeBars() {
+        // Top bar to y 30, bottom bar from y 155: below would end at 186.5 (> 155), so only "above" fits (top 38.5 >= 30).
+        let frame = place(SubtitleStyle(upSteps: 9), top: 30, bottom: 70, avoid: band)
+        expectFrame(frame, 100, 38.5, 200, 40)
+        #expect(isInside(frame, of: CGRect(x: 16, y: 30, width: 368, height: 125)))
     }
 
     private func expectFrame(_ frame: CGRect, _ x: CGFloat, _ y: CGFloat, _ w: CGFloat, _ h: CGFloat) {

@@ -48,7 +48,7 @@ jobs:
         env:
           ONLY_TESTING: ${{ inputs.only_testing }}
         run: |
-          SHARD1_UI="SubtitleStyleCardTesterUITests SubtitleFontTesterUITests SubtitleUpLimitTesterUITests SubtitleFontUITests MiningFlowUITests PlaybackOverlayUITests"
+          SHARD1_UI="SubtitleStyleCardTesterUITests SubtitleFontTesterUITests SubtitleUpLimitTesterUITests SubtitleFontUITests MiningFlowUITests PlaybackOverlayUITests SubtitleAvoidOverlayUITests"
           SHARD2_UI="AboutUITests SubtitleStyleUITests PlayerLandscapeBehaviourUITests PlaybackOverlayTesterUITests"
           only1="ClipDeckTests"; only2=""; skip3="ClipDeckTests"
           for c in $SHARD1_UI; do only1="$only1 ClipDeckUITests/$c"; skip3="$skip3 ClipDeckUITests/$c"; done
