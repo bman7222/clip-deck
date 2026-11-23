@@ -157,7 +157,7 @@ struct SubtitleFontTests {
         #expect(style.font == .sans)
         #expect(!style.bold)
         #expect(style.sizeStep == 3)
-        #expect(style.upSteps == 2)
+        #expect(style.up == 0.10)
         // And a style that only carries the missing font is the default again.
         #expect(SubtitleStyle.decoded(from: #"{"pickedFontName":"NoSuchFont-Regular"}"#).isDefault)
         #expect(SubtitleStyle.decoded(from: #"{"pickedFontName":""}"#).pickedFontName == nil)
@@ -176,7 +176,7 @@ struct SubtitleFontTests {
         #expect(old.pickedFontName == nil)
         #expect(old.font == .serif)
         #expect(old.sizeStep == 5)
-        #expect(old.rightSteps == -4)
+        #expect(old.right == -0.20)
     }
 
     @Test func aPresetStyleSavesNoPickedFont() {

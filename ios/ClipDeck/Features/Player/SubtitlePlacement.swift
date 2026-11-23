@@ -11,18 +11,16 @@ nonisolated struct SubtitleMargins: Equatable, Sendable {
 /// Where the line goes. A pure function of the video size, the margins, the bars and the line's size, so the
 /// "always on screen" rule is unit-tested. All coordinates are local to the video (origin at its top left).
 ///
-/// - The resting region is the video inset by the margins. The wanted place is measured in it: each up step
-///   is 5% of its height, each sideways step 5% of its width.
+/// - The resting region is the video inset by the margins. The wanted place is measured in it: `up` is a fraction
+///   of its height, `right` a fraction of its width.
 /// - While the top bar, the bottom bar or the landscape style card show, the region's top or bottom is pulled
 ///   in to clear them (the obstruction is the distance from that video edge). A line already clear of a bar
 ///   doesn't move, and the default line sits where it always sat.
-/// - While the landscape style card is open (`stepsFromObstruction`), the up steps are counted from the line's
+/// - While the landscape style card is open (`stepsFromObstruction`), `up` is counted from the line's
 ///   resting place just above the card, not from the video's bottom, so every Up or Down tap visibly moves the
 ///   line (a live preview). Closing the card goes back to the normal rule above.
 /// - The line is then moved fully inside. A line taller than the region is pinned to the region's bottom.
 nonisolated enum SubtitlePlacement {
-    static let stepFraction: CGFloat = 0.05
-
     static func restingRegion(videoSize: CGSize, margins: SubtitleMargins) -> CGRect {
         CGRect(
             x: margins.leading,
@@ -50,10 +48,10 @@ nonisolated enum SubtitlePlacement {
         let width = min(max(lineSize.width, 0), resting.width)
         let height = max(lineSize.height, 0)
 
-        let wantedCenterX = resting.midX + CGFloat(style.rightSteps) * stepFraction * resting.width
+        let wantedCenterX = resting.midX + CGFloat(style.right) * resting.width
         let x = min(max(wantedCenterX - width / 2, resting.minX), resting.maxX - width)
 
-        let upDistance = CGFloat(style.upSteps) * stepFraction * resting.height
+        let upDistance = CGFloat(style.up) * resting.height
         let wantedBottom = (stepsFromObstruction ? activeBottom : resting.maxY) - upDistance
         let fitsRegion = height < activeBottom - activeTop
         var bottom: CGFloat
@@ -102,54 +100,63 @@ nonisolated enum SubtitlePlacement {
 
     /// While the landscape style card is open: can one more Up step still move the line? False at the stored
     /// limit, and false when the placement for step n+1 is clamped to the same place as step n (the line has
-    /// reached the top bar, or the top of the video). Used only with the card open (steps counted from the card).
+    /// reached the top bar, or the top of the video). `stepsFromObstruction` is true for the landscape card (the
+    /// default: `up` counted from the card); pass false for a menu at the top, where `up` counts from the bottom.
     static func canStepUpWithCardOpen(
         videoSize: CGSize,
         margins: SubtitleMargins,
         topObstruction: CGFloat,
         bottomObstruction: CGFloat,
         lineSize: CGSize,
-        style: SubtitleStyle
+        style: SubtitleStyle,
+        stepsFromObstruction: Bool = true
     ) -> Bool {
         let current = style.clamped()
         guard current.canMoveUp else { return false }
         // Not measured yet (no line has been drawn): nothing to judge, so leave Up enabled.
         guard videoSize.width > 0, videoSize.height > 0 else { return true }
         var next = current
-        next.upSteps += 1
+        next.stepUp(1)
         let now = frame(
             videoSize: videoSize, margins: margins, topObstruction: topObstruction,
-            bottomObstruction: bottomObstruction, lineSize: lineSize, style: current, stepsFromObstruction: true)
+            bottomObstruction: bottomObstruction, lineSize: lineSize, style: current,
+            stepsFromObstruction: stepsFromObstruction)
         let after = frame(
             videoSize: videoSize, margins: margins, topObstruction: topObstruction,
-            bottomObstruction: bottomObstruction, lineSize: lineSize, style: next, stepsFromObstruction: true)
+            bottomObstruction: bottomObstruction, lineSize: lineSize, style: next,
+            stepsFromObstruction: stepsFromObstruction)
         return abs(now.minY - after.minY) > visibleMove
     }
 
-    /// While the landscape card is open: the highest up step the line can reach, that is the first step from which
-    /// one more Up would not move it. A stored step above it is pinned under the top bar.
-    static func highestReachableUpStep(
+    /// While the landscape card is open: the highest `up` the line can reach (searched in 0.05 steps from 0), that is
+    /// the first value from which one more Up would not move it. A stored `up` above it is pinned under the top bar.
+    static func highestReachableUp(
         videoSize: CGSize,
         margins: SubtitleMargins,
         topObstruction: CGFloat,
         bottomObstruction: CGFloat,
-        lineSize: CGSize
-    ) -> Int {
-        for steps in SubtitleStyle.upRange {
+        lineSize: CGSize,
+        stepsFromObstruction: Bool = true
+    ) -> Double {
+        let taps = Int((SubtitleStyle.upRange.upperBound / SubtitleStyle.positionStep).rounded())
+        for tap in 0...taps {
+            let up = SubtitleStyle.positionSum(0, tap, to: SubtitleStyle.upRange)
             let canStep = canStepUpWithCardOpen(
                 videoSize: videoSize, margins: margins, topObstruction: topObstruction,
-                bottomObstruction: bottomObstruction, lineSize: lineSize, style: SubtitleStyle(upSteps: steps))
-            if !canStep { return steps }
+                bottomObstruction: bottomObstruction, lineSize: lineSize, style: SubtitleStyle(up: up),
+                stepsFromObstruction: stepsFromObstruction)
+            if !canStep { return up }
         }
         return SubtitleStyle.upRange.upperBound
     }
 
-    /// The up step after one Down tap with the card open. A stored step above the highest reachable one jumps to one
-    /// step below it, so the line moves at once; otherwise it is one step down (never below the default).
-    static func upStepAfterDownWithCardOpen(stored: Int, highestReachable: Int) -> Int {
-        let current = SubtitleStyle.clamp(stored, to: SubtitleStyle.upRange)
-        let target = current > highestReachable ? highestReachable - 1 : current - 1
-        return SubtitleStyle.clamp(target, to: SubtitleStyle.upRange)
+    /// The `up` after one Down tap with the card open. A stored value above the highest reachable one jumps to 0.05
+    /// below it, so the line moves at once; otherwise it is 0.05 down from where it is (never below the default).
+    static func upAfterDownWithCardOpen(stored: Double, highestReachable: Double) -> Double {
+        let current = SubtitleStyle.clampPosition(stored, to: SubtitleStyle.upRange)
+        let target = current > highestReachable ? highestReachable - SubtitleStyle.positionStep
+            : current - SubtitleStyle.positionStep
+        return SubtitleStyle.clampPosition(target, to: SubtitleStyle.upRange)
     }
 }
 

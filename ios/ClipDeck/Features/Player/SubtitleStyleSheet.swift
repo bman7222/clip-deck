@@ -1,14 +1,14 @@
 import SwiftUI
 import UIKit
 
-/// Texts the style menu shows and speaks. Percentages are exact Ints (steps are 10% and 5%).
+/// Texts the style menu shows and speaks. Percentages are whole Ints (the position is rounded to a whole percent).
 nonisolated extension SubtitleStyle {
     /// 60 ... 200.
     var sizePercent: Int { (10 + Self.clamp(sizeStep, to: Self.sizeRange)) * 10 }
     /// 0 ... 90, how far up from the default bottom place.
-    var upPercent: Int { Self.clamp(upSteps, to: Self.upRange) * 5 }
+    var upPercent: Int { Int((Self.clampPosition(up, to: Self.upRange) * 100).rounded()) }
     /// -40 ... 40; negative is left.
-    var rightPercent: Int { Self.clamp(rightSteps, to: Self.rightRange) * 5 }
+    var rightPercent: Int { Int((Self.clampPosition(right, to: Self.rightRange) * 100).rounded()) }
 
     /// "130%".
     var sizeText: String { "\(sizePercent)%" }

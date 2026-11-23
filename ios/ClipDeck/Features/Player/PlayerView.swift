@@ -248,7 +248,7 @@ struct PlayerView: View {
             topObstruction: lineTopObstruction, bottomObstruction: lineBottomObstruction,
             lineSize: model.currentCue == nil ? .zero : subtitleLineSize,
             style: SubtitleStyle.decoded(from: storedSubtitleStyle))
-        let cardHighestUpStep = SubtitlePlacement.highestReachableUpStep(
+        let cardHighestUp = SubtitlePlacement.highestReachableUp(
             videoSize: subtitleVideoSize, margins: lineMargins,
             topObstruction: lineTopObstruction, bottomObstruction: lineBottomObstruction,
             lineSize: model.currentCue == nil ? .zero : subtitleLineSize)
@@ -281,7 +281,7 @@ struct PlayerView: View {
                             SubtitleStyleCard(
                                 insets: barInsets,
                                 canStepUp: cardCanStepUp,
-                                highestUpStep: cardHighestUpStep,
+                                highestUp: cardHighestUp,
                                 onMoreFonts: { showCardFontPicker = true },
                                 onDone: closeStyleMenu
                             )

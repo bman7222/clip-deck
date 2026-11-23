@@ -14,9 +14,9 @@ struct SubtitleStyleCard: View {
     let insets: EdgeInsets
     /// False when one more Up step would not move the line (it already sits under the top bar), so Up dims.
     var canStepUp = true
-    /// The highest up step the line can reach with the card open. A stored step above it jumps to one below it on
+    /// The highest `up` the line can reach with the card open. A stored value above it jumps to 0.05 below it on
     /// the first Down tap, so Down always shows. The default means "no limit known".
-    var highestUpStep = SubtitleStyle.upRange.upperBound
+    var highestUp = SubtitleStyle.upRange.upperBound
     let onMoreFonts: () -> Void
     let onDone: () -> Void
 
@@ -120,8 +120,8 @@ struct SubtitleStyleCard: View {
                 enabled: current.canMoveDown,
                 action: {
                     update {
-                        $0.upSteps = SubtitlePlacement.upStepAfterDownWithCardOpen(
-                            stored: $0.upSteps, highestReachable: highestUpStep)
+                        $0.up = SubtitlePlacement.upAfterDownWithCardOpen(
+                            stored: $0.up, highestReachable: highestUp)
                     }
                 }
             )

@@ -12,9 +12,11 @@ struct SubtitleStyleTests {
         #expect(style.font == .sans)
         #expect(style.bold)
         #expect(style.sizeStep == 0)
-        #expect(style.upSteps == 0)
-        #expect(style.rightSteps == 0)
+        #expect(style.up == 0)
+        #expect(style.right == 0)
         #expect(style.isDefault)
+        #expect(style.isFontDefault)
+        #expect(style.isPositionDefault)
         #expect(abs(style.scale - 1.0) < 0.0001)
         #expect(SubtitleStyle() == .default)
     }
@@ -26,10 +28,10 @@ struct SubtitleStyleTests {
     }
 
     @Test func initClampsEveryField() {
-        let style = SubtitleStyle(sizeStep: 99, upSteps: -3, rightSteps: 99)
+        let style = SubtitleStyle(sizeStep: 99, up: -0.15, right: 4.95)
         #expect(style.sizeStep == 10)
-        #expect(style.upSteps == 0)
-        #expect(style.rightSteps == 8)
+        #expect(style.up == 0)
+        #expect(style.right == 0.40)
         #expect(!style.isDefault)
     }
 
@@ -65,42 +67,104 @@ struct SubtitleStyleTests {
         #expect(!style.canMoveDown)            // nothing goes below the default bottom place
         let belowBottom = style.stepUp(-1)
         #expect(belowBottom == false)
-        #expect(style.upSteps == 0)
-        style.upSteps = 17
+        #expect(style.up == 0)
+        style.up = 0.85
         let reachedTop = style.stepUp(1)
         #expect(reachedTop == false)
-        #expect(style.upSteps == 18)
+        #expect(style.up == 0.90)
         #expect(!style.canMoveUp)
         let pastTop = style.stepUp(1)
         #expect(pastTop == false)
-        #expect(style.upSteps == 18)
+        #expect(style.up == 0.90)
         #expect(style.canMoveDown)
 
-        style.rightSteps = 7
+        style.right = 0.35
         let reachedRight = style.stepRight(1)
         #expect(reachedRight == false)
-        #expect(style.rightSteps == 8)
+        #expect(style.right == 0.40)
         #expect(!style.canMoveRight)
-        style.rightSteps = -7
+        style.right = -0.35
         let reachedLeft = style.stepRight(-1)
         #expect(reachedLeft == false)
-        #expect(style.rightSteps == -8)
+        #expect(style.right == -0.40)
         #expect(!style.canMoveLeft)
         #expect(style.canMoveRight)
         let moreRoom = style.stepRight(2)
         #expect(moreRoom)
-        #expect(style.rightSteps == -6)
+        #expect(style.right == -0.30)
+    }
+
+    @Test func eighteenUpTapsFromZeroReachExactlyNinetyPercent() {
+        var style = SubtitleStyle.default
+        for _ in 0..<18 { style.stepUp(1) }
+        #expect(style.up == 0.90)
+        #expect(!style.canMoveUp)
+        let reportedAtTop = style.stepUp(1)
+        #expect(reportedAtTop == false)
+        #expect(style.up == 0.90)
+        for _ in 0..<18 { style.stepUp(-1) }
+        #expect(style.up == 0)
+        #expect(!style.canMoveDown)
+        var side = SubtitleStyle.default
+        for _ in 0..<8 { side.stepRight(1) }
+        #expect(side.right == 0.40)
+        #expect(!side.canMoveRight)
+    }
+
+    @Test func aValueBetweenStepsStepsFromWhereItIs() {
+        var style = SubtitleStyle(up: 0.37, right: -0.12)
+        style.stepUp(1)
+        #expect(style.up == 0.42)
+        style.stepUp(-2)
+        #expect(style.up == 0.32)
+        style.stepRight(1)
+        #expect(style.right == -0.07)
+        // Writes are rounded to 4 decimals.
+        #expect(SubtitleStyle(up: 0.123456).up == 0.1235)
+    }
+
+    @Test func nonFinitePositionsFallBackOrClamp() {
+        #expect(SubtitleStyle(up: .nan, right: .nan) == .default)
+        #expect(SubtitleStyle(up: .infinity, right: -.infinity).up == 0.90)
+        #expect(SubtitleStyle(up: .infinity, right: -.infinity).right == -0.40)
+    }
+
+    // MARK: Separate resets (T-023)
+
+    @Test func resetFontLeavesThePositionAlone() {
+        var style = SubtitleStyle(font: .serif, bold: false, sizeStep: 5, up: 0.37, right: -0.2, pickedFontName: "Georgia")
+        #expect(!style.isFontDefault)
+        #expect(!style.isPositionDefault)
+        style.resetFont()
+        #expect(style.isFontDefault)
+        #expect(!style.isPositionDefault)
+        #expect(style.font == .sans && style.bold && style.sizeStep == 0 && style.pickedFontName == nil)
+        #expect(style.up == 0.37)
+        #expect(style.right == -0.2)
+        #expect(!style.isDefault)
+    }
+
+    @Test func resetPositionLeavesTheFontAlone() {
+        var style = SubtitleStyle(font: .serif, bold: false, sizeStep: 5, up: 0.37, right: -0.2, pickedFontName: "Georgia")
+        style.resetPosition()
+        #expect(style.isPositionDefault)
+        #expect(!style.isFontDefault)
+        #expect(style.up == 0 && style.right == 0)
+        #expect(style.font == .serif && !style.bold && style.sizeStep == 5 && style.pickedFontName == "Georgia")
+        #expect(!style.isDefault)
+        style.resetFont()
+        #expect(style.isDefault)
     }
 
     @Test func clampedFixesValuesSetDirectly() {
         var style = SubtitleStyle.default
         style.sizeStep = 50
-        style.upSteps = -50
-        style.rightSteps = -50
+        style.up = -50
+        style.right = -50
         let fixed = style.clamped()
         #expect(fixed.sizeStep == 10)
-        #expect(fixed.upSteps == 0)
-        #expect(fixed.rightSteps == -8)
+        #expect(fixed.up == 0)
+        #expect(fixed.right == -0.40)
     }
 
     // MARK: Saved JSON
@@ -122,7 +186,7 @@ struct SubtitleStyleTests {
         let mixed = SubtitleStyle.decoded(from: #"{"font":"serif","sizeStep":"big","upSteps":3}"#)
         #expect(mixed.font == .serif)
         #expect(mixed.sizeStep == 0)
-        #expect(mixed.upSteps == 3)
+        #expect(mixed.up == 0.15)
         #expect(mixed.bold)
     }
 
@@ -131,7 +195,7 @@ struct SubtitleStyleTests {
         #expect(style.font == .sans)
         #expect(style.bold)
         #expect(style.sizeStep == 0)
-        #expect(style.rightSteps == 2)
+        #expect(style.right == 0.10)
     }
 
     @Test func unknownFieldsAreIgnoredSoLaterBuildsCanAddSome() {
@@ -144,12 +208,54 @@ struct SubtitleStyleTests {
     @Test func outOfRangeJSONIsClamped() {
         let style = SubtitleStyle.decoded(from: #"{"sizeStep":99,"upSteps":-5,"rightSteps":-99}"#)
         #expect(style.sizeStep == 10)
-        #expect(style.upSteps == 0)
-        #expect(style.rightSteps == -8)
+        #expect(style.up == 0)
+        #expect(style.right == -0.40)
+    }
+
+    @Test func oldStepKeysMigrateToFractions() {
+        let style = SubtitleStyle.decoded(from: #"{"upSteps":4,"rightSteps":-4}"#)
+        #expect(style.up == 0.20)
+        #expect(style.right == -0.20)
+        let extreme = SubtitleStyle.decoded(from: #"{"upSteps":99,"rightSteps":-99}"#)
+        #expect(extreme.up == 0.90)
+        #expect(extreme.right == -0.40)
+        let negative = SubtitleStyle.decoded(from: #"{"upSteps":-3}"#)
+        #expect(negative.up == 0)
+    }
+
+    @Test func newKeysWinOverOldOnes() {
+        let style = SubtitleStyle.decoded(from: #"{"up":0.37,"right":0.1,"upSteps":4,"rightSteps":-4}"#)
+        #expect(style.up == 0.37)
+        #expect(style.right == 0.10)
+        let outOfRange = SubtitleStyle.decoded(from: #"{"up":5,"right":-5,"upSteps":4}"#)
+        #expect(outOfRange.up == 0.90)
+        #expect(outOfRange.right == -0.40)
+    }
+
+    @Test func garbagePositionValuesGiveTheDefault() {
+        let wrongTypes = SubtitleStyle.decoded(from: #"{"up":"high","right":true,"upSteps":"x","rightSteps":1.5}"#)
+        #expect(wrongTypes.up == 0)
+        #expect(wrongTypes.right == 0)
+        let nulls = SubtitleStyle.decoded(from: #"{"up":null,"right":null,"upSteps":null}"#)
+        #expect(nulls.isPositionDefault)
+    }
+
+    @Test func encodingWritesOnlyTheNewKeys() {
+        let json = SubtitleStyle(up: 0.20, right: -0.20).json
+        #expect(json.contains("\"up\":0.2"))
+        #expect(json.contains("\"right\":-0.2"))
+        #expect(!json.contains("upSteps"))
+        #expect(!json.contains("rightSteps"))
+        #expect(SubtitleStyle.decoded(from: json) == SubtitleStyle(up: 0.20, right: -0.20))
+    }
+
+    @Test func aBetweenStepsValueSurvivesTheSavedJSON() {
+        let style = SubtitleStyle(up: 0.3723, right: -0.0417)
+        #expect(SubtitleStyle.decoded(from: style.json) == style)
     }
 
     @Test func jsonRoundTrips() {
-        let style = SubtitleStyle(font: .serif, bold: false, sizeStep: 5, upSteps: 4, rightSteps: -4)
+        let style = SubtitleStyle(font: .serif, bold: false, sizeStep: 5, up: 0.2, right: -0.2)
         #expect(SubtitleStyle.decoded(from: style.json) == style)
         #expect(SubtitleStyle.decoded(from: SubtitleStyle.default.json) == .default)
         #expect(style.json == style.json)
@@ -255,14 +361,14 @@ struct SubtitlePlacementTests {
 
     @Test func aLineMeetingTheBandMovesAboveWhenThatIsSmaller() {
         // up 9: bottom 120.75, top 80.75. Above: bottom 78.5 (move 42.25). Below: bottom 186.5 (move 65.75).
-        let frame = place(SubtitleStyle(upSteps: 9), avoid: band)
+        let frame = place(SubtitleStyle(up: 0.45), avoid: band)
         expectFrame(frame, 100, 38.5, 200, 40)
         #expect(frame.maxY == band.minY)
     }
 
     @Test func aLineMeetingTheBandMovesBelowWhenThatIsSmaller() {
         // up 7: bottom 141.25, top 101.25. Above: move 62.75. Below: bottom 186.5 (move 45.25).
-        let frame = place(SubtitleStyle(upSteps: 7), avoid: band)
+        let frame = place(SubtitleStyle(up: 0.35), avoid: band)
         expectFrame(frame, 100, 146.5, 200, 40)
         #expect(frame.minY == band.maxY)
     }
@@ -271,37 +377,37 @@ struct SubtitlePlacementTests {
         #expect(place(.default, avoid: band) == place(.default))
         // Moved far enough sideways that its width no longer meets the band's x range.
         let narrow = CGSize(width: 30, height: 40)   // x 37.8...67.8, left of the band's 70
-        let style = SubtitleStyle(upSteps: 9, rightSteps: -8)
+        let style = SubtitleStyle(up: 0.45, right: -0.4)
         #expect(place(style, line: narrow, avoid: band) == place(style, line: narrow))
     }
 
     @Test func whenNeitherFitsTheLineGoesBelowAndStaysInTheRegion() {
         // Region cut to y 60...165: above would start at 38.5 (< 60) and below would end at 186.5 (> 165).
-        let frame = place(SubtitleStyle(upSteps: 9), top: 60, bottom: 60, avoid: band)
+        let frame = place(SubtitleStyle(up: 0.45), top: 60, bottom: 60, avoid: band)
         expectFrame(frame, 100, 125, 200, 40)
         #expect(isInside(frame, of: CGRect(x: 16, y: 60, width: 368, height: 105)))
     }
 
     @Test func aNilBandReproducesTodaysFrames() {
-        let styles = [SubtitleStyle.default, SubtitleStyle(upSteps: 4, rightSteps: -4), SubtitleStyle(upSteps: 18)]
+        let styles = [SubtitleStyle.default, SubtitleStyle(up: 0.2, right: -0.2), SubtitleStyle(up: 0.9)]
         for style in styles {
             #expect(place(style, avoid: nil) == place(style))
             #expect(place(style, top: 30, bottom: 70, avoid: nil) == place(style, top: 30, bottom: 70))
         }
-        expectFrame(place(SubtitleStyle(upSteps: 4, rightSteps: -4), avoid: nil), 26.4, 132, 200, 40)
+        expectFrame(place(SubtitleStyle(up: 0.2, right: -0.2), avoid: nil), 26.4, 132, 200, 40)
     }
 
     @Test func aTopBarRulesOutTheSmallerMoveAndTheLineGoesBelow() {
         // up 9: above (move 42.25) would start at 38.5, under the top bar at 50, so it doesn't fit; below does.
-        let frame = place(SubtitleStyle(upSteps: 9), top: 50, avoid: band)
+        let frame = place(SubtitleStyle(up: 0.45), top: 50, avoid: band)
         expectFrame(frame, 100, 146.5, 200, 40)
         // Without the bar the smaller move (above) wins.
-        expectFrame(place(SubtitleStyle(upSteps: 9), avoid: band), 100, 38.5, 200, 40)
+        expectFrame(place(SubtitleStyle(up: 0.45), avoid: band), 100, 38.5, 200, 40)
     }
 
     @Test func theBandCombinesWithTheLandscapeBars() {
         // Top bar to y 30, bottom bar from y 155: below would end at 186.5 (> 155), so only "above" fits (top 38.5 >= 30).
-        let frame = place(SubtitleStyle(upSteps: 9), top: 30, bottom: 70, avoid: band)
+        let frame = place(SubtitleStyle(up: 0.45), top: 30, bottom: 70, avoid: band)
         expectFrame(frame, 100, 38.5, 200, 40)
         #expect(isInside(frame, of: CGRect(x: 16, y: 30, width: 368, height: 125)))
     }
@@ -325,7 +431,7 @@ struct SubtitlePlacementTests {
 
     @Test func movedUpAndLeft() {
         // up 4 = 20% of 205 = 41, left 4 = 20% of 368 = 73.6
-        let frame = place(SubtitleStyle(upSteps: 4, rightSteps: -4))
+        let frame = place(SubtitleStyle(up: 0.2, right: -0.2))
         expectFrame(frame, 26.4, 132, 200, 40)
     }
 
@@ -336,7 +442,7 @@ struct SubtitlePlacementTests {
     }
 
     @Test func aLineAlreadyClearOfTheBarDoesNotMove() {
-        let style = SubtitleStyle(upSteps: 12)   // bottom at 213 - 123 = 90, above the bar at 125
+        let style = SubtitleStyle(up: 0.6)   // bottom at 213 - 123 = 90, above the bar at 125
         let without = place(style)
         let with = place(style, bottom: 100)
         expectFrame(without, 100, 50, 200, 40)
@@ -344,35 +450,35 @@ struct SubtitlePlacementTests {
     }
 
     @Test func theTopBarPushesTheLineDown() {
-        let frame = place(SubtitleStyle(upSteps: 18), top: 60)
+        let frame = place(SubtitleStyle(up: 0.9), top: 60)
         #expect(abs(frame.minY - 60) < 0.01)
     }
 
     @Test func extremeStepsStayInsideTheResting() {
         let resting = SubtitlePlacement.restingRegion(videoSize: video, margins: margins)
-        let high = place(SubtitleStyle(upSteps: 18, rightSteps: 8))
+        let high = place(SubtitleStyle(up: 0.9, right: 0.4))
         expectFrame(high, 184, 8, 200, 40)
         #expect(isInside(high, of: resting))
-        let left = place(SubtitleStyle(upSteps: 18, rightSteps: -8))
+        let left = place(SubtitleStyle(up: 0.9, right: -0.4))
         expectFrame(left, 16, 8, 200, 40)
         #expect(isInside(left, of: resting))
     }
 
     @Test func stepsOutsideTheRangesAreClampedAtLayoutToo() {
         var wild = SubtitleStyle.default
-        wild.upSteps = 500
-        wild.rightSteps = -500
+        wild.up = 500
+        wild.right = -500
         let resting = SubtitlePlacement.restingRegion(videoSize: video, margins: margins)
         #expect(isInside(place(wild), of: resting))
     }
 
     @Test func aWideLineIsNarrowedToTheRegion() {
-        let frame = place(SubtitleStyle(rightSteps: 8), line: CGSize(width: 900, height: 40))
+        let frame = place(SubtitleStyle(right: 0.4), line: CGSize(width: 900, height: 40))
         expectFrame(frame, 16, 173, 368, 40)
     }
 
     @Test func aLineTallerThanTheRegionIsPinnedToTheBottom() {
-        let frame = place(SubtitleStyle(upSteps: 10), line: CGSize(width: 200, height: 300))
+        let frame = place(SubtitleStyle(up: 0.5), line: CGSize(width: 200, height: 300))
         #expect(abs(frame.maxY - 213) < 0.01)
         let withBar = place(.default, line: CGSize(width: 200, height: 300), bottom: 100)
         #expect(abs(withBar.maxY - 125) < 0.01)
@@ -393,25 +499,25 @@ struct SubtitlePlacementTests {
         // Tester (T-014 r1): right 8 = 40% of 677 = 270.8 from the centre 413.5, so a 100 pt line ends at 734.3
         // (the spec formula), not at the region's edge. A 300 pt line is clamped to the edges 752 and 75.
         let farRight = SubtitlePlacement.frame(
-            videoSize: size, margins: landscape, lineSize: lineSize, style: SubtitleStyle(rightSteps: 8))
+            videoSize: size, margins: landscape, lineSize: lineSize, style: SubtitleStyle(right: 0.4))
         #expect(abs(farRight.maxX - 734.3) < 0.01)
         #expect(farRight.maxX <= size.width - 32)   // clear of the handle's touch area
         let farLeft = SubtitlePlacement.frame(
-            videoSize: size, margins: landscape, lineSize: lineSize, style: SubtitleStyle(rightSteps: -8))
+            videoSize: size, margins: landscape, lineSize: lineSize, style: SubtitleStyle(right: -0.4))
         #expect(abs(farLeft.minX - 92.7) < 0.01)
 
         let wide = CGSize(width: 300, height: 30)
         let wideRight = SubtitlePlacement.frame(
-            videoSize: size, margins: landscape, lineSize: wide, style: SubtitleStyle(rightSteps: 8))
+            videoSize: size, margins: landscape, lineSize: wide, style: SubtitleStyle(right: 0.4))
         #expect(abs(wideRight.maxX - 752) < 0.01)
         #expect(wideRight.maxX <= size.width - 32)
         let wideLeft = SubtitlePlacement.frame(
-            videoSize: size, margins: landscape, lineSize: wide, style: SubtitleStyle(rightSteps: -8))
+            videoSize: size, margins: landscape, lineSize: wide, style: SubtitleStyle(right: -0.4))
         #expect(abs(wideLeft.minX - 75) < 0.01)
     }
 
     @Test func bothBarsShowingKeepTheLineBetweenThem() {
-        let frame = place(SubtitleStyle(upSteps: 18), top: 60, bottom: 100)
+        let frame = place(SubtitleStyle(up: 0.9), top: 60, bottom: 100)
         #expect(frame.minY >= 60 - 0.01)
         #expect(frame.maxY <= 125 + 0.01)
     }
@@ -421,29 +527,29 @@ struct SubtitlePlacementTests {
     /// A 100 pt card: the active bottom is 225 - 100 = 125, and one step is 5% of the 205 pt region = 10.25 pt.
     @Test func withTheCardOpenEachUpStepMovesTheLineOneStepFromJustAboveIt() {
         for steps in 0...7 {
-            let frame = place(SubtitleStyle(upSteps: steps), bottom: 100, fromCard: true)
+            let frame = place(SubtitleStyle(up: Double(steps) * 0.05), bottom: 100, fromCard: true)
             #expect(abs(frame.maxY - (125 - CGFloat(steps) * 10.25)) < 0.01)
         }
         // Down is the same move the other way: back at the card's edge at 0 steps, and never below it.
-        #expect(abs(place(SubtitleStyle(upSteps: 0), bottom: 100, fromCard: true).maxY - 125) < 0.01)
+        #expect(abs(place(SubtitleStyle(up: 0.0), bottom: 100, fromCard: true).maxY - 125) < 0.01)
     }
 
     @Test func withTheCardOpenTheLineStillStopsBelowTheTopBar() {
-        let frame = place(SubtitleStyle(upSteps: 18), top: 30, bottom: 100, fromCard: true)
+        let frame = place(SubtitleStyle(up: 0.9), top: 30, bottom: 100, fromCard: true)
         #expect(abs(frame.minY - 30) < 0.01)
         #expect(frame.maxY <= 125 + 0.01)
-        let inside = place(SubtitleStyle(upSteps: 18, rightSteps: 8), top: 30, bottom: 100, fromCard: true)
+        let inside = place(SubtitleStyle(up: 0.9, right: 0.4), top: 30, bottom: 100, fromCard: true)
         #expect(video.width >= inside.maxX)
         #expect(inside.minX >= 16 - 0.01)
     }
 
     @Test func withTheCardOpenSidewaysStepsAreUnchanged() {
-        let style = SubtitleStyle(upSteps: 3, rightSteps: -4)
+        let style = SubtitleStyle(up: 0.15, right: -0.2)
         #expect(abs(place(style, bottom: 100, fromCard: true).minX - place(style, bottom: 100).minX) < 0.01)
     }
 
     @Test func afterTheCardClosesThePlacementIsTheNormalRule() {
-        let style = SubtitleStyle(upSteps: 12)
+        let style = SubtitleStyle(up: 0.6)
         let plain = SubtitlePlacement.frame(
             videoSize: video, margins: margins, bottomObstruction: 0, lineSize: line, style: style)
         let closed = place(style, bottom: 0, fromCard: false)
@@ -460,18 +566,19 @@ struct SubtitlePlacementTests {
     @Test func stepsDoNotOverflowWhenAFieldIsSetToTheExtremesInCode() {
         var style = SubtitleStyle.default
         style.sizeStep = Int.max
-        style.upSteps = Int.max
-        style.rightSteps = Int.min
+        style.up = .greatestFiniteMagnitude
+        style.right = -.greatestFiniteMagnitude
         let size = style.stepSize(1)
         let up = style.stepUp(1)
         let left = style.stepRight(-1)
         #expect(!size && !up && !left)
         #expect(style.sizeStep == 10)
-        #expect(style.upSteps == 18)
-        #expect(style.rightSteps == -8)
+        #expect(style.up == 0.90)
+        #expect(style.right == -0.40)
         #expect(SubtitleStyle.clampedSum(0, Int.max, to: SubtitleStyle.sizeRange) == 10)
         #expect(SubtitleStyle.clampedSum(0, Int.min, to: SubtitleStyle.sizeRange) == -4)
-        #expect(SubtitleStyle.clampedSum(Int.max, Int.max, to: SubtitleStyle.upRange) == 18)
+        #expect(SubtitleStyle.positionSum(0.3, Int.max, to: SubtitleStyle.upRange) == 0.90)
+        #expect(SubtitleStyle.positionSum(0.3, Int.min, to: SubtitleStyle.upRange) == 0)
     }
 
     @Test func menuTextsShowSizeAndPosition() {
@@ -480,18 +587,20 @@ struct SubtitlePlacementTests {
         #expect(SubtitleStyle(sizeStep: -4).sizeText == "60%")
         #expect(SubtitleStyle(sizeStep: 3).sizeSpoken == "130 percent")
         #expect(SubtitleStyle.default.positionText == "Default place")
-        #expect(SubtitleStyle(upSteps: 4, rightSteps: -2).positionText == "Up 20% \u{00B7} Left 10%")
-        #expect(SubtitleStyle(rightSteps: 3).positionText == "Right 15%")
-        #expect(SubtitleStyle(upSteps: 4).verticalSpoken == "20 percent up")
-        #expect(SubtitleStyle(rightSteps: -2).horizontalSpoken == "10 percent left")
+        #expect(SubtitleStyle(up: 0.2, right: -0.1).positionText == "Up 20% \u{00B7} Left 10%")
+        #expect(SubtitleStyle(up: 0.37).verticalSpoken == "37 percent up")
+        #expect(SubtitleStyle(up: 0.376, right: 0.0449).positionText == "Up 38% \u{00B7} Right 4%")
+        #expect(SubtitleStyle(right: 0.15).positionText == "Right 15%")
+        #expect(SubtitleStyle(up: 0.2).verticalSpoken == "20 percent up")
+        #expect(SubtitleStyle(right: -0.1).horizontalSpoken == "10 percent left")
         #expect(SubtitleStyle.default.horizontalSpoken == "Centred")
     }
 
     @Test func eachMutatorDisablesItsButtonAtTheLimit() {
-        let top = SubtitleStyle(sizeStep: 10, upSteps: 18, rightSteps: 8)
+        let top = SubtitleStyle(sizeStep: 10, up: 0.9, right: 0.4)
         #expect(!top.canSizeUp && top.canSizeDown && !top.canMoveUp && top.canMoveDown)
         #expect(!top.canMoveRight && top.canMoveLeft)
-        let bottom = SubtitleStyle(sizeStep: -4, upSteps: 0, rightSteps: -8)
+        let bottom = SubtitleStyle(sizeStep: -4, up: 0.0, right: -0.4)
         #expect(bottom.canSizeUp && !bottom.canSizeDown && !bottom.canMoveDown && !bottom.canMoveLeft)
     }
 
@@ -597,7 +706,7 @@ extension SubtitlePlacementTests {
             let before = SubtitlePlacement.frame(
                 videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: cardClearance,
                 lineSize: lineSize, style: style, stepsFromObstruction: true)
-            style.upSteps += 1
+            style.stepUp(1)
             let after = SubtitlePlacement.frame(
                 videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: cardClearance,
                 lineSize: lineSize, style: style, stepsFromObstruction: true)
@@ -624,7 +733,7 @@ extension SubtitlePlacementTests {
         let margins = SubtitleMargins(top: 8, leading: 75, bottom: 33, trailing: 48)
         let atLimit = SubtitlePlacement.canStepUpWithCardOpen(
             videoSize: size, margins: margins, topObstruction: 0, bottomObstruction: 68,
-            lineSize: CGSize(width: 100, height: 4), style: SubtitleStyle(upSteps: 18))
+            lineSize: CGSize(width: 100, height: 4), style: SubtitleStyle(up: 0.9))
         #expect(!atLimit)
         let unmeasured = SubtitlePlacement.canStepUpWithCardOpen(
             videoSize: .zero, margins: margins, topObstruction: 52, bottomObstruction: 68,
@@ -632,40 +741,58 @@ extension SubtitlePlacementTests {
         #expect(unmeasured)
     }
 
-    private func highest(cardClearance: CGFloat) -> Int {
-        SubtitlePlacement.highestReachableUpStep(
+    private func highest(cardClearance: CGFloat) -> Double {
+        SubtitlePlacement.highestReachableUp(
             videoSize: CGSize(width: 800, height: 360), margins: SubtitleMargins(top: 8, leading: 75, bottom: 33, trailing: 48),
             topObstruction: 52, bottomObstruction: cardClearance, lineSize: CGSize(width: 100, height: 30))
     }
 
-    @Test func theHighestReachableStepMatchesTheUpTaps() {
-        #expect(highest(cardClearance: 68) == 14)
-        #expect(highest(cardClearance: 108) == 11)
-        #expect(highest(cardClearance: 148) == 9)
+    @Test func theHighestReachableUpMatchesTheUpTaps() {
+        #expect(highest(cardClearance: 68) == 0.70)
+        #expect(highest(cardClearance: 108) == 0.55)
+        #expect(highest(cardClearance: 148) == 0.45)
     }
 
-    @Test func aStoredStepAboveTheHighestReachableJumpsToOneBelowItOnTheFirstDown() {
+    @Test func aStoredUpAboveTheHighestReachableJumpsToOneStepBelowItOnTheFirstDown() {
         let top = highest(cardClearance: 68)
-        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 17, highestReachable: top) == top - 1)
-        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 18, highestReachable: top) == top - 1)
-        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: top + 1, highestReachable: top) == top - 1)
-        // At or below the highest reachable step, Down is one step as before, and never below the default.
-        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: top, highestReachable: top) == top - 1)
-        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 5, highestReachable: top) == 4)
-        #expect(SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 0, highestReachable: top) == 0)
+        let below = SubtitleStyle.clampPosition(top - 0.05, to: SubtitleStyle.upRange)
+        #expect(SubtitlePlacement.upAfterDownWithCardOpen(stored: 0.85, highestReachable: top) == below)
+        #expect(SubtitlePlacement.upAfterDownWithCardOpen(stored: 0.90, highestReachable: top) == below)
+        #expect(SubtitlePlacement.upAfterDownWithCardOpen(stored: top + 0.05, highestReachable: top) == below)
+        // At or below the highest reachable value, Down is 0.05 as before (from wherever it is), never below 0.
+        #expect(SubtitlePlacement.upAfterDownWithCardOpen(stored: top, highestReachable: top) == below)
+        #expect(SubtitlePlacement.upAfterDownWithCardOpen(stored: 0.25, highestReachable: top) == 0.20)
+        #expect(SubtitlePlacement.upAfterDownWithCardOpen(stored: 0.37, highestReachable: top) == 0.32)
+        #expect(SubtitlePlacement.upAfterDownWithCardOpen(stored: 0.02, highestReachable: top) == 0)
+        #expect(SubtitlePlacement.upAfterDownWithCardOpen(stored: 0, highestReachable: top) == 0)
+    }
+
+    @Test func aMenuAtTheTopCanCountUpFromTheBottomInstead() {
+        let size = CGSize(width: 800, height: 360)
+        let margins = SubtitleMargins(top: 8, leading: 75, bottom: 33, trailing: 48)
+        let lineSize = CGSize(width: 100, height: 30)
+        // From the bottom the line reaches the top bar after more taps than from a 68 pt card.
+        let fromBottom = SubtitlePlacement.highestReachableUp(
+            videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 0, lineSize: lineSize,
+            stepsFromObstruction: false)
+        #expect(fromBottom > 0 && fromBottom < 0.90)
+        let canStepBelow = SubtitlePlacement.canStepUpWithCardOpen(
+            videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 0, lineSize: lineSize,
+            style: SubtitleStyle(up: fromBottom - 0.05), stepsFromObstruction: false)
+        #expect(canStepBelow)
     }
 
     @Test func theJumpedStepMovesTheLineByMoreThanOnePoint() {
         let size = CGSize(width: 800, height: 360)
         let margins = SubtitleMargins(top: 8, leading: 75, bottom: 33, trailing: 48)
         let lineSize = CGSize(width: 100, height: 30)
-        let target = SubtitlePlacement.upStepAfterDownWithCardOpen(stored: 17, highestReachable: highest(cardClearance: 68))
+        let target = SubtitlePlacement.upAfterDownWithCardOpen(stored: 0.85, highestReachable: highest(cardClearance: 68))
         let pinned = SubtitlePlacement.frame(
             videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 68,
-            lineSize: lineSize, style: SubtitleStyle(upSteps: 17), stepsFromObstruction: true)
+            lineSize: lineSize, style: SubtitleStyle(up: 0.85), stepsFromObstruction: true)
         let moved = SubtitlePlacement.frame(
             videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 68,
-            lineSize: lineSize, style: SubtitleStyle(upSteps: target), stepsFromObstruction: true)
+            lineSize: lineSize, style: SubtitleStyle(up: target), stepsFromObstruction: true)
         #expect(moved.minY - pinned.minY > 1)
     }
 }

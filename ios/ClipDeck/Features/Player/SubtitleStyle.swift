@@ -16,19 +16,23 @@ nonisolated enum SubtitleFont: String, Codable, CaseIterable, Sendable {
 }
 
 /// How the line on the video is drawn: font, weight, size and place. One global value, saved as JSON under
-/// `player.subtitleStyle`. Steps are Ints so there is no floating-point drift. The default is today's look.
+/// `player.subtitleStyle`. The size is an Int step. The position is a continuous fraction of the video region (`up`,
+/// `right`), rounded to 4 decimals on every write so repeated taps never drift. The default is today's look.
 ///
 /// Decoding is tolerant: every field falls back to its default when missing or invalid, unknown fields are
-/// ignored (a later build may add some), and every field is clamped to its range. A picked font that is no longer
+/// ignored (a later build may add some), and every field is clamped to its range. The position reads `up`/`right`,
+/// or else the old `upSteps`/`rightSteps` x 0.05; it is always written under the new keys only. A picked font that is no longer
 /// installed is dropped on read and the style uses Sans.
 /// Not `RawRepresentable` on purpose: a type that is both that and `Codable` recurses forever.
 nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
     /// Size steps: scale = 1 + 0.1 x step, so 60% to 200%.
     static let sizeRange = -4...10
-    /// Up steps, each 5% of the region height. 0 is the default bottom place; nothing goes lower.
-    static let upRange = 0...18
-    /// Sideways steps, each 5% of the region width. Negative is left.
-    static let rightRange = -8...8
+    /// How far up, as a fraction of the region height. 0 is the default bottom place; nothing goes lower.
+    static let upRange: ClosedRange<Double> = 0...0.90
+    /// How far sideways, as a fraction of the region width. Negative is left.
+    static let rightRange: ClosedRange<Double> = -0.40...0.40
+    /// One arrow tap moves the line by this fraction.
+    static let positionStep = 0.05
     /// The `UserDefaults.standard` key holding the JSON.
     static let storageKey = "player.subtitleStyle"
     /// The line is never smaller than this many points, however small the video area is.
@@ -38,26 +42,31 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
     var font: SubtitleFont
     var bold: Bool
     var sizeStep: Int
-    var upSteps: Int
-    var rightSteps: Int
+    var up: Double
+    var right: Double
     /// PostScript name of a font picked in the system font picker. When set it takes the place of `font`; picking a
     /// preset clears it. Not checked here (tests build styles with synthetic names); decoding and drawing check it.
     var pickedFontName: String?
 
     init(
-        font: SubtitleFont = .sans, bold: Bool = true, sizeStep: Int = 0, upSteps: Int = 0, rightSteps: Int = 0,
+        font: SubtitleFont = .sans, bold: Bool = true, sizeStep: Int = 0, up: Double = 0, right: Double = 0,
         pickedFontName: String? = nil
     ) {
         self.pickedFontName = pickedFontName
         self.font = font
         self.bold = bold
         self.sizeStep = Self.clamp(sizeStep, to: Self.sizeRange)
-        self.upSteps = Self.clamp(upSteps, to: Self.upRange)
-        self.rightSteps = Self.clamp(rightSteps, to: Self.rightRange)
+        self.up = Self.clampPosition(up, to: Self.upRange)
+        self.right = Self.clampPosition(right, to: Self.rightRange)
     }
 
     private enum CodingKeys: String, CodingKey {
-        case font, bold, sizeStep, upSteps, rightSteps, pickedFontName
+        case font, bold, sizeStep, up, right, pickedFontName
+    }
+
+    /// The keys before the position became a fraction (read only, never written).
+    private enum LegacyKeys: String, CodingKey {
+        case upSteps, rightSteps
     }
 
     init(from decoder: Decoder) throws {
@@ -68,12 +77,17 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
         let installedName: String? = savedName.flatMap { Self.isInstalled($0) ? $0 : nil }
         let dropped = savedName != nil && installedName == nil
         let savedFont: SubtitleFont = (try? container.decodeIfPresent(SubtitleFont.self, forKey: .font)) ?? fallback.font
+        let legacy = try? decoder.container(keyedBy: LegacyKeys.self)
+        let upFraction: Double? = try? container.decodeIfPresent(Double.self, forKey: .up)
+        let rightFraction: Double? = try? container.decodeIfPresent(Double.self, forKey: .right)
+        let upOld: Int? = try? legacy?.decodeIfPresent(Int.self, forKey: .upSteps)
+        let rightOld: Int? = try? legacy?.decodeIfPresent(Int.self, forKey: .rightSteps)
         self.init(
             font: dropped ? .sans : savedFont,
             bold: (try? container.decodeIfPresent(Bool.self, forKey: .bold)) ?? fallback.bold,
             sizeStep: (try? container.decodeIfPresent(Int.self, forKey: .sizeStep)) ?? fallback.sizeStep,
-            upSteps: (try? container.decodeIfPresent(Int.self, forKey: .upSteps)) ?? fallback.upSteps,
-            rightSteps: (try? container.decodeIfPresent(Int.self, forKey: .rightSteps)) ?? fallback.rightSteps,
+            up: upFraction ?? upOld.map { Double($0) * Self.positionStep } ?? fallback.up,
+            right: rightFraction ?? rightOld.map { Double($0) * Self.positionStep } ?? fallback.right,
             pickedFontName: installedName
         )
     }
@@ -87,16 +101,53 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
         min(max(value, range.lowerBound), range.upperBound)
     }
 
+    /// A position value inside its range and rounded to 4 decimals (NaN gives 0). Every write goes through this, so
+    /// 18 taps of 0.05 land on exactly 0.90.
+    static func clampPosition(_ value: Double, to range: ClosedRange<Double>) -> Double {
+        guard !value.isNaN else { return 0 }
+        let inside = min(max(value, range.lowerBound), range.upperBound)
+        return (inside * 10_000).rounded() / 10_000
+    }
+
     /// The same style with every field inside its range (for a value built by setting the properties directly).
     func clamped() -> SubtitleStyle {
         SubtitleStyle(
-            font: font, bold: bold, sizeStep: sizeStep, upSteps: upSteps, rightSteps: rightSteps,
+            font: font, bold: bold, sizeStep: sizeStep, up: up, right: right,
             pickedFontName: pickedFontName
         )
     }
 
-    /// The default style has no picked font.
+    /// The default style has no picked font. Both groups are at their defaults.
     var isDefault: Bool { clamped() == SubtitleStyle.default }
+
+    /// Font, picked font, bold and size are all at their defaults.
+    var isFontDefault: Bool {
+        let now = clamped()
+        let base = SubtitleStyle.default
+        return now.font == base.font && now.pickedFontName == base.pickedFontName && now.bold == base.bold
+            && now.sizeStep == base.sizeStep
+    }
+
+    /// Up and right are both at their defaults.
+    var isPositionDefault: Bool {
+        let now = clamped()
+        return now.up == SubtitleStyle.default.up && now.right == SubtitleStyle.default.right
+    }
+
+    /// Restores font, picked font, bold and size. The position stays.
+    mutating func resetFont() {
+        let base = SubtitleStyle.default
+        font = base.font
+        pickedFontName = base.pickedFontName
+        bold = base.bold
+        sizeStep = base.sizeStep
+    }
+
+    /// Restores up and right. The font group stays.
+    mutating func resetPosition() {
+        up = SubtitleStyle.default.up
+        right = SubtitleStyle.default.right
+    }
 
     /// 0.6 ... 2.0.
     var scale: Double { Double(10 + Self.clamp(sizeStep, to: Self.sizeRange)) / 10 }
@@ -111,17 +162,17 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
         return delta > 0 ? canSizeUp : (delta < 0 ? canSizeDown : false)
     }
 
-    /// A positive delta moves the line up.
+    /// A positive delta moves the line up by 0.05 each, from wherever it is now (not onto a grid).
     @discardableResult
     mutating func stepUp(_ delta: Int) -> Bool {
-        upSteps = Self.clampedSum(upSteps, delta, to: Self.upRange)
+        up = Self.positionSum(up, delta, to: Self.upRange)
         return delta > 0 ? canMoveUp : (delta < 0 ? canMoveDown : false)
     }
 
     /// A positive delta moves the line right, a negative one left.
     @discardableResult
     mutating func stepRight(_ delta: Int) -> Bool {
-        rightSteps = Self.clampedSum(rightSteps, delta, to: Self.rightRange)
+        right = Self.positionSum(right, delta, to: Self.rightRange)
         return delta > 0 ? canMoveRight : (delta < 0 ? canMoveLeft : false)
     }
 
@@ -134,12 +185,17 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
         return clamp(sum, to: range)
     }
 
+    /// The value clamped first, then `delta` x 0.05 added and clamped and rounded again (a huge delta can't trap).
+    static func positionSum(_ value: Double, _ delta: Int, to range: ClosedRange<Double>) -> Double {
+        clampPosition(clampPosition(value, to: range) + Double(delta) * positionStep, to: range)
+    }
+
     var canSizeUp: Bool { sizeStep < Self.sizeRange.upperBound }
     var canSizeDown: Bool { sizeStep > Self.sizeRange.lowerBound }
-    var canMoveUp: Bool { upSteps < Self.upRange.upperBound }
-    var canMoveDown: Bool { upSteps > Self.upRange.lowerBound }
-    var canMoveRight: Bool { rightSteps < Self.rightRange.upperBound }
-    var canMoveLeft: Bool { rightSteps > Self.rightRange.lowerBound }
+    var canMoveUp: Bool { Self.clampPosition(up, to: Self.upRange) < Self.upRange.upperBound }
+    var canMoveDown: Bool { Self.clampPosition(up, to: Self.upRange) > Self.upRange.lowerBound }
+    var canMoveRight: Bool { Self.clampPosition(right, to: Self.rightRange) < Self.rightRange.upperBound }
+    var canMoveLeft: Bool { Self.clampPosition(right, to: Self.rightRange) > Self.rightRange.lowerBound }
 
     // MARK: Saved form
 

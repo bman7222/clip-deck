@@ -45,7 +45,7 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
   setup with `UITestSupport.rotateToLandscape`, which relaunches the app once if that stall hits (docs/DEVELOPMENT.md, Tests).
 - Subtitle style (`player.subtitleStyle` in the standard defaults): every `-uiTesting` launch clears it, unless
   `-uiTestingKeepSubtitleStyle` is passed. `-uiTestingSubtitleStyle <json>` then seeds one, for example
-  `{"font":"serif","bold":false,"sizeStep":5,"upSteps":4,"rightSteps":-4}` (missing or invalid fields take the default).
+  `{"font":"serif","bold":false,"sizeStep":5,"up":0.2,"right":-0.2}`; the old form `"upSteps":4,"rightSteps":-4` (steps x 0.05) is read too, and the new keys win when both are given (missing or invalid fields take the default).
 - `-uiTestingExpiry <ISO-8601 date>` (Debug, with `-uiTesting`) overrides the install-expiry date from the signing profile,
   so the library's expiry banner and the Anki settings expiry line can be tested. `-uiTestingKeepExpiryDismissal` keeps the
   banner's dismissal day across a relaunch (the "uiTesting" defaults are otherwise cleared on every launch).

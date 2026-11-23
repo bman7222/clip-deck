@@ -14,13 +14,13 @@ struct SubtitleUpLimitTesterTests {
     private func canStep(upSteps: Int, lineHeight: CGFloat, top: CGFloat = 52, card: CGFloat = 68) -> Bool {
         SubtitlePlacement.canStepUpWithCardOpen(
             videoSize: size, margins: margins, topObstruction: top, bottomObstruction: card,
-            lineSize: CGSize(width: 100, height: lineHeight), style: SubtitleStyle(upSteps: upSteps))
+            lineSize: CGSize(width: 100, height: lineHeight), style: SubtitleStyle(up: Double(upSteps) * 0.05))
     }
 
     private func minY(upSteps: Int, lineHeight: CGFloat) -> CGFloat {
         SubtitlePlacement.frame(
             videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 68,
-            lineSize: CGSize(width: 100, height: lineHeight), style: SubtitleStyle(upSteps: upSteps),
+            lineSize: CGSize(width: 100, height: lineHeight), style: SubtitleStyle(up: Double(upSteps) * 0.05),
             stepsFromObstruction: true
         ).minY
     }
@@ -63,9 +63,32 @@ struct SubtitleUpLimitTesterTests {
                 videoSize: size, margins: margins, topObstruction: 0, bottomObstruction: 68,
                 lineSize: CGSize(width: 100, height: 30), style: style)
             if !can { break }
-            style.upSteps += 1
+            style.stepUp(1)
             taps += 1
         }
         #expect(taps == 16)
+    }
+
+    /// T-023 tester: `stepsFromObstruction: false` really reaches both helpers. With no bottom obstruction the two
+    /// modes give the same frames, so this uses a 40 pt one (active bottom 320, resting bottom 327, clamp 82):
+    /// counted from the obstruction the line reaches the top-bar clamp at 0.75 (320 - 239.25 = 80.75 -> 82), counted
+    /// from the region's bottom only at 0.80 (0.75 still sits at 87.75, so one more Up moves it 5.75 pt).
+    @Test func stepsFromObstructionFalseCountsFromTheRegionBottom() {
+        let line = CGSize(width: 100, height: 30)
+        let fromObstruction = SubtitlePlacement.highestReachableUp(
+            videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 40, lineSize: line)
+        let fromBottom = SubtitlePlacement.highestReachableUp(
+            videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 40, lineSize: line,
+            stepsFromObstruction: false)
+        #expect(fromObstruction == 0.75)
+        #expect(fromBottom == 0.80)
+        let canFromObstruction = SubtitlePlacement.canStepUpWithCardOpen(
+            videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 40, lineSize: line,
+            style: SubtitleStyle(up: 0.75))
+        let canFromBottom = SubtitlePlacement.canStepUpWithCardOpen(
+            videoSize: size, margins: margins, topObstruction: 52, bottomObstruction: 40, lineSize: line,
+            style: SubtitleStyle(up: 0.75), stepsFromObstruction: false)
+        #expect(!canFromObstruction)
+        #expect(canFromBottom)
     }
 }
