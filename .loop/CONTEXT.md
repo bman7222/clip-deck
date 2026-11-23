@@ -28,7 +28,7 @@ subtitles, turn a subtitle line into an Anki card (audio clip, screenshot, sente
 ## How to verify
 - Brent is on Windows with no Mac. Nothing Swift can be compiled locally.
 - CI: push the loop branch, then `gh workflow run ios-simulator.yml --ref <branch>` (push alone doesn't trigger it on non-main branches).
-  Watch with `gh run watch`, read `--log-failed`, download `simulator-results` (screenshots, xcresult) and `ClipDeck-ipa`.
+  Watch with `gh run watch`, read `--log-failed`, download `simulator-results-1`/`-2`/`-3` (screenshots, xcresult) and `ClipDeck-ipa`.
 - Only Brent can check: real iPhone install via Sideloadly, real video import from Files, sync with desktop Anki.
 
 ## Full docs
@@ -61,3 +61,8 @@ subtitles, turn a subtitle line into an Anki card (audio clip, screenshot, sente
 - CI headroom: in 45055876049 (T-019, scope=all, same 390 tests) testing took 53 min and the simulator job 57 of its 60 min. Split ClipDeckTests and ClipDeckUITests into separate runs before a full run times out.
 - UI-test flake: SubtitleStyleCardTesterUITests/testUpDisablesWhenTheLineCanNoLongerMoveUp can lose an Up tap on CI ("Up tap 7 moves the line", 45055876049). In the recording the line never moved and Up stayed enabled, and the diff was only the icon PNG. Re-check it in the next needed run.
 - The "Seeded show should appear" flake also hit SubtitleStyleCardTesterUITests/testFirstDownTapMovesTheLineWhenTheStoredPlaceIsAboveTheClamp in 45069006816. The runner was slow: launches took up to 31 s, and the library was still empty after 66 s. It passed on the same SHA in 45055876049.
+- CI (T-020): jobs `plan`, `simulator (shard 1)` (ClipDeckTests + listed UI classes + launch screenshot), `simulator (shard 2)` (listed UI classes), `simulator (shard 3)` (everything else), `ipa`. Artifacts `simulator-results-1`, `-2`, `-3`, `ClipDeck-ipa` (download with `-p "simulator-results*"`). With only_testing there is only shard 1.
+- CI runner speed varies a lot: in 45070921716 (T-020) one macOS VM needed 12 min from xcodebuild start to the first UI test (the other 5.8) and ran UI tests ×1.22 slower than 45002423211; 45055876049 ran them ×1.34. Leave headroom when judging job times.
+- UI-test flake: SubtitleUpLimitTesterUITests/testUpDimsExactlyWhenTheLineReachesTheTopBarWithTwoAndThreeRowCards can lose its last Done tap ("Done closes the card (panel-25)"; card and Done still on screen at failure, 45083671012 shard 1). It passed in 45002423211 and 45070921716. Re-check it before treating it as a failure.
+- CI (T-020, three shards, 45083671012): shard 1 20:23, shard 2 28:28 (8.6 min of it was one test's 60 s "wait for idle" stalls), shard 3 27:41. New UI classes land in shard 3; when it nears 35 min, move classes into SHARD1_UI (most headroom).
+- Flake root cause: PlayerLandscapeBehaviourUITests/testControlsStayWhilePausedAndAutoHideWhilePlaying fails ("Playing: controls hide on their own") when the Play tap takes about 6 s on a slow VM. The 6-s sample plays to its end and stops, and the controls come back (slider 6,000, button "Play"; 45087727557 shard 2). It passed on the same shard filter in 45083671012.

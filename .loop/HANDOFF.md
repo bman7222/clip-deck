@@ -720,3 +720,60 @@
 ## 2026-11-22 · orchestrator · T-019 · landed
 - Done: Pass in round 1 (Sonnet builder, Opus tester). Landed as aa89224. CI 45055876049 (scope=all): ipa green, simulator 389/390 (a lost Up tap). Brent approved the re-check: verify run 45069006816 (SubtitleStyleCardTesterUITests only) passed that test, while the known "Seeded show should appear" flake failed in a test that passed in run 1. Every test has a pass on 8192e71. 2 of the 4 CI runs used
 - Next: T-020 (split the simulator job, #22). The full job took 57 of its 60 minutes in 45055876049
+
+## 2026-11-22 · loop-backend · T-020 · round 1
+- Done: simulator job split into a plan job + 2-shard matrix (shard 1 = unit + 4 UI classes + launch screenshot, shard 2 = other UI classes via -skip-testing); test-ios.sh takes several only/skip values
+- Left: CI proving run (scope=all, then only_testing=ClipDeckUITests/LaunchUITests); config.yml ci.artifacts needs simulator-results-1, simulator-results-2
+- Files: .github/workflows/ios-simulator.yml, scripts/test-ios.sh, docs/DEVELOPMENT.md, CLAUDE.md, .loop/CONTEXT.md
+- Gotchas: only_testing runs shard 1 alone (shard 2 absent); matrix not usable in job-level if, so a plan job builds the matrix
+
+## 2026-11-22 18:17 · loop-tester · T-020 · round 1
+- Done: read CI 45070921716 (dc157fa, scope=all). All 4 jobs green. AC-2 passes: shard 1 ran 344 tests (326 unit + 18 UI) and shard 2 ran 46 UI tests, and their union equals the 390 of 45002423211 exactly, with no overlap. `-skip-testing` works with `-only-testing ClipDeckUITests`. AC-1 and AC-5 pass (artifacts simulator-results-1/-2, same layout and the same 72 png / 52 txt exports)
+- Fail: M1 (AC-3). Shard 2 took 41:13 against the 35-min limit (shard 1: 27:16). Shard 2 carries 60 % of the UI minutes and got a slow VM (12 min build vs 5.8, UI ×1.22). Fix: move SubtitleStyleUITests (4.0) to SHARD1_UI. Even an ideal two-way split is about 35-37 min on a VM that slow
+- AC-4 unverified: needs `-f scope=tests -f only_testing=ClipDeckUITests/LaunchUITests`. Could fix: C1, a new test target would run in no shard; C2, DEVELOPMENT.md repeats the SHARD1_UI list
+- Files: .loop/tasks/T-020-split-simulator-job.md (Test report round 1), .loop/CONTEXT.md (+1 Learned); no repo tests added. The test-ios.sh stub harness is in the tester's scratchpad
+- Gotchas: Data/ pruned in %TEMP%\clip-deck-loop\T-020-r1 (14 MB left). Job times come from `gh run view <id> --json jobs`; xcresult Actions.started → first Activities.startTime gives the build+boot time
+
+## 2026-11-22 · loop-backend · T-020 · round 2
+- Done: three simulator shards (1: unit + 5 UI classes + launch shot; 2: 3 UI classes; 3: skip-list of everything else); docs name the workflow lists instead of repeating them
+- Left: re-proving run scope=all, then the only_testing run; config.yml ci.artifacts -> simulator-results-1, -2, -3, ClipDeck-ipa
+- Files: .github/workflows/ios-simulator.yml, docs/DEVELOPMENT.md, CLAUDE.md, .loop/CONTEXT.md
+- Gotchas: shard 3 has no -only-testing, so unknown targets run there
+
+## 2026-11-22 19:10 · loop-tester · T-020 · round 2
+- Done: read CI 45083671012 (557d9d2, scope=all) and dispatched/read 45086461824 (scope=tests, only_testing=ClipDeckUITests/LaunchUITests; CI run 3 of 4). AC-2 passes: 342 + 20 + 28 = 390, identical to 45002423211, no overlap, and shard 3 (skip-only) ran no unit tests. AC-1, AC-4 (one job, one test, ipa skipped) and AC-5 pass. All three shards are under 35 min (20:23 / 28:28 / 27:41)
+- Fail: S1 (Should fix, stale docs): workflow:14 says "(two shards)", and CONTEXT.md:31 lists only `-1`/`-2`. A one-word, behaviour-free fix
+- Blocked part of AC-3 (green): 3 pre-existing UI failures (FontTester "Seeded show", About notice, a lost Done tap in SubtitleUpLimitTester). NEEDED `gh run rerun 45083671012 --failed`. Could fix: C3 (an empty SHARD2_UI makes shard 2 run everything), C4 (a whitespace-only only_testing runs all tests in one job)
+- Files: .loop/tasks/T-020-split-simulator-job.md (Test report round 2), .loop/CONTEXT.md (+2 Learned); no repo tests added
+- Gotchas: run 4 of 4 is left. A rerun of failed jobs shares the `ios-<ref>` concurrency group, so don't dispatch on the branch while it runs. Data/ pruned in %TEMP%\clip-deck-loop\T-020-r2 (37 MB left)
+
+## 2026-11-22 · loop-backend · T-020 · round 3
+- Done: stale "two shards" input text fixed, CONTEXT lists simulator-results-3, plan job trims only_testing and omits an empty shard 2
+- Files: .github/workflows/ios-simulator.yml, .loop/CONTEXT.md
+- Gotchas: jq not available locally, so the matrix expression was only read
+
+## 2026-11-22 19:50 · loop-tester · T-020 · round 3
+- Done: read CI 45087727557 (7c79c7c, scope=all, run 4 of 4). AC-1, AC-2 (342 + 20 + 28 = 390, identical to 45002423211, 0 overlap), AC-4 and AC-5 pass. All shards are under 35 min (26:43 / 18:01 / 29:27), and the launch step ran in shard 1. S1, C3 and C4 are fixed: I ran the plan step locally with a gojq-backed jq shim (it matches the real CI matrices), and mutants of the old code bring back both bugs
+- Blocked: shard 2 failed on the known flake PlayerLandscapeBehaviourUITests/testControlsStayWhilePausedAndAutoHideWhilePlaying. The 6-s sample played to its end during a 6-s Play tap on a slow VM (slider 6,000, button "Play" at failure). Round 2's three flakes all passed. NEEDED: `gh run rerun 45087727557 --failed` (shard 2 only; this is beyond the budget, so Brent decides)
+- Files: .loop/tasks/T-020-split-simulator-job.md (Test report round 3), .loop/CONTEXT.md (+1 Learned); no repo tests added
+- Gotchas: no jq locally. `gh api rate_limit --jq '"v" as $x | <filter>'` runs real jq semantics (gojq sorts keys, so compare parsed JSON). Data/ pruned in %TEMP%\clip-deck-loop\T-020-r3 (20 MB left)
+
+## 2026-11-22 20:05 · loop-planner · T-034 · planning change
+- Done: added T-034 "Harden the known flaky tests" (#39, backend, depends on T-021), on the board right after T-021 so it runs before T-022. Scope: every flake in CONTEXT "Learned" plus T-021's new overlay timing tests. Done when: shared UI-test helpers, nothing lost (same test-name set as T-021's landing run), one green scope=all run (a rerun of only the failed job counts)
+- Left: nothing blocks it. T-020's task file was not touched
+- Files: .loop/tasks/T-034-harden-flaky-ui-tests.md, .loop/BOARD.md
+- Gotchas: likely root cause of the "Seeded show should appear" flake and both unit-test timeouts: TestMediaFactory.waitUntilReady gives up after about 5 s (1,000 × 5 ms) and throws .timedOut. The seeder then seeds nothing, so a longer wait alone can't fix it. Traced from the code, not proven; the builder confirms it from the app output in the xcresult
+
+## 2026-11-22 20:16 · loop-tester · T-020 · round 3 addendum
+- Done: watched the approved re-run `gh run rerun 45087727557 --failed` (attempt 2, CI run 5). Shard 2 went green on 7c79c7c in 19:59 (20/20), and testControlsStayWhilePausedAndAutoHideWhilePlaying passed in 35 s. The run's conclusion is success with all jobs green
+- Verdict: Pass. Every criterion is met. Final union 342 + 20 + 28 = 390, identical to 45002423211, all Success. Shard times 26:43 / 19:59 / 29:27
+- Files: .loop/tasks/T-020-split-simulator-job.md (Round 3 addendum); no repo tests added
+- Gotchas: after a rerun, the run has two `simulator-results-2` artifacts, so download the new one by ID (`gh api repos/{owner}/{repo}/actions/artifacts/<id>/zip`); `gh run download -n` is ambiguous. %TEMP%\clip-deck-loop\T-020-r3 is pruned (26 MB)
+
+## 2026-11-23 · orchestrator · T-020 · landed
+- Done: Pass in round 3 (Sonnet builder, Opus tester). Landed as 9f73098. CI 45087727557 (scope=all, final commit) was all green after Brent approved re-running shard 2 (CI run 5, one past the budget); 390/390 tests run once each; shards took 26:43, 19:59 and 29:27. AC-4 was proven by 45086461824 (one job, one test)
+- Brent's decisions: three UI shards instead of two (after round 1's 41 min shard), Sonnet retries, and one full run on the final commit
+- config.yml `ci.artifacts` is now simulator-results-1/-2/-3 + ClipDeck-ipa. After a re-run there are two artifacts with the same name, so download by artifact ID
+- Planning change: Brent added T-034 (harden the known flaky tests, #39) after T-021, before T-022
+- Open for Brent, not planned: xcodebuild `-retry-tests-on-failure` (hides real flakes)
+- Next: T-021 (centred playback overlay, #23)
