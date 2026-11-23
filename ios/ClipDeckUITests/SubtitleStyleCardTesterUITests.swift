@@ -146,15 +146,23 @@ final class SubtitleStyleCardTesterUITests: XCTestCase {
         openCard(app)
         settle()
         let up = app.buttons["subtitleStyle.up"]
-        var previousMaxY = app.textViews["player.subtitle"].frame.maxY
+        let down = app.buttons["subtitleStyle.down"]
+        let line = app.textViews["player.subtitle"]
+        var previousMaxY = line.frame.maxY
         var taps = 0
         while up.isEnabled && taps < 20 {
-            up.tap()
+            // T-034: on a slow runner an Up tap can be lost ("Up tap 7 moves the line" failed with the line never moving).
+            // Down's value is the stored percent: a lost tap leaves the old value and is tapped again after the wait; a
+            // doubled tap (a slow tap landing after the re-tap) shows another value and fails here.
+            let before = UITestSupport.upText(taps * 5)
             taps += 1
+            XCTAssertTrue(UITestSupport.tapStep(up, reader: down, from: before, to: UITestSupport.upText(taps * 5)),
+                          "Up tap \(taps) steps the stored place once (Down reads \(down.value as? String ?? "?"))")
+            let reference = previousMaxY
+            XCTAssertTrue(UITestSupport.waitForFrame(line, timeout: 6) { $0.maxY < reference - 1 },
+                          "Up tap \(taps) moves the line by more than 1 pt")
             settle()
-            let maxY = app.textViews["player.subtitle"].frame.maxY
-            XCTAssertLessThan(maxY, previousMaxY - 1, "Up tap \(taps) moves the line by more than 1 pt")
-            previousMaxY = maxY
+            previousMaxY = line.frame.maxY
         }
         XCTAssertGreaterThan(taps, 0, "Up starts enabled")
         XCTAssertLessThan(taps, 18, "The top bar, not the stored 90 % limit, stopped Up")
@@ -292,14 +300,12 @@ final class SubtitleStyleCardTesterUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
         if let seed { app.launchArguments += ["-uiTestingSubtitleStyle", seed] }
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
         episodeRow.tap()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(app.descendants(matching: .any)["player.video"].waitForExistence(timeout: 10))
         tapVideo(app)
         XCTAssertTrue(app.buttons["player.back"].waitForExistence(timeout: 5), "A tap shows the controls")

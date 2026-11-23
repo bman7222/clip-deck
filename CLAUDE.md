@@ -40,6 +40,9 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
   sample SRT) and fixture 1 as "Episode 2" (its embedded SRT; the ASS track is saved too); it needs `CLIPDECK_FIXTURES` in the app's environment (UI tests forward it through `launchEnvironment`).
 - `-uiTestingSampleSeconds <n>` (Debug, with `-uiTesting`): the seeded "Sample Show" video is n seconds long (1 to 600) instead of 6;
   the subtitles don't change. Tests that play the video use it (for example 30) so a slow runner can't play the clip to its end.
+- Every `-uiTesting` launch (Debug) also starts `UITestAnimationWatch` (App/), which only prints: any animation that stays on a
+  layer for 3 s or more, to find the cause of the UI-test idle stall (T-034). UI tests rotate the player to landscape in their
+  setup with `UITestSupport.rotateToLandscape`, which relaunches the app once if that stall hits (docs/DEVELOPMENT.md, Tests).
 - Subtitle style (`player.subtitleStyle` in the standard defaults): every `-uiTesting` launch clears it, unless
   `-uiTestingKeepSubtitleStyle` is passed. `-uiTestingSubtitleStyle <json>` then seeds one, for example
   `{"font":"serif","bold":false,"sizeStep":5,"upSteps":4,"rightSteps":-4}` (missing or invalid fields take the default).

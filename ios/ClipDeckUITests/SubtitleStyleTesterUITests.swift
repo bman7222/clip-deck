@@ -33,7 +33,7 @@ final class SubtitleStyleTesterUITests: XCTestCase {
     @MainActor
     func testLandscapeExtremeLeftStaysClearOfTheLeadingSafeArea() throws {
         let app = launch(arguments: ["-uiTestingSubtitleStyle", extremeLeft])
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
         let video = app.descendants(matching: .any)["player.video"]
         XCTAssertTrue(video.waitForExistence(timeout: 10))
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.35)).tap()
@@ -76,9 +76,7 @@ final class SubtitleStyleTesterUITests: XCTestCase {
     private func launch(arguments: [String]) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"] + arguments
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))

@@ -202,14 +202,13 @@ final class PlaybackOverlayUITests: XCTestCase {
         // A 30 s clip, so a slow runner can't play it to its end (which pauses it and brings the overlay back)
         // while a test is still waiting. The default 6 s sample is too short for tests that play.
         app.launchArguments += ["-uiTesting", "-uiTestingSampleSeconds", "30"]
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
         episodeRow.tap()
-        if landscape { XCUIDevice.shared.orientation = .landscapeLeft }
+        // With the idle-stall guard (T-034): a stalled app is relaunched once and opened again.
+        if landscape { UITestSupport.rotateToLandscape(app) }
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
         return app
     }
@@ -266,14 +265,16 @@ final class PlaybackOverlayUITests: XCTestCase {
         var reshows = 0
         for _ in 0..<40 {
             let element = app.buttons[id]
-            if element.exists {
-                last = (element.value as? String, element.label)
+            // One snapshot gives exists, value and label together, so they agree and nothing hides between three queries.
+            if let read = UITestSupport.readTogether(element) {
+                last = (read.value, read.label)
                 if last.value == expected { return last }
                 RunLoop.current.run(until: Date().addingTimeInterval(0.1))
             } else if reshows < 3 {
                 reshows += 1
                 video(app).coordinate(withNormalizedOffset: CGVector(dx: 0.37, dy: 0.15)).tap()
-                _ = element.waitForExistence(timeout: 3)
+                // waitForExistence checks first about 1 s after it starts (of the bar's 3 s); poll sooner than that.
+                _ = UITestSupport.wait(timeout: 3, interval: 0.05) { element.exists }
             } else {
                 break
             }

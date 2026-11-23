@@ -244,9 +244,7 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
         app.launchArguments += ["-uiTesting"]
         if let seed { app.launchArguments += ["-uiTestingSubtitleStyle", seed] }
         app.launchArguments += extraArguments
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))

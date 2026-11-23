@@ -240,9 +240,7 @@ final class SubtitleStyleUITests: XCTestCase {
         app.launchArguments += ["-uiTesting"]
         app.launchArguments += extraArguments
         if let seed { app.launchArguments += ["-uiTestingSubtitleStyle", seed] }
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
@@ -284,7 +282,7 @@ final class SubtitleStyleUITests: XCTestCase {
     @MainActor
     private func landscapeFrames(seed: String?, name: String) -> (hidden: Frames, shown: Frames) {
         let app = launch(seed: seed)
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
         let video = app.descendants(matching: .any)["player.video"]
         XCTAssertTrue(video.waitForExistence(timeout: 10))
 

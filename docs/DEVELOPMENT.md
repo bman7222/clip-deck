@@ -138,6 +138,37 @@ the simulator jobs only, `ipa`) and `only_testing` (a non-empty value runs just 
 the other shards are not created). To rebalance, move class names between `SHARD1_UI` and `SHARD2_UI`. `test-ios.sh` takes several `-only-testing`
 values as arguments or as the space-separated `ONLY_TESTING` / `SKIP_TESTING` environment variables.
 
+**UI-test helpers (`ios/ClipDeckUITests/UITestSupport.swift`).** CI runners are slow and lose taps, so UI tests wait for
+state, not for time:
+- `launchSeeded(app)` launches with `-uiTesting` and waits (45 s) for "Sample Show"; if the library is still empty it
+  relaunches once, which seeds again. `openSampleEpisode` and `launchAndOpenSampleEpisode` go on into the player.
+  Never write your own "Seeded show should appear" wait.
+- `wait(timeout:until:)`, `waitForLabel`, `waitForValue` and `waitForFrame` poll a condition (first check at once,
+  then every 0.2 s) instead of a fixed sleep.
+- `tap(_:until:)` taps and waits for a state; only if the state did not come does it tap again, and only while the
+  button still exists and is hittable. `tapStep(_:reader:from:to:)` is the same for a button that steps a stored value
+  (Up): a lost tap leaves the old value and is repeated, a doubled step shows another value and fails the test.
+- `readTogether(_:)` reads value and label from one snapshot. `settle`, `attachText` and `attachScreenshot` are the
+  shared settle and evidence helpers.
+- A test that plays the video asks for a longer clip with `-uiTestingSampleSeconds` (20 or 30) so a slow runner can't
+  play the 6 s clip to its end. `TestMediaFactory` (DEBUG) waits up to 60 s per writer input, not 1,000 x 5 ms, and the
+  seeder retries once.
+- `rotateToLandscape(app)` is how a test's setup turns the player (open in portrait) to landscape. It guards against
+  the **idle stall**: on a slow runner the app can stop answering XCTest's "animations idle" wait within about a
+  second of that rotation, for the rest of the process (6 of 375 rotations, T-034), and every later action then waits
+  2 x 60 s. After the rotation it sets the same orientation again, which is only XCTest's wait for idle (under a
+  second, or 60 s when stalled). Over 50 s it logs the stall, terminates the app, opens the player again (by default
+  `launchAndOpenSampleEpisode` with the same launch arguments) and rotates once more; it relaunches only once. A
+  rotation in the middle of a test (where the state before it matters) stays a plain `XCUIDevice` rotation.
+- When the guard fires you see it in three places: an activity named "Idle stall guard…" with an `idle-stall-guard`
+  attachment in the xcresult, a `UITestSupport: Idle stall guard…` line on the runner's stdout, and a GitHub warning
+  ("UI test idle stall", printed by `test-ios.sh` from the exported attachments) on the run page. A healthy run
+  shows none of them.
+- `UITestAnimationWatch` (app, DEBUG, `-uiTesting` only) hunts the cause. Every 2 s it walks the windows' layer trees
+  and prints, once each, any animation that stays on a layer for 3 s or more ("UITestAnimationWatch: …" in the app's
+  stdout in the xcresult). A spinner during a slow seed shows up as one line and proves it runs. No line near a stall
+  means the animation XCTest waits for is no longer on a layer in any window.
+
 **Unit tests (`ClipDeckTests`, Swift Testing):**
 - **SubtitleParserTests:**
   - SRT, including CRLF, tags and missing blank lines;

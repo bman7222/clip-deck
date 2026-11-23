@@ -53,7 +53,7 @@ enum TestMediaFactory {
 
         // Interleave one video frame with its matching slice of audio so neither input stalls.
         for frame in 0..<totalFrames {
-            try await waitUntilReady(videoInput)
+            try await waitUntilReady(videoInput, writer: writer)
             guard let pool = adaptor.pixelBufferPool else { throw FactoryError.bufferFailed }
             var pixelBuffer: CVPixelBuffer?
             CVPixelBufferPoolCreatePixelBuffer(kCFAllocatorDefault, pool, &pixelBuffer)
@@ -61,7 +61,7 @@ enum TestMediaFactory {
             fill(pixelBuffer, second: frame / Int(framesPerSecond))
             _ = adaptor.append(pixelBuffer, withPresentationTime: CMTime(value: CMTimeValue(frame), timescale: framesPerSecond))
 
-            try await waitUntilReady(audioInput)
+            try await waitUntilReady(audioInput, writer: writer)
             let sample = try toneBuffer(format: format, startFrame: frame * samplesPerFrame, frameCount: samplesPerFrame)
             _ = audioInput.append(sample)
         }
@@ -74,11 +74,18 @@ enum TestMediaFactory {
         }
     }
 
-    private static func waitUntilReady(_ input: AVAssetWriterInput) async throws {
-        var attempts = 0
+    /// How long one input may stay "not ready" before the factory gives up. It is a time limit, not an attempt
+    /// count: the old 1,000 x 5 ms loop gave up after about 5 s on a slow CI VM and seeded nothing (T-034).
+    static let readyTimeout: Duration = .seconds(60)
+
+    private static func waitUntilReady(_ input: AVAssetWriterInput, writer: AVAssetWriter) async throws {
+        let deadline = ContinuousClock.now + readyTimeout
         while !input.isReadyForMoreMediaData {
-            attempts += 1
-            if attempts > 1_000 { throw FactoryError.timedOut }
+            // A failed writer never becomes ready again; report why instead of waiting out the deadline.
+            if writer.status == .failed || writer.status == .cancelled {
+                throw FactoryError.writerFailed(writer.error?.localizedDescription ?? "writer status \(writer.status.rawValue)")
+            }
+            if ContinuousClock.now >= deadline { throw FactoryError.timedOut }
             try await Task.sleep(for: .milliseconds(5))
         }
     }

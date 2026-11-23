@@ -32,15 +32,20 @@ enum UITestSeeder {
         let store = FileStore.live
         let videoPath = "Videos/Sample Show/Episode 1.mp4"
         let subtitlePath = "Subtitles/Sample Show/Episode 1/sample.srt"
-        do {
-            try await TestMediaFactory.makeVideo(at: store.absoluteURL(videoPath), seconds: LaunchFlags.sampleSeconds)
-            let subtitleURL = store.absoluteURL(subtitlePath)
-            try FileManager.default.createDirectory(at: subtitleURL.deletingLastPathComponent(), withIntermediateDirectories: true)
-            try TestMediaFactory.sampleSRT.write(to: subtitleURL, atomically: true, encoding: .utf8)
-        } catch {
-            print("UITestSeeder failed: \(error)")
-            return
+        // One retry: a slow CI runner can make the first attempt fail, and a failed seed leaves the library empty.
+        var seeded = false
+        for attempt in 1...2 where !seeded {
+            do {
+                try await TestMediaFactory.makeVideo(at: store.absoluteURL(videoPath), seconds: LaunchFlags.sampleSeconds)
+                let subtitleURL = store.absoluteURL(subtitlePath)
+                try FileManager.default.createDirectory(at: subtitleURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+                try TestMediaFactory.sampleSRT.write(to: subtitleURL, atomically: true, encoding: .utf8)
+                seeded = true
+            } catch {
+                print("UITestSeeder failed (attempt \(attempt)): \(error)")
+            }
         }
+        guard seeded else { return }
         let show = Show(name: "Sample Show", colorIndex: 3)
         context.insert(show)
         context.insert(Episode(title: "Episode 1", number: 1, videoPath: videoPath, subtitlePath: subtitlePath, show: show))

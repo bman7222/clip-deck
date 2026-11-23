@@ -4,7 +4,7 @@ import XCTest
 /// shows it, the skips move 5 s from mid-video, a skip tap restarts the 3 s countdown, the overlay re-centres when
 /// the side panel opens and is resized, a rotation resets the portrait overlay, and screenshots of the overlay and
 /// the bar's play/pause in light mode (AC-1, AC-2, AC-4, AC-5, AC-6). Uses the seeded "Sample Show": a 6 s
-/// video, paused at 0:00.
+/// video by default (30 s in the tests that play it, `-uiTestingSampleSeconds`), paused at 0:00.
 final class PlaybackOverlayTesterUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -297,14 +297,13 @@ final class PlaybackOverlayTesterUITests: XCTestCase {
         // Tests that play pass a longer clip (-uiTestingSampleSeconds), so a slow runner can't play it to its end.
         app.launchArguments += ["-uiTesting"]
         if sampleSeconds != 6 { app.launchArguments += ["-uiTestingSampleSeconds", "\(sampleSeconds)"] }
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
         episodeRow.tap()
-        if landscape { XCUIDevice.shared.orientation = .landscapeLeft }
+        // With the idle-stall guard (T-034): a stalled app is relaunched once and opened again.
+        if landscape { UITestSupport.rotateToLandscape(app) }
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
         if landscape {
             XCTAssertTrue(app.navigationBars.firstMatch.waitForNonExistence(timeout: 10), "Landscape")

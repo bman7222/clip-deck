@@ -11,10 +11,7 @@ final class MiningFlowUITests: XCTestCase {
     func testMakeACardFromSubtitleLine() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
-        app.launch()
-
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         attachScreenshot(app, "01-library")
         showTile.tap()
 

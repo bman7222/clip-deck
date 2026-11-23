@@ -9,6 +9,10 @@ struct ClipDeckApp: App {
 
     init() {
         let isUITesting = LaunchFlags.isUITesting
+        #if DEBUG
+        // UI tests only: prints any animation that never finishes, to find the cause of the idle stall (T-034).
+        if isUITesting { UITestAnimationWatch.start() }
+        #endif
         // UI tests get a fresh in-memory library and default settings on every launch.
         // -uiTestingKeepExpiryDismissal keeps only the expiry-banner dismissal day, so a test can relaunch the same day.
         if isUITesting {

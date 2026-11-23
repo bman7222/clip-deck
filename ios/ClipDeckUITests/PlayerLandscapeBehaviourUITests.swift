@@ -1,7 +1,7 @@
 import XCTest
 
 /// Landscape player behaviour beyond the basic tap toggle (T-001 AC-1, AC-2, AC-4, AC-5, AC-6).
-/// Uses the seeded "Sample Show": a 6-second video, paused at 0:00, with lines at 0.5-2.0, 2.0-4.0 and 4.0-5.5 s.
+/// Uses the seeded "Sample Show": a 6-second video (20 or 30 s in the tests that play it), paused at 0:00, with lines at 0.5-2.0, 2.0-4.0 and 4.0-5.5 s.
 final class PlayerLandscapeBehaviourUITests: XCTestCase {
     override func setUp() {
         continueAfterFailure = false
@@ -16,7 +16,7 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     @MainActor
     func testNavigationBarHiddenAndBackReturnsToEpisodes() throws {
         let app = openSampleEpisode()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
         XCTAssertTrue(app.navigationBars.firstMatch.waitForNonExistence(timeout: 5), "Navigation bar is hidden in landscape")
 
@@ -30,8 +30,10 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     /// AC-2: paused, the controls stay up; playing, they hide after ~3 s; when playback stops they come back.
     @MainActor
     func testControlsStayWhilePausedAndAutoHideWhilePlaying() throws {
-        let app = openSampleEpisode()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        // A 20 s clip: the hide check can't race the clip's end, even when the Play tap takes 6 s on a slow VM.
+        // The end of the clip is still checked below, with a wait that covers the whole clip.
+        let app = openSampleEpisode(sampleSeconds: 20)
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
 
         tapVideo(app)
@@ -44,9 +46,10 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         XCTAssertTrue(back.waitForNonExistence(timeout: 5), "Playing: controls hide on their own")
         attachScreenshot(app, "landscape-05-autohidden")
 
-        // The 6-second sample plays to its end and stops (AVPlayer actionAtItemEnd = .pause).
+        // The 20-second sample plays to its end and stops (AVPlayer actionAtItemEnd = .pause).
         // PlayerView brings the controls back on pause; if that did not happen, a tap must show them.
-        if !back.waitForExistence(timeout: 10) {
+        // 40 s covers the clip's remaining time plus a slow Play tap and the idle waits of a slow VM.
+        if !back.waitForExistence(timeout: 40) {
             tapVideo(app)
             XCTAssertTrue(back.waitForExistence(timeout: 5), "Tap shows the controls after the end")
         }
@@ -59,30 +62,31 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     /// AC-2: while playing, an open subtitles menu keeps the controls (and so the menu) up past the 3 s auto-hide.
     /// In landscape `player.subtitlesMenu` is a button that opens a confirmation dialog (a SwiftUI Menu can't be
     /// tracked on iOS 26). The dialog's actions are buttons in the app's sheet/popover tree, so `app.buttons` finds them.
-    /// The sample is 6 s long; the menu opens about 1-2 s in, so a broken rule hides the bar around 4-5 s,
-    /// before playback ends and pauses (which would bring the controls back on its own).
+    /// The sample is 30 s long (T-034: the 6 s clip could end before the check on a slow runner and bring the controls
+    /// back on its own); the menu opens about 1-2 s in, so a broken rule hides the bar around 4-5 s.
     @MainActor
     func testOpenSubtitlesMenuKeepsControlsUpWhilePlaying() throws {
-        let app = openSampleEpisode()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        let app = openSampleEpisode(sampleSeconds: 30)
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
 
         tapVideo(app)
         let playPause = app.buttons["player.playPause"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 5))
         playPause.tap()
-        let menu = app.buttons["player.subtitlesMenu"]
-        XCTAssertTrue(menu.waitForExistence(timeout: 2))
-        menu.tap()
         // The dialog's only action now is "Load different subtitles" (the list moved to the panel button, T-002).
         let showList = app.buttons["Load different subtitles"]
+        // T-034 S2: the bar hides 3 s after Play, and a slow Play tap can use up that window, so the menu is opened
+        // through a helper that brings the bar back with a video tap when it has hidden (the 30 s clip keeps playing).
+        openSubtitlesDialogWhilePlaying(app, dialogAction: showList)
         // XCUITest snapshots lag while the video plays (run 44639515011: the menu was on screen ~1.3 s
         // but not found within 2 s), so allow 5 s. With the rule broken, the menu is torn down ~1.5 s after
         // opening, so this assert or the next one fails; with it working, the menu stays open throughout.
         XCTAssertTrue(showList.waitForExistence(timeout: 5), "Menu opens and stays open while playing")
         // The dialog hangs off the landscape root, so it survives the overlay being removed: watching only the
-        // dialog cannot catch a broken keep-up rule. Watch the bar itself. Play starts ~1.4 s before the dialog
-        // opens, so a broken rule hides the bar ~1.6 s later and the sample (6 s) only ends ~3 s after that.
+        // dialog cannot catch a broken keep-up rule. Watch the bar itself. The countdown last started before the
+        // dialog opened (at Play, or at the re-show tap), so a broken rule hides the bar within 3 s of the dialog
+        // opening, inside the 3.5 s below (the 30 s sample is still playing).
         let back = app.buttons["player.back"]
         XCTAssertTrue(back.exists, "Controls are up when the dialog opens")
         XCTAssertFalse(back.waitForNonExistence(timeout: 3.5), "Controls stay up while the subtitles dialog is open")
@@ -95,7 +99,7 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     @MainActor
     func testSubtitleListAndMakeACardInLandscape() throws {
         let app = openSampleEpisode()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
 
         tapVideo(app)
@@ -122,7 +126,7 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     @MainActor
     func testLoadDifferentSubtitlesFromLandscapeDialog() throws {
         let app = openSampleEpisode()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
 
         tapVideo(app)
@@ -146,8 +150,10 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     /// subtitle line stay inside the video column (left of the panel).
     @MainActor
     func testPanelStaysOpenWhenControlsAutoHide() throws {
-        let app = openSampleEpisode()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        // A 20 s clip (T-034 C1): it plays below, so the 6 s one could end during a slow Play tap and bring the
+        // controls back on its own before "controls hide on their own" is checked.
+        let app = openSampleEpisode(sampleSeconds: 20)
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
 
         tapVideo(app)
@@ -183,7 +189,7 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     @MainActor
     func testPanelClosesAndSurvivesRotation() throws {
         let app = openSampleEpisode()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(video(app).waitForExistence(timeout: 10))
 
         tapVideo(app)
@@ -242,16 +248,14 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     // MARK: Helpers
 
     @MainActor
-    private func openSampleEpisode() -> XCUIApplication {
+    private func openSampleEpisode(sampleSeconds: Int = 6) -> XCUIApplication {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
-        showTile.tap()
-        let episodeRow = app.buttons["episode.row.Episode 1"]
-        XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
-        episodeRow.tap()
+        // Tests that play the video ask for a longer clip (-uiTestingSampleSeconds), so a slow runner (a Play tap that
+        // takes 6 s, a frozen UI) can't play it to its end while a test is still waiting (T-034).
+        if sampleSeconds != 6 { app.launchArguments += ["-uiTestingSampleSeconds", "\(sampleSeconds)"] }
+        let showTile = UITestSupport.launchSeeded(app)
+        UITestSupport.openSampleEpisode(app, tile: showTile)
         return app
     }
 
@@ -264,6 +268,27 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     @MainActor
     private func tapVideo(_ app: XCUIApplication) {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.35)).tap()
+    }
+
+    /// Opens the landscape subtitles dialog while the video plays (T-034 S2). The bar hides 3 s after Play, and a
+    /// slow Play tap (its own wait for idle) can use up most of that window. So when the bar is gone, a video tap
+    /// brings it back first, as `readValue` does in PlaybackOverlayUITests. The menu is tapped at the place it was
+    /// just read at, so a bar that hides between the read and the tap costs one try (that tap lands on the video and
+    /// shows the bar again) instead of failing on a missing element. At most 3 tries; the caller asserts the dialog.
+    /// Each try first checks for the dialog, so a dialog that a lagging snapshot missed is never tapped away.
+    @MainActor
+    private func openSubtitlesDialogWhilePlaying(_ app: XCUIApplication, dialogAction: XCUIElement) {
+        let menu = app.buttons["player.subtitlesMenu"]
+        for _ in 0..<3 {
+            if dialogAction.exists { return }
+            if !menu.exists {
+                tapVideo(app)
+                _ = UITestSupport.wait(timeout: 3, interval: 0.05) { menu.exists }
+            }
+            guard let frame = try? menu.snapshot().frame else { continue }
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+            if dialogAction.waitForExistence(timeout: 5) { return }
+        }
     }
 
     @MainActor

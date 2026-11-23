@@ -15,16 +15,13 @@ final class PlayerLandscapeUITests: XCTestCase {
     func testControlsAppearOnTapInLandscape() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
-        app.launch()
-
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
         episodeRow.tap()
 
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
 
         // Fullscreen: the video is there, the controls are not.
         XCTAssertTrue(app.descendants(matching: .any)["player.video"].waitForExistence(timeout: 10))
@@ -50,14 +47,12 @@ final class PlayerLandscapeUITests: XCTestCase {
     func testSubtitlePanelOpensOnTheRight() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
         episodeRow.tap()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
 
         let video = app.descendants(matching: .any)["player.video"]
         XCTAssertTrue(video.waitForExistence(timeout: 10))
@@ -251,9 +246,7 @@ final class PlayerLandscapeUITests: XCTestCase {
     func testControlsStartHiddenWhenOpenedInLandscape() throws {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         XCUIDevice.shared.orientation = .landscapeLeft
         XCTAssertTrue(showTile.waitForExistence(timeout: 5), "Library still shows the show in landscape")
         showTile.tap()
@@ -274,14 +267,14 @@ final class PlayerLandscapeUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
         if keepWidth { app.launchArguments += ["-uiTestingKeepPanelWidth"] }
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
         episodeRow.tap()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        // On the keep-width relaunch the device is already in landscape: then the rotation changes nothing and only
+        // the stall check runs.
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(app.descendants(matching: .any)["player.video"].waitForExistence(timeout: 10))
         let toggle = app.buttons["player.panelToggle"]
         // Brent (T-011 fix round 4): landscape always starts with the controls hidden, both after a rotation and

@@ -122,8 +122,14 @@ final class SubtitleUpLimitTesterUITests: XCTestCase {
         var previousMinY = opened.minY
         var taps = 0
         while up.isEnabled && taps < 19 {
-            up.tap()
+            // T-034: a lost Up tap is tapped again after waiting for Down's stored percent; a doubled step fails here.
+            let before = UITestSupport.upText((taps) * 5)
             taps += 1
+            XCTAssertTrue(UITestSupport.tapStep(up, reader: down, from: before, to: UITestSupport.upText(taps * 5)),
+                          "Up tap \(taps) steps the stored place once (\(state))")
+            let reference = previousMinY
+            XCTAssertTrue(UITestSupport.waitForFrame(line, timeout: 6) { $0.minY < reference - 1 },
+                          "Up tap \(taps) moves the line (\(state))")
             settle()
             let now = line.frame
             log.append("\(state) up \(taps) (up \(up.value as? String ?? "?"), down \(down.value as? String ?? "?")): \(now)")
@@ -157,7 +163,7 @@ final class SubtitleUpLimitTesterUITests: XCTestCase {
         XCTAssertFalse(up.isEnabled, "Up dims again (\(state))")
 
         // Close and reopen at the same stored place: Up is still dimmed.
-        app.buttons["subtitleStyle.done"].tap()
+        tapDone(app, closing: cardElement(app))
         XCTAssertTrue(cardElement(app).waitForNonExistence(timeout: 5), "Done closes the card (\(state))")
         settle()
         openCard(app)
@@ -165,7 +171,7 @@ final class SubtitleUpLimitTesterUITests: XCTestCase {
         XCTAssertFalse(up.isEnabled, "Reopened at the same place, Up is still dimmed (\(state))")
         XCTAssertEqual(down.value as? String, "\(taps * 5) percent up", "Reopened, Down keeps the stored percent (\(state))")
         attachEvidence(app, name: "tester-t018-\(state)")
-        app.buttons["subtitleStyle.done"].tap()
+        tapDone(app, closing: cardElement(app))
         XCTAssertTrue(cardElement(app).waitForNonExistence(timeout: 5), "Done closes the card (\(state))")
         settle()
         return log
@@ -184,6 +190,13 @@ final class SubtitleUpLimitTesterUITests: XCTestCase {
 
     // MARK: Helpers
 
+    /// Taps Done and waits for the card to close. A lost tap leaves the card and Done on screen, so it taps again
+    /// while Done still exists and is hittable (T-034: "Done closes the card (panel-25)" failed on a lost tap).
+    @MainActor
+    private func tapDone(_ app: XCUIApplication, closing card: XCUIElement) {
+        UITestSupport.tap(app.buttons["subtitleStyle.done"], patience: 5) { !card.exists }
+    }
+
     /// Launches, opens Episode 1, rotates to landscape and brings the controls up (the player is paused, so they stay).
     @MainActor
     private func launchLandscape(seed: String?) -> XCUIApplication {
@@ -191,14 +204,12 @@ final class SubtitleUpLimitTesterUITests: XCTestCase {
         let app = XCUIApplication()
         app.launchArguments += ["-uiTesting"]
         if let seed { app.launchArguments += ["-uiTestingSubtitleStyle", seed] }
-        app.launch()
-        let showTile = app.buttons["library.show.Sample Show"]
-        XCTAssertTrue(showTile.waitForExistence(timeout: 30), "Seeded show should appear")
+        let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
         XCTAssertTrue(episodeRow.waitForExistence(timeout: 5))
         episodeRow.tap()
-        XCUIDevice.shared.orientation = .landscapeLeft
+        UITestSupport.rotateToLandscape(app)
         XCTAssertTrue(app.descendants(matching: .any)["player.video"].waitForExistence(timeout: 10))
         tapVideo(app)
         XCTAssertTrue(app.buttons["player.back"].waitForExistence(timeout: 5), "A tap shows the controls")
