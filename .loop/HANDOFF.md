@@ -895,3 +895,24 @@
 - Brent's decisions: AC-6 (the portrait overlay hides while the Aa sheet is open); in portrait a video tap while the Aa sheet is open closes the sheet (now T-024b AC-7)
 - Could fixes moved: C1/C2 to T-024b; the readTogether 20 s silence and T-034's carry-overs to T-024a
 - The dev-loop skill changed mid-run (Brent's other session): rounds now run targeted CI (`ci.unit_target` + covering UI classes), plus one full landing run after a Pass. config.yml was updated by that session
+
+## 2026-11-23 · loop-backend · T-023 · round 1 (sonnet)
+- Done: SubtitleStyle position is now `up`/`right` fractions (4-decimal rounding, old `upSteps`/`rightSteps` still decoded), `resetFont()`/`resetPosition()`, placement helpers in fractions with `stepsFromObstruction`
+- Left: CI run (ClipDeckTests + UI classes); T-024a/b wire the new resets
+- Files: SubtitleStyle/SubtitlePlacement/SubtitleStyleCard/SubtitleStyleSheet/PlayerView.swift, 3 test files, docs/ARCHITECTURE.md, CLAUDE.md
+- Gotchas: helpers renamed to highestReachableUp / upAfterDownWithCardOpen; nothing compiled locally
+
+## 2026-11-23 07:11 · loop-tester · T-023 · round 1
+- Done: read CI 45168178904 (0a075c6, targeted, CI run 1 of 4). Built; 369/370 runs, 333 names (2 renamed, 11 new, 0 lost); every unit test passes; the 6 untouched `upSteps`-seeding UI suites give 40/40 text attachments identical to 45158384614 (13/10/7 taps, the T-018 jump 68.0 → 72.67)
+- Blocked: pre-existing flake SubtitleStyleSheetTesterUITests/testUsingTheSheetDoesNotPausePlayback (6 s clip, a 3.45 s main-thread freeze for a shader build after Play). NEEDED: commit the tester test, then `gh workflow run ios-simulator.yml --ref loop/player-lookup-timeline -f scope=tests -f only_testing="ClipDeckTests ClipDeckUITests/SubtitleStyleSheetTesterUITests"`
+- Could fix: C1 with `stepsFromObstruction: false` T-024a must pass bottomObstruction 0, or highestReachableUp returns 0; C2 invalid new key falls through to the old key; C3 spec:28 and T-024b notes use the old helper names; C4 SubtitleStyleCardUITests is left for the landing run; C5 harden the flaky test in T-024b
+- Files: ios/ClipDeckTests/SubtitleUpLimitTesterTests.swift (+stepsFromObstructionFalseCountsFromTheRegionBottom, not run yet), task file Test report, CONTEXT.md (+1 Learned); evidence %TEMP%\clip-deck-loop\T-023-r1 (Data/ pruned)
+
+## 2026-11-23 07:26 · loop-tester · T-023 · round 1 addendum
+- Done: read CI 45172400098 (7036038, verify-only, CI run 2 of 4): green, 350/350 runs, 0 issues, 313 names (round 1 + the tester test). stepsFromObstructionFalseCountsFromTheRegionBottom passes; the flaky testUsingTheSheetDoesNotPausePlayback passes (read 5.2 s after Play, still close to the clip's end)
+- Verdict: Pass. AC-1 to AC-6 met. Could fix C1 to C5 are unchanged (C1 T-024a passes bottomObstruction 0; C3 old helper names in spec:28 and T-024b notes; C4 SubtitleStyleCardUITests needs the full landing run; C5 harden the flaky test in T-024b)
+- Files: task file (Round 1 addendum); evidence %TEMP%\clip-deck-loop\T-023-r1\verify (Data/ pruned)
+
+## 2026-11-23 · orchestrator · T-023 · landed
+- Pass in round 1 after a verify-only pass (Sonnet builder, Opus tester). Landed as cdf3df8. Targeted 45168178904 (one known flake) → verify 45172400098 green → landing run 45174397249 (scope=all) all green. 3 of 4 CI runs used. This is the first task under the targeted-CI rule
+- Could fixes moved: C1 (use bottomObstruction 0 with stepsFromObstruction false), C2 (reword the CLAUDE.md fall-through rule) and the API summary to T-024a; C5 (the flaky sheet test gets a 20 s clip) to T-024b; old helper names fixed in the spec and in T-024b's notes

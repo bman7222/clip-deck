@@ -35,9 +35,10 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 
 ### Agent notes
 - Depends on: T-024a (positions must already be movable from Move-Text). Source: spec T-024, the "Font menu" part.
-- Code: the controls and layouts are at SubtitleStyleCard.swift:26-44, and the arrow and Reset cases around 114-140. PlayerView.swift:239-247 and 272-278 pass `canStepUp`/`highestUpStep` to the card. In SubtitleStyleSheet.swift, the sections are at 283-286 and Position/Reset at 580-622.
+- Code: the controls and layouts are at SubtitleStyleCard.swift:26-44, and the arrow and Reset cases around 114-140. PlayerView.swift:239-247 and 272-278 pass `canStepUp`/`highestUp` to the card (renamed from `highestUpStep` in T-023). In SubtitleStyleSheet.swift, the sections are at 283-286 and Position/Reset at 580-622.
 - The sheet's first detent is fitted to its content by SheetFit (Learned). After removing the section, check that it still sits under the video.
 - The card has a background, so XCUITest reports its real frame (Learned).
+- C5 from T-023's tester: `SubtitleStyleSheetTesterUITests/testUsingTheSheetDoesNotPausePlayback` reads the button 4–5 s after Play on the 6 s clip and flaked in 45168178904. Since this task reworks that class, launch it with `-uiTestingSampleSeconds 20`.
 - **AC-7 (Brent, 2026-11-23, from T-022's tester):** in portrait, tapping the video while the Aa sheet is open closes the sheet, as if Done were pressed. Landscape already does this with the Aa card. Today the tap silently flips `portraitOverlayVisible`, so after Done the overlay may unexpectedly stay hidden or appear (SubtitleStyleSheet.swift:320, 331-334; PlayerView.swift:188, 540, 635-638). Add a UI test: open the sheet, tap the video, and the sheet must close with the overlay state unchanged.
 - Since T-022 the centred overlay hides while either Aa menu is open, in both orientations, so the line shows at its saved place there (DESIGN.md "Style menus"). C2 from T-022's tester: DESIGN.md:95 says "see Style card", but that bullet is now "Style menus"; fix the wording here.
 
