@@ -11,12 +11,12 @@ on:
     # Conservative CI (dev loop, .loop/config.yml ci.mode): run only what a change needs.
     inputs:
       scope:
-        description: "all = tests + ipa; tests = simulator job only; ipa = ipa job only"
+        description: "all = tests + ipa; tests = simulator jobs only (three shards); ipa = ipa job only"
         type: choice
         options: [all, tests, ipa]
         default: all
       only_testing:
-        description: "Optional xcodebuild -only-testing target, e.g. ClipDeckUITests/AboutUITests (empty = all tests)"
+        description: "Optional xcodebuild -only-testing target, e.g. ClipDeckUITests/AboutUITests (empty = all tests; non-empty runs only that filter, in one job)"
         type: string
         default: ""
 
@@ -25,10 +25,57 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  simulator:
+  # Decides which simulator shards run. The tests are split in three parallel jobs so a full run fits the
+  # timeout (two shards took 27 and 41 min in CI 45070921716; the UI tests alone are about 35 min of work).
+  #   shard 1 = ClipDeckTests + the UI classes in SHARD1_UI + the launch screenshot
+  #   shard 2 = the UI classes in SHARD2_UI
+  #   shard 3 = everything else (-skip-testing of ClipDeckTests and both lists), so a new UI class or a
+  #             new test target always runs somewhere.
+  # UI minutes per class, CI 45002423211 (all UI = 34.7): shard 1 about 10.5 (CardTester 3.7, FontTester 2.8,
+  # UpLimitTester 2.0, SubtitleFont 1.3, MiningFlow 0.7) plus the unit tests; shard 2 about 12.0 (About 4.4,
+  # SubtitleStyle 4.0, PlayerLandscapeBehaviour 3.6); shard 3 about 12.2 at the time. To rebalance, move class
+  # names between the two lists. A non-empty only_testing runs just that filter in shard 1; the other shards
+  # are not created.
+  plan:
     if: github.event_name != 'workflow_dispatch' || inputs.scope != 'ipa'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      matrix: ${{ steps.plan.outputs.matrix }}
+    steps:
+      - name: Plan shards
+        id: plan
+        env:
+          ONLY_TESTING: ${{ inputs.only_testing }}
+        run: |
+          SHARD1_UI="SubtitleStyleCardTesterUITests SubtitleFontTesterUITests SubtitleUpLimitTesterUITests SubtitleFontUITests MiningFlowUITests"
+          SHARD2_UI="AboutUITests SubtitleStyleUITests PlayerLandscapeBehaviourUITests"
+          only1="ClipDeckTests"; only2=""; skip3="ClipDeckTests"
+          for c in $SHARD1_UI; do only1="$only1 ClipDeckUITests/$c"; skip3="$skip3 ClipDeckUITests/$c"; done
+          for c in $SHARD2_UI; do only2="$only2 ClipDeckUITests/$c"; skip3="$skip3 ClipDeckUITests/$c"; done
+          only2="${only2# }"
+          ONLY_TESTING="$(printf '%s' "$ONLY_TESTING" | tr -s '[:space:]' ' ' | sed 's/^ //; s/ $//')"
+          if [ -n "$ONLY_TESTING" ]; then
+            matrix="$(jq -nc --arg o "$ONLY_TESTING" '{include:[{shard:1,only:$o,skip:"",screenshot:false}]}')"
+          else
+            # Shard 2 is left out when its list is empty (it would otherwise run with no filter).
+            matrix="$(jq -nc --arg o1 "$only1" --arg o2 "$only2" --arg s3 "$skip3" '{include:(
+              [{shard:1,only:$o1,skip:"",screenshot:true}]
+              + (if $o2 == "" then [] else [{shard:2,only:$o2,skip:"",screenshot:false}] end)
+              + [{shard:3,only:"",skip:$s3,screenshot:false}])}')"
+          fi
+          echo "$matrix"
+          echo "matrix=$matrix" >> "$GITHUB_OUTPUT"
+
+  simulator:
+    needs: plan
+    if: github.event_name != 'workflow_dispatch' || inputs.scope != 'ipa'
+    name: simulator (shard ${{ matrix.shard }})
     runs-on: macos-latest
     timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix: ${{ fromJSON(needs.plan.outputs.matrix) }}
     steps:
       - uses: actions/checkout@v5
 
@@ -48,18 +95,19 @@ jobs:
 
       - name: Unit and UI tests
         env:
-          ONLY_TESTING: ${{ inputs.only_testing }}
-        run: bash scripts/test-ios.sh ${ONLY_TESTING:+"$ONLY_TESTING"}
+          ONLY_TESTING: ${{ matrix.only }}
+          SKIP_TESTING: ${{ matrix.skip }}
+        run: bash scripts/test-ios.sh
 
       - name: Launch in simulator and screenshot
-        if: inputs.only_testing == ''
+        if: matrix.screenshot
         run: bash scripts/run-ios.sh
 
       - name: Upload screenshots and test results
         if: always()
         uses: actions/upload-artifact@v6
         with:
-          name: simulator-results
+          name: simulator-results-${{ matrix.shard }}
           path: |
             build/screenshots
             build/*.xcresult

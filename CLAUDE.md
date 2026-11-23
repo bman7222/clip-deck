@@ -26,6 +26,7 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - Use the `ios-simulator-skill` skill to build, launch, drive and screenshot the app; check light and
   dark mode and a large Dynamic Type size for UI changes.
 - Run the full test suite before committing; report only results you actually ran.
+- CI runs the simulator tests as three parallel jobs: shard 1 = `ClipDeckTests` + a listed set of UI classes (`SHARD1_UI` in the workflow), shard 2 = another listed set (`SHARD2_UI`), shard 3 = everything else (`-skip-testing` of the rest, so new classes and targets land there). Artifacts: `simulator-results-1`, `-2`, `-3`, `ClipDeck-ipa`. `only_testing` runs one filter in a single job. Details: docs/DEVELOPMENT.md (Tests).
 - After structural changes run `python3 ~/.claude/skills/iphone-app-setup-skill/scripts/verify_project.py .`
 - To resume setup or re-verify on a new machine: `/iphone-app-setup-skill verify`.
 

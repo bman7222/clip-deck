@@ -2,6 +2,10 @@
 # Run ClipDeck unit tests (Swift Testing) and UI tests (XCUITest) on an iPhone simulator.
 # Usage: ./scripts/test-ios.sh                     all tests
 #        ./scripts/test-ios.sh ClipDeckTests       one test target (passed to -only-testing)
+#        ./scripts/test-ios.sh ClipDeckUITests/AboutUITests ClipDeckTests   several -only-testing values
+#        ONLY_TESTING="ClipDeckTests ClipDeckUITests/AboutUITests" SKIP_TESTING="ClipDeckUITests/LaunchUITests" ./scripts/test-ios.sh
+#                                                  space-separated lists (CI shards use these); every value is an
+#                                                  xcodebuild -only-testing / -skip-testing identifier without spaces
 #        SIM_NAME="iPhone 17 Pro" ./scripts/test-ios.sh
 # Needs ffmpeg (brew install ffmpeg) to generate the MKV fixtures in build/fixtures.
 # Results bundle: build/TestResults-<timestamp>.xcresult (open in Xcode for details).
@@ -22,8 +26,12 @@ bash "$ROOT/scripts/make-test-media.sh" "$FIXTURES"
 export TEST_RUNNER_CLIPDECK_FIXTURES="$FIXTURES"
 
 UDID="$(python3 "$ROOT/scripts/pick-simulator.py" "${SIM_NAME:-}")"
-ONLY=()
-if [[ $# -gt 0 ]]; then ONLY=(-only-testing "$1"); fi
+FILTER=()
+for v in "$@"; do FILTER+=(-only-testing "$v"); done
+read -ra only_env <<< "${ONLY_TESTING:-}"
+for v in ${only_env[@]+"${only_env[@]}"}; do FILTER+=(-only-testing "$v"); done
+read -ra skip_env <<< "${SKIP_TESTING:-}"
+for v in ${skip_env[@]+"${skip_env[@]}"}; do FILTER+=(-skip-testing "$v"); done
 
 mkdir -p "$ROOT/build"
 status=0
@@ -33,7 +41,7 @@ xcodebuild test \
   -destination "id=$UDID" \
   -derivedDataPath "$DERIVED" \
   -resultBundlePath "$RESULT" \
-  ${ONLY[@]+"${ONLY[@]}"} \
+  ${FILTER[@]+"${FILTER[@]}"} \
   -quiet || status=$?
 
 # Save the UI tests' screenshots (XCTAttachments) as PNGs, pass or fail, for review.

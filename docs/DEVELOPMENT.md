@@ -123,6 +123,21 @@ rebuild, or run `./scripts/make-test-media.sh [folder]` by hand. No media files 
 CI installs `ffmpeg` and generates them fresh on every run. The tests find the folder through `CLIPDECK_FIXTURES`
 (see Environment variables).
 
+**CI jobs and shards.** `ios-simulator.yml` runs the simulator tests as three parallel jobs (`fail-fast: false`), planned by
+a small `plan` job:
+
+- **simulator (shard 1):** `ClipDeckTests` plus an explicit list of UI classes (`SHARD1_UI` in the workflow), then
+  `scripts/run-ios.sh` (the launch screenshot). Artifact `simulator-results-1`.
+- **simulator (shard 2):** an explicit list of UI classes (`SHARD2_UI`). Artifact `simulator-results-2`.
+- **simulator (shard 3):** everything else, as `-skip-testing` of `ClipDeckTests` and both lists, so a new UI class or a
+  new test target always runs here without any edit. Artifact `simulator-results-3`.
+- **ipa:** builds the unsigned IPA (artifact `ClipDeck-ipa`).
+
+Each artifact holds the screenshots and the xcresult of its job. `workflow_dispatch` inputs: `scope` (`all`, `tests` =
+the simulator jobs only, `ipa`) and `only_testing` (a non-empty value runs just that filter in a single job, shard 1;
+the other shards are not created). To rebalance, move class names between `SHARD1_UI` and `SHARD2_UI`. `test-ios.sh` takes several `-only-testing`
+values as arguments or as the space-separated `ONLY_TESTING` / `SKIP_TESTING` environment variables.
+
 **Unit tests (`ClipDeckTests`, Swift Testing):**
 - **SubtitleParserTests:**
   - SRT, including CRLF, tags and missing blank lines;
