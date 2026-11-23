@@ -777,3 +777,52 @@
 - Planning change: Brent added T-034 (harden the known flaky tests, #39) after T-021, before T-022
 - Open for Brent, not planned: xcodebuild `-retry-tests-on-failure` (hides real flakes)
 - Next: T-021 (centred playback overlay, #23)
+
+## 2026-11-23 · loop-frontend · T-021 · round 1
+- Done: centred ⟲5 ⏯ 5⟳ overlay in both orientations (portrait has its own state, a video tap toggles it and no longer plays); bar play/pause aqua only while paused with value Playing/Paused; ±5 s and `skips:` removed; landscape bar now has 3 ViewThatFits variants with comments marking the T-024a/T-029b/T-030a spots
+- Left: CI proof (nothing compiled locally); T-022 makes the line avoid the overlay band
+- Files: ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlaybackOverlayUITests.swift (new), ios/ClipDeckUITests/PlayerLandscapeBehaviourUITests.swift, .github/workflows/ios-simulator.yml (PlaybackOverlayUITests -> SHARD1_UI), docs/DESIGN.md
+- Gotchas: scrubber elapsed text has id `player.currentTime`; skips are tested from 0:00 (the 6 s clip would clamp them from 3 s)
+
+## 2026-11-22 20:58 · loop-tester · T-021 · round 1
+- Done: read CI 45094204439 (7034c69, scope=all). ipa and shards 2/3 green; every pre-existing test passed (398/401 runs; name set = T-020's plus 11 new tests and the rename). AC-1, AC-3 and AC-5 pass on run evidence: overlay centres within 0.2 pt of 25/50/75 % at column widths 874/624.7/504.7/437, white glyphs on exactly 50 % black circles (pixels), bar order from frames
+- Fail: M1. Shard 1 red on 3 new tests (`testBarPlayPauseValuePortrait/Landscape`, `testOverlayHidesWhilePlayingAndStaysWhilePausedLandscape`). The app's UI froze during playback on that VM (recordings: elapsed stuck while the video played; idle waits 6.4/15 s), so the 6 s clip ended before each check. No app defect found, but the tests are new. Could fix: the style card at 50 % cuts the overlay row; no T-030a marker by the panel's Make a Card
+- Files: .loop/tasks/T-021-playback-overlay-and-bars.md (Test report round 1), .loop/CONTEXT.md (+2 Learned), ios/ClipDeckUITests/PlaybackOverlayTesterUITests.swift (new, 10 tests, not yet run; commit it with round 2)
+- Gotchas: Data/ pruned in %TEMP%\clip-deck-loop\T-021-r1 (42 MB). The xcresult's database.sqlite3 has the failure text (TestIssues) and step timings (Activities); recording frames came from headless Chrome over CDP with Node 26
+
+## 2026-11-23 · loop-frontend · T-021 · round 2
+- Done: M1 fixed with `-uiTestingSampleSeconds <n>` (overlay tests use a 30 s clip); AC-7 overlay hides while the landscape style card is open; T-030a marker at the side panel; tester's PlaybackOverlayTesterUITests kept (30 s clip where it plays) and put in SHARD2_UI
+- Files: ios/ClipDeck/App/ClipDeckApp.swift, ios/ClipDeck/App/RootView.swift, ios/ClipDeck/Features/Player/PlayerView.swift, ios/ClipDeckUITests/PlaybackOverlayUITests.swift, ios/ClipDeckUITests/PlaybackOverlayTesterUITests.swift, .github/workflows/ios-simulator.yml, CLAUDE.md, docs/DESIGN.md
+- Gotchas: paused skip tests still use the 6 s clip on purpose (end clamp)
+
+## 2026-11-22 23:47 · loop-tester · T-021 · round 2
+- Done: read CI 45110218499 (c1b6f0d, scope=all, CI run 2 of 4). All jobs green: 412/412 runs, 375 names (round 1's 364 plus 11 new), none lost, 0 issues. Shards took 21:47, 32:00 and 20:59. AC-1 to AC-7 pass on run evidence. M1 (clip end), C1 (AC-7: no overlay in all 12 card frames; 7034c69 had it in 5) and C2 (marker) are fixed. The 30 s seed costs 2–6 s of the 30 s "Seeded show" wait
+- Fail: S1, DESIGN.md:95/:98 still say the landscape overlay is up with the style card open (and always under VoiceOver). S2, `testBarPlayPauseValueLandscape` reads the bar 0.64 s before its 3 s auto-hide; 5 of 17 past landscape Play taps had idle waits long enough to fail it (the same pattern is in checkSkipsAndPlayPause)
+- Could fix: C1 stale "6 s" comments and the MKV doc comment now on `sampleSeconds`; C2 testScreenshotsDark stays light on CI; C3 shard 2 at 32:00 (6:40 was one test's 60 s idle stalls)
+- Files: .loop/tasks/T-021-playback-overlay-and-bars.md (Test report round 2), .loop/CONTEXT.md (+3 Learned); no tests added
+- Gotchas: evidence in %TEMP%\clip-deck-loop\T-021-r2 (Data/ pruned, 16 MB). Exported attachments map to tests through Attachments.uuid → Activities → TestCaseRuns in database.sqlite3; the step-timing scripts are idle.py, seed.py and tree.py in the session scratchpad
+
+## 2026-11-23 · loop-frontend · T-021 · round 3
+- Done: S1 DESIGN.md consistent (overlay hides for everyone with the Aa card open); S2 bar/overlay "Playing" reads made direct with bounded re-show; C1 comments (ClipDeckApp.swift comments only); C2 removed testScreenshotsDark and the KVC appearance code (it never went dark on CI)
+- Files: docs/DESIGN.md, ios/ClipDeck/App/ClipDeckApp.swift (comments), ios/ClipDeckUITests/PlaybackOverlayUITests.swift, ios/ClipDeckUITests/PlaybackOverlayTesterUITests.swift
+- Gotchas: test name set loses testScreenshotsDark
+
+## 2026-11-23 00:20 · loop-tester · T-021 · round 3
+- Done: confirmed the change from c1b6f0d to ec96444 is comments only in ClipDeckApp.swift (identical with comment lines removed), so 45110218499 (412/412, ipa) still covers the product. Read targeted CI 45114494368 (run 3 of 4): it compiled; all 12 PlaybackOverlayUITests passed; S2 fixed (readValue reads 0.08–0.27 s after Play, round 2 read at 2.36 s); S1 fixed (DESIGN.md:95/97/98 match `shown && !styleMenuOpen`); dropping testScreenshotsDark is fine against the ACs (dark mode stays Unverified)
+- Blocked: the first 3 PlaybackOverlayTesterUITests failed at launch on a cold VM ("Seeded show should appear" ×2, "Failed to get background assertion" ×1). These are pre-existing flakes in tests round 3 left unchanged, and all 3 passed in 45110218499. NEEDED: commit the tester test, then dispatch the same targeted run (CI run 4 of 4); otherwise `gh run rerun 45114494368 --failed`
+- Could fix: readValue exists/value/label are 3 queries (use `try? element.snapshot()`), and waitForExistence after a re-show uses about 1 s of the 3 s window; the tester class comment still says a 6 s video
+- Files: .loop/tasks/T-021-playback-overlay-and-bars.md (Test report round 3), .loop/CONTEXT.md (+1 Learned), ios/ClipDeckUITests/PlaybackOverlayUITests.swift (+testBarValueIsReadAfterTheBarHidLandscape, exercises the readValue fallback, not yet run)
+- Gotchas: T-034 AC-4 name set = 45110218499 minus testScreenshotsDark (plus the new test if committed). Evidence in %TEMP%\clip-deck-loop\T-021-r3 (Data/ pruned, 12 MB); readvalue.py is in the session scratchpad
+
+## 2026-11-23 00:45 · loop-tester · T-021 · round 3 addendum
+- Done: read the verify run CI 45117390680 (c971174 = ec96444 + the tester test; scope=tests, the overlay classes, CI run 4 of 4). It is green: 22/22 tests, 0 build issues, 16:39. The 3 tests that flaked in 45114494368 passed and ran to their checks. testBarValueIsReadAfterTheBarHidLandscape passed on the fallback path (the bar was gone 3.02 s after Play, readValue tapped the video, read "Playing"/"Pause" 1.1 s later)
+- Verdict: Pass. AC-1 to AC-7 met; S1 and S2 fixed. The product code equals c1b6f0d, so 45110218499 (412/412, ipa) is the full-suite evidence. C1 (readValue makes 3 separate queries, and waits about 1 s after a re-show) and C2 (tester comment) stay Could fix, and T-034 can take C1
+- Files: .loop/tasks/T-021-playback-overlay-and-bars.md (Round 3 addendum); no further test changes
+- Gotchas: the T-034 AC-4 name set for the landed commit is 375 names: 45110218499 minus testScreenshotsDark, plus testBarValueIsReadAfterTheBarHidLandscape. In targeted runs the first test still meets a slow cold start (about 55 s this time). Evidence is in %TEMP%\clip-deck-loop\T-021-r3\verify (Data/ pruned)
+
+## 2026-11-23 · orchestrator · T-021 · landed
+- Done: Pass in round 3 (Sonnet builder, Opus tester). Landed as e845306. CI 45110218499 (scope=all, same app code): ipa green, 412/412. CI 45117390680 (both overlay classes, final commit): 22/22. All 4 CI runs used
+- Brent's decisions: Sonnet retries; a Debug-only `-uiTestingSampleSeconds` flag (overlay tests use 30 s) instead of retry-and-skip; new AC-7 (the landscape overlay hides while the Aa card is open, for everyone, VoiceOver included); the tester's PlaybackOverlayTesterUITests in SHARD2_UI
+- Open Could fix C1/C2 (readValue snapshot, a stale 6 s comment) moved to T-034's Agent notes, with the reused flag, the 375-name baseline and the auto-hide race cause
+- Unverified for Brent: fade feel and readability on bright scenes, Reduce Motion, VoiceOver, landscape bar variant 3 (narrow phones), dark mode
+- Next: T-034 (harden the known flaky tests, #39)

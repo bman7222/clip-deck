@@ -5,7 +5,7 @@ Goal: player controls, Move-Text, offline dictionary, clip timeline · Branch: l
 |----|-------|------|------------|--------|-------|--------|
 | T-019 | New app icon #21 | frontend | — | done | 1 | aa89224 |
 | T-020 | Split the simulator job #22 | backend | — | done | 3 | 9f73098 |
-| T-021 | Centred playback overlay, plain bottom pause button, new bar layout #23 | frontend | — | todo | | |
+| T-021 | Centred playback overlay, plain bottom pause button, new bar layout #23 | frontend | — | done | 3 | e845306 |
 | T-034 | Harden the known flaky tests #39 | backend | T-021 | todo | | |
 | T-022 | Subtitles avoid the overlay #24 | frontend | T-021 | todo | | |
 | T-023 | Continuous position plus separate resets #25 | backend | T-022 | todo | | |

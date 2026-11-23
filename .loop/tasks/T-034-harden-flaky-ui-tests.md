@@ -46,6 +46,14 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 - About: AboutUITests.swift:86-120 and 41-80. In 45083671012 one launch took 19.8 s and one tap 11.6 s, against waits of 10 s and 5 s.
 - The idle stall: `testLoadDifferentSubtitlesFromLandscapeDialog` took 517 s (45083671012, shard 2), `SubtitleStyleCardUITests/testPresetChipsSelect…` 442 s (45087727557, shard 3), and `testUpAndSize…` hung (44976839046). All three were in landscape.
 - Shards: new UI classes land in shard 3. Don't move classes between shards unless a shard nears 35 min (CONTEXT "Learned").
+- From T-021 (orchestrator, 2026-11-23):
+  - `-uiTestingSampleSeconds <n>` **already exists**. T-021 added it (Debug, with `-uiTesting`, clamped 1…600, default 6, documented in CLAUDE.md), so reuse it for the PlayerLandscapeBehaviour clip tests instead of adding a new hook.
+  - The test-name baseline for AC-4 is the T-021 landing set of 375 names: 45110218499's 375, minus `PlaybackOverlayTesterUITests/testScreenshotsDark` (removed on purpose), plus `PlaybackOverlayUITests/testBarValueIsReadAfterTheBarHidLandscape`.
+  - Another flake cause besides the clip end: a check that races the 3 s auto-hide. See `readValue` in PlaybackOverlayUITests, which re-shows the bar with a video tap.
+  - Open Could fix from T-021's tester:
+    - C1: `readValue` (PlaybackOverlayUITests.swift:269-276) reads exists, value and label as three separate queries; one `try? element.snapshot()` would read them together. After the re-show, `waitForExistence` uses about 1 s of the 3 s window.
+    - C2: the class comment at PlaybackOverlayTesterUITests.swift:6-7 still says the sample is 6 s.
+  - The cold-start seed/launch flake also hit the first tests of a fresh simulator in 45114494368 ("Failed to get background assertion for target app").
 
 ### Out of scope
 - xcodebuild `-retry-tests-on-failure` or test iterations in the workflow. That would hide flakes, so it's Brent's call.
