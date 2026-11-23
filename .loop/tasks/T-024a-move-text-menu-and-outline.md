@@ -51,6 +51,12 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 - Code: the Aa button (PlayerView.swift:670-681) shows the pattern: a Button plus a presented state, never a Menu (Learned, iOS 26). The landscape top bar is at 435-462. The Font card replaces the bottom bar in the stack at 263-293; do the same for the top. `keepsControlsUp` is at 569, and the rotation reset at 91-103. SheetFit is in SubtitleStyleSheet.swift:59-130 and 231-400: reuse it, and pass the clearance (Learned).
 - To get a no-cue state in a UI test, let the 6 s sample play to its end (it pauses there), or move the scrubber to about 0.97.
 - Give the card a background so XCUITest reports its real frame (Learned: a `.contain` container reports the union of its children). Known flakes are in CONTEXT "Learned".
+- From T-021/T-022/T-034 (orchestrator, 2026-11-23):
+  - The overlay already hides while either Aa menu is open, in both orientations (`showsOverlay` in PlayerView.swift; DESIGN.md "Style menus"). Extend that same gate for Move-Text instead of adding a parallel one. T-022's avoidance follows `showsOverlay`, so the line then sits at its true place.
+  - UI tests: build on `ios/ClipDeckUITests/UITestSupport.swift` (`launchAndOpenSampleEpisode`, `rotateToLandscape` with its idle-stall guard, `readTogether`, `tapStep`). Use `-uiTestingSampleSeconds 30` for anything checked while playing. Landscape taps within about 50 pt of the leading edge land on the Dynamic Island (Learned). Put a new UI class in `SHARD1_UI`.
+  - Optional Could fix (test support):
+    - C3: after a failed snapshot, `UITestSupport.readTogether` (UITestSupport.swift:184-187) can sit silent for 20 s on a slow runner. Check `exists` before the snapshot.
+    - T-034's carry-overs: `UITestAnimationWatch` logs iOS 26 Liquid Glass animations (infinite duration, no delegate) as noise; skip them, and reword docs/DEVELOPMENT.md:167-170. The 6 mid-test landscape rotations are unguarded.
 
 ### Out of scope
 - Removing the Font menu's arrows and splitting its Reset (T-024b).

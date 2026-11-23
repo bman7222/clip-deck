@@ -857,3 +857,41 @@
 - Could fix C1 (filter the Liquid Glass noise out of the watch) and C2 (6 unguarded mid-test rotations) moved to T-022's Agent notes
 - Disk: C: has about 127 GB free now, so the "nearly full" warning is out of date
 - Next: T-022 (subtitles avoid the overlay, #24)
+
+## 2026-11-23 · loop-frontend · T-022 · round 1 (sonnet)
+- Done: `SubtitlePlacement.frame(avoid:)` plus `overlayBand(videoSize:)`; PlayerView passes the band only while the overlay shows (both orientations), animated with the existing 0.2 s ease; saved style untouched
+- Left: CI compile and run (nothing built here); C1/C2 not done
+- Files: SubtitlePlacement.swift, PlayerView.swift, SubtitleStyleTests.swift, SubtitleAvoidOverlayUITests.swift (new, in SHARD1_UI), ios-simulator.yml, docs/DESIGN.md, task file
+- Gotchas: UITestSupport has no sampleSeconds parameter (use launchArguments); cue row 2 is cue.row.1
+
+## 2026-11-23 03:49 · loop-tester · T-022 · round 1
+- Done: read CI 45137420681 (cf006ee, scope=all, CI run 1 of 4). ipa green; shards 2/3 green (29:56, 29:48); 420/421 runs; 384 names = the 375 T-034 set + 9 new, none lost; the idle-stall guard never fired. The 7 new unit tests pass. Portrait UI test passes: the seed overlaps playPause+8, the shown line sits exactly at band.minY, and it returns to the seeded place. With the card open the line isn't avoided (T-018 climb log identical to 45132085072), and SubtitleStyle* frames are unchanged
+- Fail: M1, testLineAvoidsTheOverlayLandscape fails at :51. `tapVideo` taps 6 % of the 624.7 pt panel-open column (x 37.5), which lands on the simulator's Dynamic Island. Tap at dx 0.15 instead. The product avoided correctly at the failure (line maxY 167 = band.minY)
+- Could fix: C1 (for Brent) the portrait Aa sheet keeps the overlay up, so position steps 5–8 and 9–13 don't move the line; C2 the bars unit case doesn't change the choice; C3 T-034 C1/C2 still open
+- Files: .loop/tasks/T-022-subtitles-avoid-overlay.md (Test report round 1), .loop/CONTEXT.md (+1 Learned); no tests added
+- Gotchas: evidence is in %TEMP%\clip-deck-loop\T-022-r1 (Data/ pruned, 30 MB). New scripts in %TEMP%\clip-deck-loop\tools-T-034: overlayframes.py (overlay checks from 2 debugDescriptions), cmpattach.py (compare text attachments between runs), frames.mjs (recording frames over CDP) and bplist.py (synthesized-event coordinates). After M1, `-f scope=tests -f only_testing=ClipDeckUITests/SubtitleAvoidOverlayUITests` is enough if only the test changes
+
+## 2026-11-23 · loop-frontend · T-022 · round 2 (sonnet)
+- Done: M1 (tap dx 0.15); AC-6 portrait overlay hides while the Aa sheet is open; new UI test for it; C2 unit case; DESIGN.md one rule for both orientations
+- Left: CI run; C3 not done
+- Files: PlayerView.swift, SubtitleAvoidOverlayUITests.swift, SubtitleStyleTests.swift, docs/DESIGN.md, task file
+
+## 2026-11-23 06:20 · loop-tester · T-022 · round 2
+- Done: read CI 45158384614 (4079a44, scope=all, CI run 2 of 4). ipa, shard 2 (19:54) and shard 3 (23:45) green. Shard 1 red in 30:45 on 1 of 366 runs. 422 of 423 runs passed; 386 names = 375 + 8 unit + 3 UI. All 11 T-022 tests pass. The landscape line now returns to its seeded place (y 183–207 against 206.55 computed). With the portrait sheet open, the overlay is gone and each of the 3 Up steps moves the line, to upSteps 11's true place (y 192.7). Portrait sheet frame logs are unchanged against 45132085072 and round 1
+- Blocked: a pre-existing flake. PlaybackOverlayUITests/testBarValueIsReadAfterTheBarHidLandscape (file untouched since T-034; landscape) failed after a 20 s silent gap behind a failed `readTogether` snapshot on a slow VM, which let the 30 s clip end. NEEDED: `gh run rerun 45158384614 --failed`
+- Idle-stall guard: fired once, its first real firing (testOverlayIsCentredLandscape, rotation 60.4 s, relaunch, then 0.4 s, passed). The stalled process's UITestAnimationWatch printed nothing
+- Could fix: C1 a portrait video tap with the sheet open flips the hidden overlay state (Brent's call: ignore the tap or close the sheet); C2 DESIGN.md:95 "see Style card"; C3 readTogether's missing-element snapshot; C4 T-034 carry-overs
+- Files: .loop/tasks/T-022-subtitles-avoid-overlay.md (Test report round 2), .loop/CONTEXT.md (+1 Learned); no tests added
+- Gotchas: evidence is in %TEMP%\clip-deck-loop\T-022-r2 (Data/ pruned, 29 MB; recording frames in rec-barvalue/, stalled-pid20361-stdout.txt)
+
+## 2026-11-23 06:45 · loop-tester · T-022 · round 2 addendum
+- Done: read CI 45158384614 attempt 2 (`rerun --failed`, shard 1, 4079a44, CI run 3 of 4). Shard 1 passed in 18:32 (366/366, 0 issues), so the run is green. The flaky testBarValueIsReadAfterTheBarHidLandscape passed (22.7 s) with no silent gap. All 11 T-022 tests passed again, with frames identical to attempt 1. The name union is still 386. The idle-stall guard did not fire in attempt 2
+- Verdict: Pass. AC-1 to AC-6 met; the only unverified item is the 0.2 s ease feel (Brent, device). Could fix C1 (a video tap with the portrait sheet open flips the hidden overlay state; Brent's call), C2 (DESIGN.md:95 "see Style card"), C3 (readTogether's missing-element snapshot) and C4 (T-034 carry-overs) don't block
+- Files: .loop/tasks/T-022-subtitles-avoid-overlay.md (Round 2 addendum); no tests added
+- Gotchas: after a re-run two artifacts share the name simulator-results-1; download by ID (`gh api repos/{owner}/{repo}/actions/artifacts/<id>/zip`). Evidence is in %TEMP%\clip-deck-loop\T-022-r2\attempt2 (Data/ pruned)
+
+## 2026-11-23 · orchestrator · T-022 · landed
+- Pass in round 2 (Sonnet builder, Opus tester), landed as 3400e19. CI 45158384614 (scope=all) is green after Brent approved re-running shard 1: 423/423 runs, 386 names. 3 of 4 CI runs used
+- Brent's decisions: AC-6 (the portrait overlay hides while the Aa sheet is open); in portrait a video tap while the Aa sheet is open closes the sheet (now T-024b AC-7)
+- Could fixes moved: C1/C2 to T-024b; the readTogether 20 s silence and T-034's carry-overs to T-024a
+- The dev-loop skill changed mid-run (Brent's other session): rounds now run targeted CI (`ci.unit_target` + covering UI classes), plus one full landing run after a Pass. config.yml was updated by that session
