@@ -118,6 +118,8 @@ struct CardEditorView: View {
                 }
             }
 
+            ClipTimelineView(range: $range, track: track, offsetMs: offsetMs, videoDurationMs: videoDurationMs)
+
             nudgeRow(title: "Start", isStart: true)
             nudgeRow(title: "End", isStart: false)
 

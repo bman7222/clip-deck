@@ -1023,3 +1023,43 @@
 - Left: CI run (not compiled); classes: ClipDeckTests (DictionaryManagerModelTests), DictionaryManagerUITests, AboutUITests
 - Files: ios/ClipDeck/Features/Dictionaries/*, App/{ClipDeckApp,RootView}.swift, LibraryView, AboutView, DictionaryStore (`enabled` now var), 2 test files, make-test-media.sh, CLAUDE.md, docs
 - Gotchas: reorder needs the Reorder button; make-test-media.sh now copies the dictionary zips into build/fixtures/dictionaries
+## 2026-11-28 · loop-frontend · T-035 · round 1 (diagnosis)
+- Done: cause found. The iOS "Ready for Apple Intelligence" SpringBoard banner covered the card about 7 min after simulator boot (46118672166 and 46102226923). The app reported VisiblePoint -1 for Done/Reset. The two empty Others are normal and present in every passing landscape snapshot.
+- Left: test-side fix in UITestSupport (swipe the SpringBoard banner away when a target exists but isn't hittable, log `system-banner-guard`). No product change.
+- Files: .loop/tasks/T-035-invisible-layer-over-the-player.md
+- Gotchas: the banner's iOS 26 SpringBoard identifier is unverified; it stays about 25–30 s, so waiting it out costs too much.
+
+## 2026-11-28 · loop-frontend · T-035 · round 1
+- Done: `UITestSupport.dismissSystemBanner()` (SpringBoard banner swipe-up plus `system-banner-guard` attachment), called from `tap`/`tapStep` and before MoveTextTester's isHittable asserts; test-ios.sh turns it into a GitHub warning
+- Files: ios/ClipDeckUITests/UITestSupport.swift, MoveTextTesterUITests.swift, scripts/test-ios.sh
+- Left: CI run (not compiled); classes: MoveTextTesterUITests, MoveTextUITests, AboutUITests
+- Gotchas: banner identifier on iOS 26 unverified; a miss attaches springboard.debugDescription
+
+## 2026-11-28 · loop-tester · T-035 · round 2
+- Done: Pass. Guard is safe with no banner (query plus warning, hittable check still decides); in-app layers still fail; AboutUITests.tearDown Safari teardown correct
+- Evidence: CI 46123625075 and 46127810223 green on the relevant classes; banner swipe path never exercised
+- Gotchas: if a banner returns, the `system-banner-guard` attachment shows SpringBoard's tree for the real identifier
+
+## 2026-11-28 · orchestrator · T-033 and T-035 · landed
+- Done: T-033 93c8c67 (CI 46124710697 all green); T-035 f9f896f (CI 46123625075 + 46127810223). The loop branch had been rewritten to drop the Co-Authored-By trailers (same trees; 91dc544 → 7df9baa, b8a4128 → b80376b)
+- Left: T-025 re-committed on top; its landing run doubles as T-035's full-suite check. T-033's Could-fix (vertical scroll on the track, end clamp before the duration loads) is open for a later task
+
+## 2026-11-28 · loop-tester · T-025 · round 2
+- Verdict: Pass on CI 46124710697 (same product tree as 648ab96). `dragged` matches `frame` for the Move-Text case (no bottom obstruction, not stepsFromObstruction)
+- 10 pt drag tolerance justified: a constant 7 pt XCUITest lag across 60 and 80 pt drags, scale pinned by SubtitleDragTests
+- Could fix: VoiceOver nudge ignores the landscape card's Highest limit; DESIGN.md should note a tap on the outline no longer closes the menu
+- Unverified (Brent): lift visuals/haptic, Reduce Motion, drag feel, cancel, VoiceOver actions
+
+## 2026-11-28 · orchestrator · T-025 landed; T-027 verified; T-036 round 2
+- Done: T-025 7e905f1 (landing run 46131610946 all green, also T-035's full-suite check). T-027's two tester tests pass (46137931107, LookupEngineTests), so its Blocked turns into Pass
+- T-036 round 1 (46137995899): no early-boot failure in any shard. One failure in shard 3, a race between the bar tap and the 3 s auto-hide on a slow runner; fixed in round 2 with a shared `UITestSupport.tapBarButtonWhilePlaying` (run 46144815509)
+- Next: T-036 lands when green; then T-027 by tree plus one full run; T-028 reruns DictionaryManagerUITests on top of T-036
+
+## 2026-11-28 · loop-tester · T-036 · round 2
+- Done: reviewed script + shared tap helper; verdict Pass
+- Left: nothing blocking; one Could fix (a build-for-testing failure prints "Tests FAILED"; the exit status is right)
+- Files: .loop/tasks/T-036-settle-the-ci-simulator.md
+
+## 2026-11-28 · orchestrator · T-036 landed; T-027 landing run
+- Done: T-036 07be1ab (CI 46137995899 + 46144815509). T-027's branch diff applied as a patch onto the loop branch (it shares PlayerLandscapeBehaviourUITests with T-036; the patch merged cleanly)
+- Next: the loop-branch full run is T-027's landing run and T-036's first run on the combined tree; then T-028 rebases onto the loop branch

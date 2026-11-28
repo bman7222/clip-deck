@@ -150,6 +150,33 @@ nonisolated enum SubtitlePlacement {
         return SubtitleStyle.upRange.upperBound
     }
 
+    /// `style` after dragging the line by `translation` points, as the inverse of `frame` for the Move-Text menu (`up`
+    /// counts from the region's bottom). The result stays inside the stored ranges and inside what keeps the whole line
+    /// in the region, under the top obstruction. A line already pinned by a clamp starts from where it is drawn.
+    static func dragged(
+        _ style: SubtitleStyle,
+        by translation: CGSize,
+        videoSize: CGSize,
+        margins: SubtitleMargins,
+        topObstruction: CGFloat,
+        lineSize: CGSize
+    ) -> SubtitleStyle {
+        let resting = restingRegion(videoSize: videoSize, margins: margins)
+        guard resting.width > 0, resting.height > 0 else { return style }
+        let activeTop = min(max(resting.minY, topObstruction), resting.maxY)
+        let roomUp = Double((resting.maxY - activeTop - lineSize.height) / resting.height)
+        let roomRight = Double((resting.width - min(lineSize.width, resting.width)) / 2 / resting.width)
+        let upRange = SubtitleStyle.upRange.lowerBound...min(SubtitleStyle.upRange.upperBound, max(0, roomUp))
+        let side = min(SubtitleStyle.rightRange.upperBound, max(0, roomRight))
+        let sideRange = -side...side
+        var moved = style.clamped()
+        let startUp = SubtitleStyle.clampPosition(moved.up, to: upRange)
+        let startRight = SubtitleStyle.clampPosition(moved.right, to: sideRange)
+        moved.up = SubtitleStyle.clampPosition(startUp - Double(translation.height / resting.height), to: upRange)
+        moved.right = SubtitleStyle.clampPosition(startRight + Double(translation.width / resting.width), to: sideRange)
+        return moved
+    }
+
     /// The `up` after one Down tap with the card open. A stored value above the highest reachable one jumps to 0.05
     /// below it, so the line moves at once; otherwise it is 0.05 down from where it is (never below the default).
     static func upAfterDownWithCardOpen(stored: Double, highestReachable: Double) -> Double {

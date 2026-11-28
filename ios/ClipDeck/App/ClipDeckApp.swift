@@ -34,6 +34,9 @@ struct ClipDeckApp: App {
             if !arguments.contains("-uiTestingKeepSubtitleStyle") {
                 UserDefaults.standard.removeObject(forKey: SubtitleStyle.storageKey)
             }
+            if !arguments.contains("-uiTestingKeepTimelineSnap") {
+                UserDefaults.standard.removeObject(forKey: ClipTimelineView.snapKey)
+            }
             if let seed = SubtitleStyle.seedJSON(in: arguments) {
                 UserDefaults.standard.set(SubtitleStyle.seeded(from: seed).json, forKey: SubtitleStyle.storageKey)
             }

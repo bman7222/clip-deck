@@ -59,6 +59,17 @@ Subtitles default to the system font (Hiragino Sans for Japanese), bold, with a 
 
 **Code:** `ios/ClipDeck/DesignSystem/` (`Theme.swift`, `Components.swift`) and `Resources/Assets.xcassets` colour sets.
 
+## Clip timeline (Make a Card)
+
+`ClipTimelineView` (`card.timeline`) sits above the Start and End nudge rows. Every rule (window, snapping, handle limits and choice) lives in `ClipTimeline`; the view only draws and passes touches on.
+
+- **Overview strip:** 8 pt tall, the whole episode in Shell, with the clip as an aqua (`Theme.accent`) block. Decorative, hidden from VoiceOver.
+- **Zoomed track:** a 28 pt rounded Shell track, full width of the panel minus the handle radius at each end. Solid `Theme.accent` 2×10 pt notches at line edges, a 25 % accent fill between the handles (the notches stay visible inside it), and two 28 pt white handles with a 3 pt accent border and 44 pt hit areas (`card.timeline.start`, `card.timeline.end`). Labels under it show the window's start and end (m:ss.t).
+- **Dragging:** one drag on the whole track; `ClipTimeline` picks the handle (nearest, then drag direction), clamps it and snaps it. A bubble (Ink fill, Panel text) above the handle shows its time and stays inside the track's edges. The window re-centres with a 0.2 s ease (none under Reduce Motion) when a drag ends at the window's edge or the range leaves the window, for example after a nudge.
+- **Snap chip** (`card.timeline.snap`, value On or Off): on by default, remembered in the standard defaults (`cardEditor.timelineSnap`). With no subtitle lines there are no notches and the chip is disabled.
+- **One range:** handles and nudge rows both write the editor's `range`, so a drag leaves Save disabled and shows Re-record exactly like a nudge.
+- **VoiceOver:** each handle is adjustable by 0.1 s, labelled "Clip start" or "Clip end", with its m:ss.t as the value.
+
 ## Components
 
 - `DeckTile`: a rounded-square show icon with a big initial glyph, a top highlight and a hue-tinted shadow.
@@ -95,6 +106,8 @@ A button right after Aa, in portrait and in every landscape bar row: an "A" with
 - **Landscape card** (`MoveTextCard`, `moveText.card`): the same controls in one compact row (arrows, value text, Reset, Done), in the bars' look, in place of the top bar, with the bottom bar hidden. The value text is the first thing to drop out when the row doesn't fit. The line is kept under the card (card height plus `Spacing.s` as the top obstruction, no bottom obstruction, `up` counted from the video's bottom). Up dims with the value "Highest" when one more step wouldn't visibly move the line; the first Down from above the highest reachable place lands one step below it.
 - **Pausing and the overlay:** opening the menu pauses a playing video. Done, a swipe down of the sheet, or a tap on the video closes it, and playback resumes only if opening the menu paused it; a rotation closes it without resuming. The centred overlay is hidden while the menu is open (both orientations), so its avoidance never moves the line while you position it, and returns on close by its normal rules (it stays while paused, hides 3 s after playback resumes). The controls stay up while the card is open.
 - **Outline** (`moveText.outline`): while the menu is open, a 2 pt `Theme.accent` rounded rectangle, 6 pt outside the line's own frame. With no line on screen, a one-line sample "あいう Abc" in the current font and size at 50 % opacity (`moveText.sample`) takes its place and the outline frames that. It goes when the menu closes.
+- **Dragging the outline:** press and hold the outline for 0.25 s (a long press sequenced before a drag, in global coordinates) and it lifts: four aqua arrows appear 8 pt outside its edges, it scales to 1.06 with a spring and a light haptic plays (under Reduce Motion: no scale, the stroke goes to 3 pt). The line then follows the finger live, through `SubtitlePlacement.dragged` (the inverse of `frame`: `up` and `right` move by the points over the region height and width, clamped to 0...0.90 and ±0.40 and to what keeps the whole line in the region under the card), so the text and the outline always move together. Letting go writes the style once; a cancelled gesture puts the line back (`@GestureState`). The arrows then step 0.05 from the dragged place. In portrait the Up arrow only dims at 0.90, so the drag's limit can be reached before it dims. VoiceOver: the outline is an adjustable element "Subtitle position" (value `positionText`; increment and decrement move 5 % up and down) with the actions "Move left" and "Move right". With the menu closed there is no outline, so nothing on the line can be dragged.
+- **A tap on the outline** doesn't close the menu (the outline takes the touch for the long press, and the line's text can't be selected while the menu is open). A tap anywhere else on the video still closes it.
 
 ## Playback overlay
 

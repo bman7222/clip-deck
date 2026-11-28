@@ -75,34 +75,62 @@ enum UITestSupport {
             let stalled = rotation > stallLimit || (probe ?? 0) > stallLimit
             if !stalled {
                 if stalledBefore {
-                    logStall("Idle stall guard: no stall after the relaunch (\(steps))", app: app)
+                    logGuard("Idle stall guard: no stall after the relaunch (\(steps))", name: "idle-stall-guard", tree: app.debugDescription)
                 }
                 return
             }
             if attempt == 2 {
-                logStall("Idle stall guard: stalled again after the relaunch (\(steps)); going on without another relaunch",
-                         app: app)
+                logGuard("Idle stall guard: stalled again after the relaunch (\(steps)); going on without another relaunch",
+                         name: "idle-stall-guard", tree: app.debugDescription)
                 return
             }
             stalledBefore = true
-            logStall("Idle stall guard fired: the app stopped answering XCTest's animations-idle wait after the rotation "
-                     + "(\(steps)); terminating and relaunching it once", app: app)
+            logGuard("Idle stall guard fired: the app stopped answering XCTest's animations-idle wait after the rotation "
+                     + "(\(steps)); terminating and relaunching it once", name: "idle-stall-guard", tree: app.debugDescription)
             app.terminate()
             XCUIDevice.shared.orientation = .portrait
             if let reopen { reopen() } else { launchAndOpenSampleEpisode(app, file: file, line: line) }
         }
     }
 
-    /// Records one idle-stall guard event: an activity, a text attachment (the summary on its first line, then the
-    /// app's element tree) and a stdout line.
-    private static func logStall(_ summary: String, app: XCUIApplication) {
+    /// Records one guard event: an activity, a text attachment named `name` (the summary on its first line, then
+    /// `tree`) and a stdout line. scripts/test-ios.sh turns each attachment into a GitHub warning.
+    private static func logGuard(_ summary: String, name: String, tree: String) {
         print("UITestSupport: \(summary)")
         XCTContext.runActivity(named: summary) { activity in
-            let attachment = XCTAttachment(string: summary + "\n\n" + app.debugDescription)
-            attachment.name = "idle-stall-guard"
+            let attachment = XCTAttachment(string: summary + "\n\n" + tree)
+            attachment.name = name
             attachment.lifetime = .keepAlways
             activity.add(attachment)
         }
+    }
+
+    // MARK: System banners
+
+    /// Swipes away a SpringBoard notification banner over the app. A fresh CI simulator posts "Ready for Apple
+    /// Intelligence" about 7 minutes after boot, and it covers the top of the screen for 25-30 s (T-035). Call this
+    /// when an element exists but isn't hittable. It logs a "system-banner-guard" attachment either way; on a miss the
+    /// attachment holds SpringBoard's element tree, so a banner with another identifier can be found. Returns whether
+    /// it found a banner.
+    @discardableResult
+    static func dismissSystemBanner() -> Bool {
+        let springboard = XCUIApplication(bundleIdentifier: "com.apple.springboard")
+        let all = springboard.descendants(matching: .any)
+        let byID = all["NotificationShortLookView"]
+        let banner = byID.exists
+            ? byID
+            : all.matching(NSPredicate(format: "label CONTAINS[c] %@", "Apple Intelligence")).firstMatch
+        guard banner.exists else {
+            logGuard("System banner guard: an element isn't hittable and no SpringBoard banner was found",
+                     name: "system-banner-guard", tree: springboard.debugDescription)
+            return false
+        }
+        let label = banner.label
+        banner.swipeUp()
+        let gone = wait(timeout: 3) { !banner.exists }
+        logGuard("System banner over the app (\(label)): swiped it up, \(gone ? "gone" : "still there")",
+                 name: "system-banner-guard", tree: springboard.debugDescription)
+        return true
     }
 
     /// How long `action` took, in seconds.
@@ -149,6 +177,7 @@ enum UITestSupport {
     static func tap(_ element: XCUIElement, attempts: Int = 3, patience: TimeInterval = 4,
                     until condition: () -> Bool) -> Bool {
         for _ in 0..<attempts {
+            if element.exists, !element.isHittable { dismissSystemBanner() }
             guard element.exists, element.isHittable else {
                 // Nothing to tap: the tap already took (the button went away) or the UI is slow. Just wait.
                 return wait(timeout: patience, until: condition)
@@ -166,12 +195,34 @@ enum UITestSupport {
     static func tapStep(_ button: XCUIElement, reader: XCUIElement, from before: String, to after: String,
                         attempts: Int = 3, patience: TimeInterval = 5) -> Bool {
         for _ in 0..<attempts {
+            if button.exists, !button.isHittable { dismissSystemBanner() }
             guard button.exists, button.isHittable else { break }
             button.tap()
             if waitForValue(reader, after, timeout: patience) { return true }
             guard let now = reader.value as? String, now == before else { return false }
         }
         return waitForValue(reader, after, timeout: patience)
+    }
+
+    /// Taps a landscape bar `button` while the video plays until `opened` shows, and returns whether it did. The bars
+    /// hide 3 s after Play and one element query can take 2 s on CI, so a hidden bar is brought back with a video tap
+    /// and the button is tapped where it was just read, without a hittable check: a bar that hid by then costs one try
+    /// (the tap lands on the video and shows the bars again). `opened` is checked first each try, so an open menu that
+    /// a slow snapshot missed is never tapped away (T-034 S2, T-036).
+    @discardableResult
+    static func tapBarButtonWhilePlaying(_ app: XCUIApplication, _ button: XCUIElement,
+                                         until opened: XCUIElement) -> Bool {
+        for _ in 0..<3 {
+            if opened.exists { return true }
+            if !button.exists {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.35)).tap()
+                _ = wait(timeout: 3, interval: 0.05) { button.exists }
+            }
+            guard let frame = try? button.snapshot().frame else { continue }
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+            if opened.waitForExistence(timeout: 5) { return true }
+        }
+        return opened.exists
     }
 
     /// The spoken vertical place for `percent` percent up (SubtitleStyle.verticalSpoken).

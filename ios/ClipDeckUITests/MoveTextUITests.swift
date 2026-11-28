@@ -301,6 +301,96 @@ final class MoveTextUITests: XCTestCase {
         UITestSupport.attachText("line \(line.frame)\noutline \(outline.frame)", name: "move-outline-landscape", to: self)
     }
 
+    // MARK: T-025: dragging the outline
+
+    @MainActor func testDraggingTheOutlineMovesTheLinePortrait() throws { try checkDrag(landscape: false) }
+    @MainActor func testDraggingTheOutlineMovesTheLineLandscape() throws { try checkDrag(landscape: true) }
+
+    @MainActor
+    private func checkDrag(landscape: Bool) throws {
+        let app = launch(seed: nil, landscape: landscape)
+        let line = showSecondLine(app, landscape: landscape)
+        app.buttons["player.moveText"].tap()
+        let outline = app.descendants(matching: .any)["moveText.outline"]
+        XCTAssertTrue(outline.waitForExistence(timeout: 5), "The outline shows")
+        UITestSupport.settle()
+        XCTAssertEqual(outline.label, "Subtitle position")
+        XCTAssertEqual(outline.value as? String, "Default place")
+        let step = measureArrowStep(app, line)
+        let start = line.frame
+
+        dragOutline(outline, dy: -80)
+        XCTAssertTrue(UITestSupport.waitForFrame(line, timeout: 5) { abs($0.minY - (start.minY - 80)) <= 10 },
+                      "The line follows an 80 pt drag up: was \(start), now \(line.frame)")
+        XCTAssertEqual(line.frame.minX, start.minX, accuracy: 3, "A straight drag doesn't move the line sideways")
+        XCTAssertTrue(UITestSupport.wait(timeout: 5) { (outline.value as? String) != "Default place" },
+                      "The value text changes")
+        UITestSupport.settle()
+        assertOutline(outline.frame, around: line.frame, message: "after the drag")
+        let dropped = line.frame
+
+        let down = app.buttons["moveText.down"]
+        XCTAssertTrue(UITestSupport.tap(down, until: { abs(line.frame.minY - (dropped.minY + step)) <= 1 }),
+                      "Down steps 5 % (\(step) pt) from where the drag left the line: was \(dropped), now \(line.frame)")
+
+        dragOutline(outline, dy: 40 - outline.frame.midY)
+        UITestSupport.settle()
+        let highest = line.frame
+        if landscape {
+            let card = app.descendants(matching: .any)["moveText.card"]
+            XCTAssertEqual(highest.minY - card.frame.maxY, 8, accuracy: 2, "The line stops just under the card")
+            XCTAssertFalse(app.buttons["moveText.up"].isEnabled, "Up dims at the limit")
+            XCTAssertEqual(app.buttons["moveText.up"].value as? String, "Highest")
+        } else {
+            let video = app.descendants(matching: .any)["player.video"].frame
+            XCTAssertEqual(highest.minY - video.minY, 8, accuracy: 2, "The line stops at the top of its region")
+        }
+        XCTAssertTrue(UITestSupport.tap(down, until: { abs(line.frame.minY - (highest.minY + step)) <= 1 }),
+                      "Down steps 5 % (\(step) pt) from the limit: was \(highest), now \(line.frame)")
+        UITestSupport.attachText("start \(start)\ndropped \(dropped)\nhighest \(highest)\nstep \(step)\n"
+                                 + app.debugDescription, name: "move-drag-\(landscape ? "landscape" : "portrait")", to: self)
+    }
+
+    @MainActor
+    func testDraggingTheOutlineMovesTheSampleWhenNoLineIsShowingPortrait() throws {
+        let app = launch(seed: nil, landscape: false)
+        let slider = app.sliders.firstMatch
+        XCTAssertTrue(slider.waitForExistence(timeout: 5))
+        slider.adjust(toNormalizedSliderPosition: 0.97)
+        XCTAssertTrue(app.textViews["player.subtitle"].waitForNonExistence(timeout: 10), "No line is on screen")
+        app.buttons["player.moveText"].tap()
+        let outline = app.descendants(matching: .any)["moveText.outline"]
+        let sample = app.textViews["moveText.sample"]
+        XCTAssertTrue(sample.waitForExistence(timeout: 5), "The sample stands in")
+        UITestSupport.settle()
+        let start = outline.frame
+
+        dragOutline(outline, dy: -60)
+        XCTAssertTrue(UITestSupport.waitForFrame(outline, timeout: 5) { abs($0.minY - (start.minY - 60)) <= 10 },
+                      "The outline follows the drag: was \(start), now \(outline.frame)")
+        UITestSupport.settle()
+        assertOutline(outline.frame, around: sample.frame, message: "after dragging the sample")
+    }
+
+    @MainActor
+    private func dragOutline(_ outline: XCUIElement, dy: CGFloat) {
+        let centre = outline.coordinate(withNormalizedOffset: CGVector(dx: 0.5, dy: 0.5))
+        centre.press(forDuration: 0.3, thenDragTo: centre.withOffset(CGVector(dx: 0, dy: dy)))
+    }
+
+    /// How far one Up tap moves the line from the default place, in points (5 % of the region). Taps Down to go back.
+    @MainActor
+    private func measureArrowStep(_ app: XCUIApplication, _ line: XCUIElement) -> CGFloat {
+        let start = line.frame.minY
+        XCTAssertTrue(UITestSupport.tap(app.buttons["moveText.up"], until: { abs(line.frame.minY - start) > 1 }),
+                      "Up moves the line")
+        UITestSupport.settle(0.3)
+        let step = start - line.frame.minY
+        XCTAssertTrue(UITestSupport.tap(app.buttons["moveText.down"], until: { abs(line.frame.minY - start) <= 1 }),
+                      "Down puts it back")
+        return step
+    }
+
     // MARK: Helpers
 
     private func assertOutline(_ outline: CGRect, around inner: CGRect, message: String,

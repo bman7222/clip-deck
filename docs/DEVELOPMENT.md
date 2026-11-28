@@ -32,6 +32,7 @@ Only the scripts and the tests use these:
 | Variable | Used by | Purpose | Default |
 |---|---|---|---|
 | `SIM_NAME` | `run-ios.sh`, `test-ios.sh` | Simulator to use, e.g. `iPhone 17 Pro` | booted iPhone, else the newest |
+| `SETTLE_SECONDS` | `test-ios.sh` | When the script boots the simulator itself, the tests start no sooner than this many seconds after the boot (the build runs meanwhile). A fresh simulator spends about 10 minutes on first-boot work (an Apple Intelligence banner, slow terminate and screenshot calls) | 660 when `CI` is set, else 0 |
 | `CLIPDECK_FIXTURES` | The MKV unit tests (unit-test process); the app under `-uiTestingMKV` and `-uiTestingDictionary` (Debug) | Folder with the generated MKV fixtures and a `dictionaries/` folder (a copy of `scripts/fixtures/dictionaries`) | `<repo>/build/fixtures` in the unit tests; none in the app |
 | `TEST_RUNNER_CLIPDECK_FIXTURES` | `test-ios.sh` exports it | `xcodebuild test` strips the `TEST_RUNNER_` prefix and passes `CLIPDECK_FIXTURES` to the test process | `<repo>/build/fixtures` |
 
@@ -97,7 +98,7 @@ With Claude Code, the `ios-simulator-skill` skill can drive the running app. It 
 - `library.sync`, `library.upload`, `library.show.<name>`;
 - `episode.row.<title>`;
 - `cue.row.<n>`, `player.makeCard`, `player.offset`, `player.back` (landscape top bar), `player.video`, `player.panelToggle` (landscape top bar), `player.sidePanel`, `player.panelHandle`, `player.panel.makeCard`;
-- `card.save`, `card.addNext`, `card.rerecord`, `card.field.<field>`;
+- `card.save`, `card.addNext`, `card.rerecord`, `card.field.<field>`, `card.timeline`, `card.timeline.start`, `card.timeline.end`, `card.timeline.snap`;
 - `sync.start`.
 
 ## Tests
@@ -195,6 +196,7 @@ state, not for time:
 - **LaunchUITests:** the empty library offers Upload, and the upload sheet stays disabled without a video.
 - **AboutUITests:** Settings › About and licences shows the Clip Deck licence and the LGPL text, and both source links open Safari.
 - **MKVImportUITests:** with `-uiTestingMKV`, the converted fixture-4 episode lists its three subtitle lines, plays line 2 and makes a card (`mkv-01-player`, `mkv-02-card`); the upload sheet offers MKV and keeps Add episode disabled without a video.
+- **CardTimelineUITests:** the Make a Card timeline on the sample's line 2 (120 s video): both handles exist, a snapped drag of the end handle lands on 5.5 s and Re-record then Save works, an unsnapped drag lands between edges, a +0.1 nudge moves the end handle, and the Snap chip survives a relaunch with `-uiTestingKeepTimelineSnap`.
 - **MiningFlowUITests:** the full primary flow on the seeded sample:
   1. open the show, then the episode;
   2. tap line 2 in the list;

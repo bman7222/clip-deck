@@ -177,14 +177,59 @@ struct MoveTextSheet: View {
 struct MoveTextOutline: View {
     static let gap: CGFloat = 6
     static let lineWidth: CGFloat = 2
+    private static let arrowSize: CGFloat = 16
+    private static let arrowGap: CGFloat = 8
+
+    /// True while a long press has lifted it for dragging (the drag itself is on the caller's gesture).
+    var lifted = false
+
+    @AppStorage(SubtitleStyle.storageKey) private var stored = ""
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     var body: some View {
         RoundedRectangle(cornerRadius: Radius.chip, style: .continuous)
-            .strokeBorder(Theme.accent, lineWidth: Self.lineWidth)
+            .strokeBorder(Theme.accent, lineWidth: lifted && reduceMotion ? 3 : Self.lineWidth)
+            .contentShape(Rectangle())
             .padding(-Self.gap)
-            .allowsHitTesting(false)
+            .overlay {
+                if lifted {
+                    Color.clear
+                        .overlay(alignment: .top) { arrow("arrow.up").offset(y: -Self.arrowSize - Self.arrowGap) }
+                        .overlay(alignment: .bottom) { arrow("arrow.down").offset(y: Self.arrowSize + Self.arrowGap) }
+                        .overlay(alignment: .leading) { arrow("arrow.left").offset(x: -Self.arrowSize - Self.arrowGap) }
+                        .overlay(alignment: .trailing) { arrow("arrow.right").offset(x: Self.arrowSize + Self.arrowGap) }
+                        .allowsHitTesting(false)
+                }
+            }
+            .scaleEffect(lifted && !reduceMotion ? 1.06 : 1)
+            .animation(reduceMotion ? nil : .spring(duration: 0.3), value: lifted)
+            .sensoryFeedback(trigger: lifted) { _, isLifted in isLifted ? SensoryFeedback.impact(weight: .light) : nil }
             .accessibilityElement()
-            .accessibilityLabel("Subtitle position outline")
+            .accessibilityLabel("Subtitle position")
+            .accessibilityValue(SubtitleStyle.decoded(from: stored).positionText)
+            .accessibilityAdjustableAction { direction in
+                switch direction {
+                case .increment: nudge(up: 1)
+                case .decrement: nudge(up: -1)
+                @unknown default: break
+                }
+            }
+            .accessibilityAction(named: "Move left") { nudge(right: -1) }
+            .accessibilityAction(named: "Move right") { nudge(right: 1) }
             .accessibilityIdentifier("moveText.outline")
+    }
+
+    private func arrow(_ name: String) -> some View {
+        Image(systemName: name)
+            .font(.system(size: 12, weight: .heavy))
+            .foregroundStyle(Theme.accent)
+            .frame(width: Self.arrowSize, height: Self.arrowSize)
+    }
+
+    private func nudge(up: Int = 0, right: Int = 0) {
+        stored = SubtitleStyle.edited(stored) { next in
+            _ = next.stepUp(up)
+            _ = next.stepRight(right)
+        }
     }
 }
