@@ -4,7 +4,7 @@ title: Deinflection and lookup engine
 lane: backend
 depends_on: [T-026]
 status: testing
-round: 1
+round: 2
 base_sha: 91dc5448c2d5e93823d98327946f04aa557ae3b2
 issue: 32
 spec: .loop/specs/player-lookup-timeline.md
@@ -66,3 +66,9 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 ### Orchestrator gate (round 1)
 - Ponytail review (about 440 product lines): no Must or Should fix. One batched term query, rule match on Yomitan `rules`, ranking longest match > priority > frequency > score as the spec says. The rule JSON is consistent (156 rules, every list field an array, only the four kinds the decoder knows), so `Deconjugator(rulesJSON:)` won't throw on it. The JSON is bundled flat (Resources/Dictionary is a group, not a folder), so `forResource:` with no subdirectory is right. Comments 7 %: no comment pass.
 - Could-fix: half-width katakana with a separate ﾞ/ﾟ mark widens to two characters (カ + ゛), not ガ.
+- CI: run 46124072581 (77f6d0d, own branch, scope=all). Pending, not watched.
+
+## Fix round 2 (orchestrator)
+CI 46124072581 (77f6d0d, scope=all): shards 2, 3, 4 and the ipa green. Shard 1 ran ClipDeckTests green, including LookupEngineTests and DictionaryStoreTests. Its one red test was `MiningFlowUITests/testMakeACardFromSubtitleLine`, "Card editor should open after recording", the shard's first UI test, 0.5 min in.
+- The failure-time screen shows playback done (paused at 0:04.0, the end of line 2) and the app still on "Recording clip". So `CardDraft.recordMedia`, the clip extraction running in parallel, was still going after 25 s on the cold simulator. This task doesn't touch that path, and the test passed in every earlier run today.
+- Fix (tests only): the four UI tests that wait for the card editor after a recording wait 60 s instead of 20, like CardTimelineUITests already does. They are MiningFlowUITests:33, MKVImportUITests:54, PlayerLandscapeBehaviourUITests:120 and PlayerLandscapeUITests:123.
