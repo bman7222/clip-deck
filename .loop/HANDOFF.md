@@ -957,3 +957,31 @@
 - Pass in round 2, then a debloat round (shared sheet-fit modifier, `SubtitleStyle.edited`, comment pass on sonnet/medium; net +396 → +287). Landed as 1adb3e9. Landing run 46095180306 (scope=all) green; 45230680205 green before the debloat
 - 4 CI shards now (artifacts -1..-4). Open Could fix: move SubtitleStyleCardTesterUITests out of SHARD1_UI (shard 1 at 31 min) in the next task that needs a full run
 - dev-loop policy gained "Agent cost" rules 18–23 (size model/effort per job)
+
+## 2026-11-27 · loop-frontend · T-024b · round 1 (sonnet)
+- Done: Font card/sheet without arrows, font-only Reset, Aa aqua on font group, AC-7 portrait video tap closes the sheet; tests moved or deleted per AC-6, new Reset and AC-7 tests
+- Files: SubtitleStyleCard/Sheet.swift, PlayerView.swift, docs/DESIGN.md, 5 UI test files, SubtitleUpLimitTesterUITests.swift deleted (also out of SHARD1_UI)
+- Left: CI run (not compiled); classes: SubtitleStyleCardTester/CardUITests/SheetTester/StyleUITests/AvoidOverlay + MoveText*
+- Gotchas: landscape Font-reset test compares to a position-only seeded launch; 25 % panel card check dropped
+
+## 2026-11-28 · loop-tester · T-032 · round 2
+- Done: judged CI 46102226923 (8e727cb); ClipTimelineTests 19/19 green in shard 1; maths reviewed
+- Verdict: Pass, AC-1 to AC-6 met; no Must/Should fix
+- Could fix: float compare at ClipTimeline.swift:67; tie tolerance and duration-0 drag untested
+- Shard 3 UI failures are T-024b, unrelated
+
+## 2026-11-28 · loop-backend · T-026 · round 1 (sonnet)
+- Done: `DictionaryStore` actor (SQLite3 C API), `YomitanImporter` (v1-3, one transaction, cancel, rollback), ZIPFoundation 0.9.19 + MIT notice (About, check-ipa-notices), 8 checked-in fixture zips, `DictionaryStoreTests`
+- Left: CI run (not compiled; xcodegen not run); T-027 calls `DictionaryStore.terms(matching:)`, T-028 `importDictionary(from:progress:)`
+- Files: ios/ClipDeck/Services/Dictionary/*, ios/ClipDeckTests/DictionaryStoreTests.swift, scripts/make-dictionary-fixtures.py, scripts/fixtures/dictionaries/*.zip, ios/project.yml, AboutView.swift
+- Gotchas: tests read zips by `#filePath`; added `frequency_mode` column; progress callback runs on the store actor
+
+## 2026-11-28 · loop-tester · T-024b · round 2
+- Done: reviewed e049b9b..9d3d5d4 against CI 46112964013 (green except the pre-existing T-021 idle-stall test). AC-1/2/4/5/7 and C5 pass; the reference launches compare like for like
+- Verdict: Blocked, NEEDED verify-only pass. The AC-6 audit found 2 lost checks (Right dims at 40 %, Up stays dimmed after the card reopens); AC-3's "a moved line alone doesn't light Aa" had no test
+- Files: tests only: MoveTextTesterUITests.swift (+1 test, +reopen tail), SubtitleStyleUITests.swift, SubtitleStyleCardUITests.swift (Aa "Default" assert in the reference launches)
+- Gotchas: not compiled; run only_testing SubtitleStyleUITests, SubtitleStyleCardUITests, MoveTextTesterUITests
+
+## 2026-11-28 · orchestrator · T-032 · landed
+- Done: c2531f5 (squash of rounds 1-2). Evidence CI 46112964013: ClipDeckTests green; the only red test was the PlaybackOverlay idle stall, landed on Brent's call
+- Left: T-033 is unblocked; the tester's Could-fix items are in its notes

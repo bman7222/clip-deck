@@ -48,5 +48,8 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 - The spec's optional playhead line during Play clip isn't required.
 - Learned: a `.contain` container reports the union of its children's frames.
 
+- Could-fix from T-032's tester: `drawnNotches` compares x values with `<` at exactly 2 pt (fragile at the boundary); the 0.5 pt tie tolerance is tested only at a 0 pt gap; `dragged` with duration 0 is untested. Fix any that the view's use touches.
+- `ClipTimeline` is MainActor by default like `CueTrack` and `ClipMath` (AC-1 of T-032 said nonisolated); the view is MainActor, so it doesn't matter here.
+
 ### Out of scope
 - A playhead, lookups in the editor (T-031), changing ClipMath's rules.
