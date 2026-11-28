@@ -51,8 +51,9 @@ if [[ -d "$RESULT" ]]; then
   xcrun xcresulttool export attachments --path "$RESULT" --output-path "$SHOTS" >/dev/null 2>&1 \
     && echo "UI test screenshots: $SHOTS" \
     || echo "(Could not export screenshots; open $RESULT in Xcode.)"
-  # Every idle-stall guard event (UITestSupport.rotateToLandscape, T-034) becomes a GitHub warning, so a stall the
-  # guard recovered from still shows on the run page. This never changes the exit status.
+  # Every idle-stall guard event (UITestSupport.rotateToLandscape, T-034) and system-banner guard event
+  # (UITestSupport.dismissSystemBanner, T-035) becomes a GitHub warning, so a run the guard recovered still shows it
+  # on the run page. This never changes the exit status.
   if [[ -f "$SHOTS/manifest.json" ]]; then
     python3 - "$SHOTS" <<'PY' || true
 import json, os, sys
@@ -61,14 +62,17 @@ with open(os.path.join(shots, "manifest.json"), encoding="utf-8") as manifest:
     tests = json.load(manifest)
 for test in tests:
     for item in test.get("attachments", []):
-        if not item.get("suggestedHumanReadableName", "").startswith("idle-stall-guard"):
+        name = item.get("suggestedHumanReadableName", "")
+        kind = next((k for k in ("idle-stall-guard", "system-banner-guard") if name.startswith(k)), None)
+        if kind is None:
             continue
-        summary = "idle-stall-guard attachment"
+        summary = f"{kind} attachment"
         path = os.path.join(shots, item.get("exportedFileName", ""))
         if os.path.isfile(path):
             with open(path, encoding="utf-8", errors="replace") as handle:
                 summary = handle.readline().strip() or summary
-        print(f"::warning title=UI test idle stall::{test.get('testIdentifier', '?')}: {summary}")
+        title = "UI test idle stall" if kind == "idle-stall-guard" else "System banner over the app"
+        print(f"::warning title={title}::{test.get('testIdentifier', '?')}: {summary}")
 PY
   fi
 fi

@@ -1,6 +1,12 @@
 import XCTest
 
 final class AboutUITests: XCTestCase {
+    // A Safari left running makes XCTest's next terminate of Clip Deck time out (T-035, CI 46121764180 and 46123625075).
+    override func tearDown() async throws {
+        await MainActor.run { XCUIApplication(bundleIdentifier: "com.apple.mobilesafari").terminate() }
+        try await super.tearDown()
+    }
+
     @MainActor
     func testAboutShowsLicences() throws {
         let app = XCUIApplication()

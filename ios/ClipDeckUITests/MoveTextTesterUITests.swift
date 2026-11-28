@@ -69,6 +69,7 @@ final class MoveTextTesterUITests: XCTestCase {
             XCTAssertTrue(control.exists, "The card has \(id) at half width")
             let frame = control.frame
             log.append("  moveText.\(id) \(frame) hittable \(control.isHittable)")
+            if !control.isHittable { UITestSupport.dismissSystemBanner() }
             XCTAssertTrue(control.isHittable, "\(id) can be tapped at half width (\(frame))")
             XCTAssertGreaterThanOrEqual(frame.minX, cardFrame.minX - 0.5, "\(id) starts inside the card")
             XCTAssertLessThanOrEqual(frame.maxX, cardFrame.maxX + 0.5, "\(id) ends inside the card (\(frame), card \(cardFrame))")
@@ -290,6 +291,7 @@ final class MoveTextTesterUITests: XCTestCase {
         XCTAssertEqual(move.frame.minY, aa.frame.minY, accuracy: 2, "Same row as Aa (\(state))")
         XCTAssertGreaterThanOrEqual(space, 0, "After Aa, not over it (\(state))")
         XCTAssertLessThanOrEqual(space, 16, "Right after Aa (\(state), gap \(space))")
+        if !move.isHittable { UITestSupport.dismissSystemBanner() }
         XCTAssertTrue(move.isHittable, "The Move-Text button can be tapped (\(state))")
         let bar = app.descendants(matching: .any)["player.bottomBar"].frame
         return "\(state): Aa \(aa.frame), move \(move.frame), gap \(space), bottom bar \(bar)"
