@@ -33,3 +33,8 @@ Every early-run flake today came 7–10 min after the simulator booted, which is
 ## Implementation notes (round 1) · orchestrator
 - scripts/test-ios.sh: picks and boots the simulator before xcodegen, the fixtures and the build (`BOOTED_AT` is set only if this boot succeeded, so an already booted local simulator never waits); `build-for-testing`, then sleeps until `SETTLE_SECONDS` after the boot (660 on CI, 0 locally), then `test-without-building` with the same result bundle and filters. Exit status, screenshot export and guard warnings are unchanged.
 - docs/DEVELOPMENT.md: `SETTLE_SECONDS` row. Checked: `bash -n`, the default (660 with CI=true, 0 without).
+- CI: run 46137995899 (12aee3a, scope=all): shards 1, 2, 4 and the IPA green, no early-boot failure in any shard (tests started 660 s after boot). Shard 3: one failure, `MoveTextTesterUITests.testOpeningTheCardPausesPlaybackAndDoneResumesLandscape` "The card opens while the video plays".
+
+## Fix round 2 · orchestrator
+- Cause (screen recording + UI snapshots of run 46137995899): not boot churn. The landscape bars were on screen 42–44 s into the test, but each element query took 1–2.5 s on that runner, so `openCardWhilePlaying` lost the race against the 3 s auto-hide on all three tries: its first try saw ✥A mid-fade (`isHittable` false) and skipped the tap, and its 2 s existence waits missed the 3 s window.
+- Fix: `UITestSupport.tapBarButtonWhilePlaying` (the T-034 S2 loop from PlayerLandscapeBehaviourUITests, moved and shared): polls every 0.05 s after a video tap and taps the button where its snapshot was read, with no hittable check, so a bar that hid in between only costs one try. MoveTextTesterUITests (2 callers) and PlayerLandscapeBehaviourUITests use it; both local copies deleted.
