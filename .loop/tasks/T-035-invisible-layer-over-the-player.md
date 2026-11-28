@@ -73,3 +73,35 @@ CI 46123625075 (964ea81, scope=all): shards 1, 3, 4 and the ipa green, so the ba
 - In 46121764180 shard 2 the stuck app was the Safari test's own Clip Deck (pid 11294), "still `Running Background`", with Safari (pid 13972) still in the foreground a minute after that test ended.
 - Both terminate failures happened while the Safari test's Safari was still running. The banner can't explain them: they came 5.8 and 6.7 min into testing, while the banner hits came 0.7 and 1.6 min in.
 - Refined fix: `AboutUITests.tearDown` terminates Safari (the same `MainActor.run` pattern as PlayerLandscapeBehaviourUITests), so it also closes Safari when the test fails partway. The in-test `safari.terminate()` from 80fe9f7 has been removed.
+- CI: run 46127810223 (d5994bb, only_testing AboutUITests + PlayerLandscapeBehaviourUITests, one job). It replaces 46126081830, which cancel-in-progress stops. Pending, not watched.
+- CI 46127810223 (d5994bb, About + landscape tests): green. Tester started.
+
+## Test report (round 2)
+_by loop-tester · 2026-11-28 · no Swift compiler here; evidence is CI 46123625075 (964ea81, scope=all) and 46127810223 (d5994bb, only AboutUITests + PlayerLandscapeBehaviourUITests), plus a read of the diff_
+
+| Criterion | Result | Evidence |
+|-----------|--------|----------|
+| AC-1 Cause named with evidence | Pass | Diagnosis (round 1): SpringBoard "Ready for Apple Intelligence" banner, VisiblePoint -1 at 07:01:58 only, recording frames 89-110 s; same banner in 46102226923. "Fresh simulator posts it once" is labelled inferred. The two empty `Other`s shown present in passing tests too. |
+| AC-2 Layer no longer covers controls | Pass (banner path Unverified) | UITestSupport.swift `tap`/`tapStep` and the two MoveTextTester asserts call `dismissSystemBanner()` only when the element exists but is not hittable. Compiled and every `tap`/`tapStep` user passed in shards 1, 3, 4 of 46123625075. The guard never fired there, so the swipe-up and the iOS 26 identifier have not met a real banner. Users: no product code touched, none affected. |
+| AC-3 Check fails if the layer returns | Pass | `tap` still guards on `element.exists, element.isHittable` after the dismiss, and both `XCTAssertTrue(...isHittable)` asserts are unchanged and run after it. A banner that is not swiped away, or any in-app layer, still fails them. A miss logs a `system-banner-guard` attachment with SpringBoard's tree and a CI warning. |
+
+Questions asked:
+- Safe with no banner? Yes. Cost is one SpringBoard query, a `::warning`, and `false`. The call is `@discardableResult` and its result is ignored. The next line re-checks hittability on the real element, so it cannot give a false pass. In `tap` a non-hittable element still falls to the old "just wait" return.
+- In-app layer still fails? Yes (above). The label predicate runs only on SpringBoard's tree, so an app element cannot be mistaken for a banner. Worst case is an unneeded `swipeUp` on a SpringBoard element that matches "Apple Intelligence".
+- Safari teardown correct? Yes. `AboutUITests.tearDown() async throws` copies the PlayerLandscapeBehaviourUITests pattern (`MainActor.run`, then `super.tearDown()`), and it runs when the test fails partway. It also runs for the two other About tests, where `terminate()` on a Safari that isn't running is a no-op. 46127810223 is green in shard 2's order.
+- Diagnosis sound? Banner: yes, with direct evidence. Safari/terminate: plausible and consistent (two failures right after the Safari test, both with Safari still running; the timing argument rules out the banner), but proven only by one green targeted run, not by repeated scope=all runs.
+
+### Findings
+Could fix
+Where: ios/ClipDeckUITests/UITestSupport.swift (dismissSystemBanner)
+Problem: the banner identifier `NotificationShortLookView` and the swipe-up are unverified on iOS 26.
+Proof: Read it; no warning fired in 46123625075.
+Trigger: next time a banner appears, read the `system-banner-guard` attachment (it holds SpringBoard's tree) and fix the identifier if it says "no SpringBoard banner was found".
+Fix: none now.
+
+```text
+VERDICT: Pass
+SPEC: AC-1 met, AC-2 met (banner dismiss path unexercised), AC-3 met
+CHECKS_RUN: CI 46123625075 (shards 1, 3, 4 and ipa green; shard 2 red on "Failed to terminate", fixed in d5994bb); CI 46127810223 (AboutUITests + PlayerLandscapeBehaviourUITests green). No Swift compiler locally; scripts/test-ios.sh Python block read, not rerun.
+UNVERIFIED: the banner swipe-up on a real banner; that the Safari tearDown fixes shard 2 across a full scope=all run (orchestrator's full suite before landing will show it)
+REVIEWED_AT: d5994bb

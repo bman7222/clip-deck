@@ -1023,3 +1023,8 @@
 - Files: ios/ClipDeckUITests/UITestSupport.swift, MoveTextTesterUITests.swift, scripts/test-ios.sh
 - Left: CI run (not compiled); classes: MoveTextTesterUITests, MoveTextUITests, AboutUITests
 - Gotchas: banner identifier on iOS 26 unverified; a miss attaches springboard.debugDescription
+
+## 2026-11-28 · loop-tester · T-035 · round 2
+- Done: Pass. Guard is safe with no banner (query plus warning, hittable check still decides); in-app layers still fail; AboutUITests.tearDown Safari teardown correct
+- Evidence: CI 46123625075 and 46127810223 green on the relevant classes; banner swipe path never exercised
+- Gotchas: if a banner returns, the `system-banner-guard` attachment shows SpringBoard's tree for the real identifier
