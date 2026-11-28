@@ -985,3 +985,13 @@
 ## 2026-11-28 · orchestrator · T-032 · landed
 - Done: c2531f5 (squash of rounds 1-2). Evidence CI 46112964013: ClipDeckTests green; the only red test was the PlaybackOverlay idle stall, landed on Brent's call
 - Left: T-033 is unblocked; the tester's Could-fix items are in its notes
+
+## 2026-11-28 · loop-frontend · T-033 · round 1 (sonnet)
+- Done: `ClipTimelineView` in Make a Card (overview, zoomed track, drag handles via ClipTimeline, Snap chip remembered), bound to the editor's `range`
+- Left: CI run (not compiled); classes: ClipTimelineTests, CardTimelineUITests, MiningFlowUITests
+- Files: ios/ClipDeck/Features/CardEditor/ClipTimelineView.swift, CardEditorView.swift, App/ClipDeckApp.swift, ios/ClipDeckUITests/CardTimelineUITests.swift, docs/DESIGN.md, DEVELOPMENT.md, CLAUDE.md
+- Gotchas: `-uiTestingKeepTimelineSnap` keeps the Snap key across a relaunch; new UI class lands in shard 4
+
+## 2026-11-28 · orchestrator · T-024b · landed
+- Done: 465649d (rounds 1-2 plus the tester's verify tests). Evidence CI 46115783465, scope=all, all green; 38b2491 (120 s overlay clip) landed on its own
+- Left: T-025 (drag the outline) is unblocked

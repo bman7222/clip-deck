@@ -10,11 +10,11 @@ Goal: player controls, Move-Text, offline dictionary, clip timeline · Branch: l
 | T-022 | Subtitles avoid the overlay #24 | frontend | T-021 | done | 2 | 3400e19 |
 | T-023 | Continuous position plus separate resets #25 | backend | T-022 | done | 1 | cdf3df8 |
 | T-024a | Move-Text button and menu with the blue outline #26 | frontend | T-021, T-023 | done | 2 | 1adb3e9 |
-| T-024b | Font menu without arrows, with its own Reset #27 | frontend | T-024a | testing | 2 | CI 46112964013 pending |
+| T-024b | Font menu without arrows, with its own Reset #27 | frontend | T-024a | done | 2 | 465649d |
 | T-025 | Drag the outline #28 | frontend | T-024a | todo | | |
 | T-032 | Timeline maths #29 | backend | — | done | 2 | c2531f5 |
-| T-033 | Timeline view in Make a Card #30 | frontend | T-032 | todo | | |
-| T-026 | Dictionary store and Yomitan importer #31 | backend | — | building | 1 | |
+| T-033 | Timeline view in Make a Card #30 | frontend | T-032 | building | 1 | |
+| T-026 | Dictionary store and Yomitan importer #31 | backend | — | testing | 1 | CI 46115783465 green; tester |
 | T-027 | Deinflection and lookup engine #32 | backend | T-026 | todo | | |
 | T-028 | Dictionary manager #33 | frontend | T-026 | todo | | |
 | T-029a | Dictionary popup: formatted entries #34 | frontend | T-027, T-028 | todo | | |
