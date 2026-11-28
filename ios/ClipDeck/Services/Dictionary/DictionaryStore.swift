@@ -67,6 +67,13 @@ nonisolated struct TermRow: Equatable, Sendable {
     }
 }
 
+nonisolated struct FrequencyRow: Equatable, Sendable {
+    let dictionaryID: Int
+    let term: String
+    /// The raw JSON of the term-meta row: a number, a string, or an object.
+    let data: String
+}
+
 /// The offline dictionary database (`Library/Application Support/Dictionaries/dictionaries.sqlite`), reached through the
 /// system SQLite3 C API. The actor owns the connection, so every call is serialised; an import holds it until it ends.
 actor DictionaryStore {
@@ -166,5 +173,16 @@ actor DictionaryStore {
         let sql = "SELECT \(TermRow.columns) FROM terms t JOIN dictionaries d ON d.id = t.dict WHERE d.enabled = 1"
             + " AND (t.expression IN (\(marks)) OR t.reading IN (\(marks))) ORDER BY d.priority, t.score DESC, t.rowid"
         return try db.query(sql, (words + words).map(SQLiteValue.text), map: TermRow.init(row:))
+    }
+
+    /// Frequency rows of the enabled dictionaries for these expressions, in dictionary priority order.
+    func frequencies(matching terms: [String]) throws -> [FrequencyRow] {
+        guard !terms.isEmpty else { return [] }
+        let marks = Array(repeating: "?", count: terms.count).joined(separator: ",")
+        let sql = "SELECT m.dict, m.term, m.data FROM term_meta m JOIN dictionaries d ON d.id = m.dict"
+            + " WHERE d.enabled = 1 AND m.mode = 'freq' AND m.term IN (\(marks)) ORDER BY d.priority, m.rowid"
+        return try db.query(sql, terms.map(SQLiteValue.text)) {
+            FrequencyRow(dictionaryID: $0.int(0), term: $0.text(1), data: $0.text(2))
+        }
     }
 }

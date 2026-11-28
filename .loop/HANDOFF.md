@@ -1017,3 +1017,9 @@
 ## 2026-11-28 · orchestrator · T-026 · landed
 - Done: 748f6d1. Evidence CI 46115783465 (all green) and 46118672166 (the tester's schema test green; shard 3 red on the Move-Text hidden layer). Landed on Brent's call
 - Left: T-027 and T-028 are unblocked; the tester's Could-fix items are in T-028's notes. New task T-035 (the invisible layer), before T-025 lands
+
+## 2026-11-28 · loop-backend · T-027 · round 1 (sonnet)
+- Done: `Deconjugator` (JL rule table, Apache-2.0, JSON resource), `LookupEngine` (`scan(text:at:)`, `lookup(exact:)`), result contract in LookupResult.swift, `DictionaryStore.frequencies(matching:)`, licence notices (third-party, bundled file, About, IPA check)
+- Files: ios/ClipDeck/Services/Dictionary/{Deconjugator,LookupEngine,LookupResult,DictionaryStore}.swift, Resources/Dictionary/deconjugation_rules.json, Resources/Licenses/Deconjugation-LICENSE.txt, AboutView.swift, LookupEngineTests.swift, 3 fixture zips + make script, docs/ARCHITECTURE.md
+- Left: CI run (not compiled); classes: ClipDeckTests (LookupEngineTests, DictionaryStoreTests), AboutUITests
+- Gotchas: NLTokenizer word start and `Attachment.record(String)` unverified; ok to see "scan-timings.txt" in the xcresult

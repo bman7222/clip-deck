@@ -3,9 +3,9 @@ id: T-027
 title: Deinflection and lookup engine
 lane: backend
 depends_on: [T-026]
-status: todo
-round: 0
-base_sha:
+status: testing
+round: 1
+base_sha: 91dc5448c2d5e93823d98327946f04aa557ae3b2
 issue: 32
 spec: .loop/specs/player-lookup-timeline.md
 model:
@@ -52,3 +52,17 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 
 ### Out of scope
 - Kanji lookups, pitch accent, name dictionaries, any UI.
+
+## Implementation notes (round 1)
+- Licence: `gh api repos/rampaa/JL/license` = Apache-2.0 (its LICENSE is the plain licence text, no copyright line). `wareya/nazeka` has no LICENSE file (API 404), but its README says "Copyright 2017~2019; Licensed under the Apache License, Version 2.0", and JL's README credits it for the rules. Rules ported from JL at b6ce75c441d40fe66ee9e4208c036fbcc572bb21 (`JL.Core/Resources/deconjugation_rules.json`, copied unchanged). Recorded in THIRD_PARTY_NOTICES.md, `Resources/Licenses/Deconjugation-LICENSE.txt` (Apache text + provenance), Settings > About, and `check-ipa-notices.sh`. No Yomitan code or data.
+- Algorithm written for Swift from Nazeka's background-script.js and JL's Deconjugator.cs; checked against a Node mirror of the same logic for the AC-6 words (食べた, 行かなかった, 高くない, してしまった, 来なかった give the expected forms and reasons).
+- Added `DictionaryStore.frequencies(matching:)` (+ `FrequencyRow`) because the engine needs term_meta; nothing else in the store changed.
+- Files: Services/Dictionary/{Deconjugator,LookupEngine,LookupResult}.swift, Resources/Dictionary/deconjugation_rules.json, ClipDeckTests/LookupEngineTests.swift, three new fixtures (lookup-words, frequency-rank, frequency-occurrence; the existing zips are byte-identical), docs/ARCHITECTURE.md.
+- Contract for T-029+: `LookupEngine(store:deconjugator: try Deconjugator.bundled())`; `await scan(text:at: String.Index) -> LookupResult?`, `await lookup(exact:) -> LookupResult?` (types in LookupResult.swift).
+- Tester, look at: NLTokenizer's word start for 食べた (tests assume it does not split 食|べた); `Attachment.record(String, named:)` compiling on CI's Swift; the performance median on the CI simulator (attachment `scan-timings.txt`).
+- Gotchas: a scan only tries lengths that include the tapped character, so a tap on た of 食べ|た cannot match 食べ alone. Half-width katakana widening uses ICU per character and keeps the original if the result isn't one character. `cop` has no Yomitan rule id and keeps its name. A form deconjugated with no named reason is dropped (it was only a stem change).
+- Not run: everything Swift (CI only). Classes: ClipDeckTests/LookupEngineTests, DictionaryStoreTests; `scripts/check-ipa-notices.sh` on the IPA job.
+
+### Orchestrator gate (round 1)
+- Ponytail review (about 440 product lines): no Must or Should fix. One batched term query, rule match on Yomitan `rules`, ranking longest match > priority > frequency > score as the spec says. The rule JSON is consistent (156 rules, every list field an array, only the four kinds the decoder knows), so `Deconjugator(rulesJSON:)` won't throw on it. The JSON is bundled flat (Resources/Dictionary is a group, not a folder), so `forResource:` with no subdirectory is right. Comments 7 %: no comment pass.
+- Could-fix: half-width katakana with a separate ﾞ/ﾟ mark widens to two characters (カ + ゛), not ガ.
