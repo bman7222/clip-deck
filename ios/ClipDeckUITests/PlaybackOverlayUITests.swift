@@ -1,7 +1,7 @@
 import XCTest
 
 /// T-021: the centred playback overlay (back 5 s, play/pause, forward 5 s) and the bar without ±5 s, in both
-/// orientations. Uses the seeded "Sample Show" with a 30-second video (`-uiTestingSampleSeconds 30`, so a slow
+/// orientations. Uses the seeded "Sample Show" with a 120-second video (`-uiTestingSampleSeconds 120`, so a slow
 /// runner can't play it to its end), paused at 0:00.
 ///
 /// Timing rules: wait on state (an element appearing, a value changing), never on a fixed sleep. The only fixed
@@ -149,7 +149,7 @@ final class PlaybackOverlayUITests: XCTestCase {
     /// Tester (T-021 round 3): the fallback in `readValue`, the path a slow runner takes when the Play tap's own
     /// wait outlasts the 3 s auto-hide. Playing in landscape, the bar hides on its own; `readValue` then has to
     /// bring the controls back with a video tap and find the bar still reading "Playing" with the label "Pause"
-    /// (the 30 s clip is still playing).
+    /// (the 120 s clip is still playing).
     @MainActor
     func testBarValueIsReadAfterTheBarHidLandscape() throws {
         let app = openSample(landscape: true)
@@ -199,9 +199,9 @@ final class PlaybackOverlayUITests: XCTestCase {
     @MainActor
     private func openSample(landscape: Bool) -> XCUIApplication {
         let app = XCUIApplication()
-        // A 30 s clip, so a slow runner can't play it to its end (which pauses it and brings the overlay back)
+        // A 120 s clip, so a slow runner can't play it to its end (which pauses it and brings the overlay back)
         // while a test is still waiting. The default 6 s sample is too short for tests that play.
-        app.launchArguments += ["-uiTesting", "-uiTestingSampleSeconds", "30"]
+        app.launchArguments += ["-uiTesting", "-uiTestingSampleSeconds", "120"]
         let showTile = UITestSupport.launchSeeded(app)
         showTile.tap()
         let episodeRow = app.buttons["episode.row.Episode 1"]
@@ -256,7 +256,7 @@ final class PlaybackOverlayUITests: XCTestCase {
     /// Reads an element's value and label with direct property reads, right after a tap. While playing, the
     /// landscape bar and the overlay hide 3 s after playback starts, so a slow predicate wait could miss them.
     /// Returns as soon as the value is `expected`. If the element isn't there (it hid), taps the video to bring
-    /// the controls back (the 30 s clip is still playing) and reads again, at most 3 times; while it is there
+    /// the controls back (the 120 s clip is still playing) and reads again, at most 3 times; while it is there
     /// with another value, it polls (about 4 s at most).
     @MainActor
     private func readValue(_ app: XCUIApplication, id: String, expecting expected: String)
