@@ -1,6 +1,12 @@
 import XCTest
 
 final class AboutUITests: XCTestCase {
+    // A Safari left running makes XCTest's next terminate of Clip Deck time out (T-035, CI 46121764180 and 46123625075).
+    override func tearDown() async throws {
+        await MainActor.run { XCUIApplication(bundleIdentifier: "com.apple.mobilesafari").terminate() }
+        try await super.tearDown()
+    }
+
     @MainActor
     func testAboutShowsLicences() throws {
         let app = XCUIApplication()
@@ -62,7 +68,6 @@ final class AboutUITests: XCTestCase {
         XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 60), "FFmpegBuild source link opens Safari")
         attach(text: safari.debugDescription, name: "about-04-safari-ffmpegbuild-tree")
         attach(screenshot: safari.screenshot(), name: "about-04-safari-ffmpegbuild")
-        safari.terminate()
     }
 
     /// Added by loop-tester (T-012 round 2): the About screen shows the real app version (0.1.0 from MARKETING_VERSION,
