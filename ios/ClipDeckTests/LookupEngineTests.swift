@@ -191,6 +191,35 @@ struct LookupEngineTests {
         #expect(LookupEngine.glossary(Data("{}".utf8)).isEmpty)
     }
 
+    // MARK: Normalising and rule matching (tester, T-027 round 2)
+
+    @Test func halfWidthKatakanaIsWidenedBeforeTheLookup() async throws {
+        let (engine, _, _) = try await makeEngine(["words-v3", "words-second"])
+        let text = "ﾈｺ"
+        let result = try #require(try await engine.scan(text: text, at: text.startIndex))
+        #expect(String(text[result.range]) == "ﾈｺ")
+        #expect(result.entries.first?.expression == "猫")
+    }
+
+    /// One dictionary holding one term, written straight into the database.
+    func seedTerm(_ expression: String, reading: String, rules: String) throws {
+        let db = try SQLiteDatabase(url: databaseURL)
+        let glossary = try (Data(#"["definition"]"#.utf8) as NSData).compressed(using: .zlib) as Data
+        try db.run("INSERT INTO dictionaries(title, revision, format, kind, priority, enabled, term_count)"
+                   + " VALUES ('Seeded', '1', 3, 'words', 0, 1, 1)")
+        let dict = db.lastInsertRowID
+        try db.run("INSERT INTO terms VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                   [.int(dict), .text(expression), .text(reading), .text(rules), .text(rules), .int(1), .int(1), .text(""), .blob(glossary)])
+    }
+
+    @Test func aDeconjugatedFormNeedsAnEntryWhoseRulesMatch() async throws {
+        let store = try DictionaryStore(url: databaseURL)
+        try seedTerm("食べる", reading: "たべる", rules: "v5")
+        let engine = LookupEngine(store: store, deconjugator: try deconjugator())
+        #expect(try await engine.lookup(exact: "食べた") == nil)
+        #expect(try await engine.lookup(exact: "食べる")?.entries.map(\.expression) == ["食べる"])
+    }
+
     // MARK: Performance
 
     /// Writes `count` generated three-kana terms and one real verb straight into the database, as dictionary 1.

@@ -1023,3 +1023,9 @@
 - Files: ios/ClipDeck/Services/Dictionary/{Deconjugator,LookupEngine,LookupResult,DictionaryStore}.swift, Resources/Dictionary/deconjugation_rules.json, Resources/Licenses/Deconjugation-LICENSE.txt, AboutView.swift, LookupEngineTests.swift, 3 fixture zips + make script, docs/ARCHITECTURE.md
 - Left: CI run (not compiled); classes: ClipDeckTests (LookupEngineTests, DictionaryStoreTests), AboutUITests
 - Gotchas: NLTokenizer word start and `Attachment.record(String)` unverified; ok to see "scan-timings.txt" in the xcresult
+
+## 2026-11-28 18:10 · loop-tester · T-027 · round 2
+- Verdict: Blocked, NEEDED verify-only pass of LookupEngineTests (2 tests added: half-width ﾈｺ → 猫, a deconjugated form needs matching rules)
+- No Must/Should fix; Could fix: no fallback scan from the tapped char when the token start finds nothing, mixed-dictionary frequency key, exact-lookup range untrimmed
+- Licence chain checked: JL Apache-2.0, rules JSON byte-identical to b6ce75c, Nazeka Apache-2.0, no Yomitan code
+- Files: ios/ClipDeckTests/LookupEngineTests.swift (tests only, uncommitted)
