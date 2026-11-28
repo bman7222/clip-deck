@@ -71,3 +71,4 @@ CI 46124158721 (296a26d, scope=all): shards 1 and 2 and the ipa green (Dictionar
 ## Fix round 3 · orchestrator
 - CI 46150787593 (b9fe85c, only_testing DictionaryManagerUITests, with T-036's settle): the delete-dialog fix passes (`testSwitchingOffAndDeletingWithConfirmation` green). `testAReorderSurvivesReopeningTheSheet` failed, "Row 3 moved above row 1". The round 2 control lookup worked (it pressed row 3's "Reorder Test Frequency" button at 358, 344 and dragged to 183), so the order was the drag itself: `press(forDuration: 0.8, thenDragTo:)` drags fast and lets go on arrival, and the list (a collection view on iOS 26) hadn't moved its drop place yet.
 - Fix (test only): `press(forDuration: 0.5, thenDragTo:, withVelocity: .slow, thenHoldForDuration: 1)`.
+- CI: run 46153784207 (only_testing DictionaryManagerUITests). Pending, not watched.
