@@ -916,3 +916,44 @@
 ## 2026-11-23 · orchestrator · T-023 · landed
 - Pass in round 1 after a verify-only pass (Sonnet builder, Opus tester). Landed as cdf3df8. Targeted 45168178904 (one known flake) → verify 45172400098 green → landing run 45174397249 (scope=all) all green. 3 of 4 CI runs used. This is the first task under the targeted-CI rule
 - Could fixes moved: C1 (use bottomObstruction 0 with stepsFromObstruction false), C2 (reword the CLAUDE.md fall-through rule) and the API summary to T-024a; C5 (the flaky sheet test gets a 20 s clip) to T-024b; old helper names fixed in the spec and in T-024b's notes
+
+## 2026-11-23 · loop-frontend · T-024a · round 1 (sonnet)
+- Done: Move-Text button (✥A) after Aa, portrait `MoveTextSheet`, landscape `MoveTextCard`, blue outline with a no-cue sample, pause/resume, overlay hidden while open, DESIGN.md section
+- Left: CI (ClipDeckTests + MoveTextUITests + Aa/overlay/landscape classes); T-024b removes the Font menu's arrows
+- Files: Features/Player/MoveTextMenu.swift (new), PlayerView.swift, SubtitleStyleSheet.swift, ClipDeckUITests/MoveTextUITests.swift (new, in SHARD1_UI), UITestSupport.swift, UITestAnimationWatch.swift, DESIGN.md, CLAUDE.md
+- Gotchas: nothing compiled locally; sheet fit code is copied from SubtitleStyleSheet (dedupe in T-024b)
+
+## 2026-11-23 11:05 · loop-tester · T-024a · round 1
+- Done: read CI 45204137687 (63f71d8, scope=all, CI run 1 of 4). 447/448 runs; 411 names = 398 + 13 MoveText. The outline is exactly 6 pt and 2 pt accent; the sample is at 50 %; the landscape Up climb dims at y 68 = card + 8 (C1 right); 63/68 attachments match T-023's landing run, and the 5 differences are explained (panel-50 % bar is now two rows)
+- Fail: M1, MoveTextUITests.swift:123/127. `tapStep` reads the `moveText.value` Text, which has no accessibility value. The app is right (the recording shows "Up 5%")
+- Files: ios/ClipDeckUITests/MoveTextTesterUITests.swift (new, 6 tests, not run yet), task file Test report, CONTEXT.md (+1 Learned)
+- Gotchas: idle-stall guard fired 2× (recovered); a new 57 s main-thread block on player open in portrait (pre-existing area); shard 1 33:49. Evidence %TEMP%\clip-deck-loop\T-024a-r1
+
+## 2026-11-23 · loop-frontend · T-024a · round 2 (sonnet)
+- Done: M1 (tapStep reads moveText.down / moveText.left values), C3 (Aa ignores taps while Move-Text is open), 4th CI shard (SHARD1/2/3_UI lists, shard 4 = rest, artifacts -1..-4)
+- Left: full CI run; check shard times against 22-25 min and rebalance the lists if needed
+- Files: .github/workflows/ios-simulator.yml, ios/ClipDeckUITests/MoveTextUITests.swift, PlayerView.swift, docs/DEVELOPMENT.md, CLAUDE.md
+- Gotchas: split is estimated (per-class times for most classes aren't recorded); MoveTextTesterUITests is in SHARD3_UI
+
+## 2026-11-27 20:31 · loop-tester · T-024a · round 2
+- Done: judged CI 45230680205 (c7b4e65, scope=all, green on all 4 shards and ipa). M1 fixed and passing; the 6 MoveTextTesterUITests pass; C3 Aa guard at PlayerView.swift:806
+- Verdict: Pass. AC-1 to AC-6 met. Plan script run locally: 4 shards, 1 job for only_testing, empty lists dropped, all 20 UI classes in exactly one shard
+- Could fix C1: shard 1 takes 31 min (OK, under 35). Next full run: drop SubtitleStyleCardTesterUITests from SHARD1_UI (it lands in shard 4), about 27/24/25/25
+- Unverified: aqua element shot not opened; real-subtitle look and dark mode (Brent)
+
+## 2026-11-27 · loop-frontend · T-024a · debloat
+- Done: D1 shared `FirstDetentFit` modifier for both sheets; D3 `SubtitleStyle.edited` replaces movedStyle and two `update` bodies
+- Net: ios/ClipDeck about -56 lines (128 added, 184 deleted vs c7b4e65); no tests, ids or behaviour touched
+- Files: SubtitleStyleSheet.swift, MoveTextMenu.swift, SubtitleStyleCard.swift, SubtitleStyle.swift
+- Gotchas: not compiled; `waitWhile` is a Binding so the settle loop sees the font picker live; PlayerView:168 left as is
+
+## 2026-11-27 · loop-backend · T-032 · round 1 (sonnet)
+- Done: pure `ClipTimeline` (notches, window, x/ms, snap, clamps via `ClipMath.adjusted`, handle choice) and `ClipTimelineTests`
+- Left: T-033 view; build a new timeline per range change and pass `window:` to keep it during a drag
+- Files: ios/ClipDeck/Services/Subtitles/ClipTimeline.swift, ios/ClipDeckTests/ClipTimelineTests.swift, docs/ARCHITECTURE.md
+- Gotchas: not compiled; plain struct (MainActor default) like CueTrack, not `nonisolated`
+
+## 2026-11-27 · orchestrator · T-024a · landed
+- Pass in round 2, then a debloat round (shared sheet-fit modifier, `SubtitleStyle.edited`, comment pass on sonnet/medium; net +396 → +287). Landed as 1adb3e9. Landing run 46095180306 (scope=all) green; 45230680205 green before the debloat
+- 4 CI shards now (artifacts -1..-4). Open Could fix: move SubtitleStyleCardTesterUITests out of SHARD1_UI (shard 1 at 31 min) in the next task that needs a full run
+- dev-loop policy gained "Agent cost" rules 18–23 (size model/effort per job)

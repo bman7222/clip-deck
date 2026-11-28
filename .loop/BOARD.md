@@ -9,10 +9,10 @@ Goal: player controls, Move-Text, offline dictionary, clip timeline · Branch: l
 | T-034 | Harden the known flaky tests #39 | backend | T-021 | done | 2 | d3c4fa2 |
 | T-022 | Subtitles avoid the overlay #24 | frontend | T-021 | done | 2 | 3400e19 |
 | T-023 | Continuous position plus separate resets #25 | backend | T-022 | done | 1 | cdf3df8 |
-| T-024a | Move-Text button and menu with the blue outline #26 | frontend | T-021, T-023 | todo | | |
+| T-024a | Move-Text button and menu with the blue outline #26 | frontend | T-021, T-023 | done | 2 | 1adb3e9 |
 | T-024b | Font menu without arrows, with its own Reset #27 | frontend | T-024a | todo | | |
 | T-025 | Drag the outline #28 | frontend | T-024a | todo | | |
-| T-032 | Timeline maths #29 | backend | — | todo | | |
+| T-032 | Timeline maths #29 | backend | — | building | 1 | |
 | T-033 | Timeline view in Make a Card #30 | frontend | T-032 | todo | | |
 | T-026 | Dictionary store and Yomitan importer #31 | backend | — | todo | | |
 | T-027 | Deinflection and lookup engine #32 | backend | T-026 | todo | | |

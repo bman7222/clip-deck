@@ -22,7 +22,7 @@ ci:
   workflow: ios-simulator.yml
   unit_target: ClipDeckTests   # every round runs it plus the task's UI test classes (only_testing)
   trigger: "gh workflow run ios-simulator.yml --ref <branch> [-f scope=all|tests|ipa] [-f only_testing=Target/Class]"   # pushes to non-main branches do NOT trigger it
-  artifacts: [simulator-results-1, simulator-results-2, simulator-results-3, ClipDeck-ipa]
+  artifacts: [simulator-results-1, simulator-results-2, simulator-results-3, simulator-results-4, ClipDeck-ipa]
 mastermind:
   path: C:/Users/Brent/Documents/mastermind   # shared cross-repo context
   context: [context/conventions.md]
