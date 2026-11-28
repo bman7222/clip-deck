@@ -4,7 +4,7 @@ title: Let the CI simulator settle before the UI tests start
 lane: backend
 depends_on: []
 status: testing
-round: 1
+round: 2
 base_sha: f9ff1cef624376575a0c212c0545c038ff772c39
 issue: 41
 spec: .loop/specs/player-lookup-timeline.md
@@ -38,3 +38,4 @@ Every early-run flake today came 7–10 min after the simulator booted, which is
 ## Fix round 2 · orchestrator
 - Cause (screen recording + UI snapshots of run 46137995899): not boot churn. The landscape bars were on screen 42–44 s into the test, but each element query took 1–2.5 s on that runner, so `openCardWhilePlaying` lost the race against the 3 s auto-hide on all three tries: its first try saw ✥A mid-fade (`isHittable` false) and skipped the tap, and its 2 s existence waits missed the 3 s window.
 - Fix: `UITestSupport.tapBarButtonWhilePlaying` (the T-034 S2 loop from PlayerLandscapeBehaviourUITests, moved and shared): polls every 0.05 s after a video tap and taps the button where its snapshot was read, with no hittable check, so a bar that hid in between only costs one try. MoveTextTesterUITests (2 callers) and PlayerLandscapeBehaviourUITests use it; both local copies deleted.
+- CI: run 46144815509 (9d3eccc, scope=tests): all four shards green; the IPA was green in round 1 and round 2 changes only UI tests.
