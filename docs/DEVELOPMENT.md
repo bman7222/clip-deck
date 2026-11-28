@@ -32,6 +32,7 @@ Only the scripts and the tests use these:
 | Variable | Used by | Purpose | Default |
 |---|---|---|---|
 | `SIM_NAME` | `run-ios.sh`, `test-ios.sh` | Simulator to use, e.g. `iPhone 17 Pro` | booted iPhone, else the newest |
+| `SETTLE_SECONDS` | `test-ios.sh` | When the script boots the simulator itself, the tests start no sooner than this many seconds after the boot (the build runs meanwhile). A fresh simulator spends about 10 minutes on first-boot work (an Apple Intelligence banner, slow terminate and screenshot calls) | 660 when `CI` is set, else 0 |
 | `CLIPDECK_FIXTURES` | The MKV unit tests (unit-test process); the app under `-uiTestingMKV` (Debug) | Folder with the generated MKV fixtures | `<repo>/build/fixtures` in the unit tests; none in the app |
 | `TEST_RUNNER_CLIPDECK_FIXTURES` | `test-ios.sh` exports it | `xcodebuild test` strips the `TEST_RUNNER_` prefix and passes `CLIPDECK_FIXTURES` to the test process | `<repo>/build/fixtures` |
 

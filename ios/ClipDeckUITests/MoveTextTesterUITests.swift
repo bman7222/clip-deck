@@ -213,7 +213,8 @@ final class MoveTextTesterUITests: XCTestCase {
         XCTAssertTrue(UITestSupport.tap(playPause, until: { (playPause.value as? String) == "Playing" }),
                       "The video is playing")
         let card = cardElement(app)
-        openCardWhilePlaying(app, card: card)
+        XCTAssertTrue(UITestSupport.tapBarButtonWhilePlaying(app, app.buttons["player.moveText"], until: card),
+                      "The card opens while the video plays")
 
         // Held open well past the 3 s auto-hide: if opening hadn't paused, these seconds would play.
         UITestSupport.settle(heldOpen)
@@ -262,7 +263,8 @@ final class MoveTextTesterUITests: XCTestCase {
         XCTAssertTrue(UITestSupport.tap(playPause, until: { (playPause.value as? String) == "Playing" }),
                       "The video is playing")
         let card = cardElement(app)
-        openCardWhilePlaying(app, card: card)
+        XCTAssertTrue(UITestSupport.tapBarButtonWhilePlaying(app, app.buttons["player.moveText"], until: card),
+                      "The card opens while the video plays")
 
         XCUIDevice.shared.orientation = .portrait
         XCTAssertTrue(card.waitForNonExistence(timeout: 10), "A rotation closes the card")
@@ -295,27 +297,6 @@ final class MoveTextTesterUITests: XCTestCase {
         XCTAssertTrue(move.isHittable, "The Move-Text button can be tapped (\(state))")
         let bar = app.descendants(matching: .any)["player.bottomBar"].frame
         return "\(state): Aa \(aa.frame), move \(move.frame), gap \(space), bottom bar \(bar)"
-    }
-
-    /// Taps ✥A while the video plays. The bars hide 3 s after Play, so if they are gone a tap on the video brings
-    /// them back first.
-    @MainActor
-    private func openCardWhilePlaying(_ app: XCUIApplication, card: XCUIElement) {
-        let move = app.buttons["player.moveText"]
-        for _ in 0..<3 {
-            // A tap on the video would close an open card, so check for it first.
-            if card.exists { break }
-            if !move.exists {
-                tapVideo(app)
-                _ = move.waitForExistence(timeout: 2)
-            }
-            if card.exists { break }
-            if move.exists, move.isHittable {
-                move.tap()
-            }
-            if card.waitForExistence(timeout: 3) { break }
-        }
-        XCTAssertTrue(card.exists, "The card opens while the video plays")
     }
 
     /// The scrubber's elapsed time in seconds ("0:05.0"); the landscape bars are brought back first if they hid.

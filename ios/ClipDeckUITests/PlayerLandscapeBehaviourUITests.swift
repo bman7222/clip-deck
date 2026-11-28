@@ -76,9 +76,8 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         playPause.tap()
         // The dialog's only action now is "Load different subtitles" (the list moved to the panel button, T-002).
         let showList = app.buttons["Load different subtitles"]
-        // T-034 S2: the bar hides 3 s after Play, and a slow Play tap can use up that window, so the menu is opened
-        // through a helper that brings the bar back with a video tap when it has hidden (the 30 s clip keeps playing).
-        openSubtitlesDialogWhilePlaying(app, dialogAction: showList)
+        // T-034 S2: the bar hides 3 s after Play, and a slow Play tap can use up that window (the 30 s clip keeps playing).
+        UITestSupport.tapBarButtonWhilePlaying(app, app.buttons["player.subtitlesMenu"], until: showList)
         // XCUITest snapshots lag while the video plays (run 44639515011: the menu was on screen ~1.3 s
         // but not found within 2 s), so allow 5 s. With the rule broken, the menu is torn down ~1.5 s after
         // opening, so this assert or the next one fails; with it working, the menu stays open throughout.
@@ -268,27 +267,6 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
     @MainActor
     private func tapVideo(_ app: XCUIApplication) {
         app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.35)).tap()
-    }
-
-    /// Opens the landscape subtitles dialog while the video plays (T-034 S2). The bar hides 3 s after Play, and a
-    /// slow Play tap (its own wait for idle) can use up most of that window. So when the bar is gone, a video tap
-    /// brings it back first, as `readValue` does in PlaybackOverlayUITests. The menu is tapped at the place it was
-    /// just read at, so a bar that hides between the read and the tap costs one try (that tap lands on the video and
-    /// shows the bar again) instead of failing on a missing element. At most 3 tries; the caller asserts the dialog.
-    /// Each try first checks for the dialog, so a dialog that a lagging snapshot missed is never tapped away.
-    @MainActor
-    private func openSubtitlesDialogWhilePlaying(_ app: XCUIApplication, dialogAction: XCUIElement) {
-        let menu = app.buttons["player.subtitlesMenu"]
-        for _ in 0..<3 {
-            if dialogAction.exists { return }
-            if !menu.exists {
-                tapVideo(app)
-                _ = UITestSupport.wait(timeout: 3, interval: 0.05) { menu.exists }
-            }
-            guard let frame = try? menu.snapshot().frame else { continue }
-            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
-            if dialogAction.waitForExistence(timeout: 5) { return }
-        }
     }
 
     @MainActor

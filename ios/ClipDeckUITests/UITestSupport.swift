@@ -204,6 +204,27 @@ enum UITestSupport {
         return waitForValue(reader, after, timeout: patience)
     }
 
+    /// Taps a landscape bar `button` while the video plays until `opened` shows, and returns whether it did. The bars
+    /// hide 3 s after Play and one element query can take 2 s on CI, so a hidden bar is brought back with a video tap
+    /// and the button is tapped where it was just read, without a hittable check: a bar that hid by then costs one try
+    /// (the tap lands on the video and shows the bars again). `opened` is checked first each try, so an open menu that
+    /// a slow snapshot missed is never tapped away (T-034 S2, T-036).
+    @discardableResult
+    static func tapBarButtonWhilePlaying(_ app: XCUIApplication, _ button: XCUIElement,
+                                         until opened: XCUIElement) -> Bool {
+        for _ in 0..<3 {
+            if opened.exists { return true }
+            if !button.exists {
+                app.coordinate(withNormalizedOffset: CGVector(dx: 0.35, dy: 0.35)).tap()
+                _ = wait(timeout: 3, interval: 0.05) { button.exists }
+            }
+            guard let frame = try? button.snapshot().frame else { continue }
+            app.coordinate(withNormalizedOffset: .zero).withOffset(CGVector(dx: frame.midX, dy: frame.midY)).tap()
+            if opened.waitForExistence(timeout: 5) { return true }
+        }
+        return opened.exists
+    }
+
     /// The spoken vertical place for `percent` percent up (SubtitleStyle.verticalSpoken).
     static func upText(_ percent: Int) -> String {
         percent > 0 ? "\(percent) percent up" : "At the default height"
