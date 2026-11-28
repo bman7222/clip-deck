@@ -53,6 +53,9 @@ struct PlayerView: View {
     /// The handle drag in progress (where it started and its horizontal translation). A GestureState resets
     /// itself when the gesture ends or is cancelled, so a cancelled drag can't leave the panel or the auto-hide stuck.
     @GestureState private var panelDrag: PanelDrag? = nil
+    /// How far the lifted Move-Text outline has been dragged (zero until it moves); nil when idle. A GestureState, so a
+    /// cancelled drag puts the line back and only a finished one writes the style.
+    @GestureState private var lineDrag: CGSize? = nil
     /// The one direction latch for a handle drag: where the drag started, and whether its first event was
     /// mostly horizontal (a resize). Decided once, in `onChanged`. The live resize (`liveResizeX`) and the
     /// save in `onEnded` both read it, so a drag that resizes live is always saved and one that doesn't never moves the panel.
@@ -622,7 +625,13 @@ struct PlayerView: View {
         stepsFromCard: Bool, avoidsOverlay: Bool, outlined: Bool = false, isSample: Bool = false
     ) -> some View {
         _ = dynamicTypeSize
-        let style = SubtitleStyle.decoded(from: storedSubtitleStyle)
+        let stored = SubtitleStyle.decoded(from: storedSubtitleStyle)
+        let dragged: (CGSize) -> SubtitleStyle = { translation in
+            SubtitlePlacement.dragged(
+                stored, by: translation, videoSize: subtitleVideoSize, margins: margins,
+                topObstruction: topObstruction, lineSize: subtitleLineSize)
+        }
+        let style = lineDrag.map(dragged) ?? stored
         return GeometryReader { geometry in
             let regionHeight = max(0, geometry.size.height - margins.top - margins.bottom)
             SubtitleLineLayout(
@@ -636,7 +645,21 @@ struct PlayerView: View {
                 .opacity(isSample ? 0.5 : 1)
                 .measuredSize($subtitleLineSize)
                 .overlay {
-                    if outlined { MoveTextOutline() }
+                    if outlined {
+                        MoveTextOutline(lifted: lineDrag != nil)
+                            .gesture(
+                                LongPressGesture(minimumDuration: 0.25)
+                                    .sequenced(before: DragGesture(minimumDistance: 0, coordinateSpace: .global))
+                                    .updating($lineDrag) { value, state, _ in
+                                        if case .second(true, let drag) = value { state = drag?.translation ?? .zero }
+                                    }
+                                    .onEnded { value in
+                                        if case .second(true, let drag?) = value {
+                                            storedSubtitleStyle = dragged(drag.translation).json
+                                        }
+                                    }
+                            )
+                    }
                 }
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
