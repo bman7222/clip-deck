@@ -8,6 +8,7 @@ struct PlayerView: View {
     @Bindable var episode: Episode
     @Environment(\.modelContext) private var context
     @Environment(SettingsStore.self) private var settings
+    @Environment(DictionaryManagerModel.self) private var dictionaries
 
     @State private var model: PlayerModel?
     @State private var subtitleProblem: String?
@@ -34,6 +35,8 @@ struct PlayerView: View {
     @State private var subtitleLineSize: CGSize = .zero
     /// The bottom of the portrait video in global coordinates, so the style sheet's first detent can stay under it.
     @State private var videoMaxY: CGFloat = 0
+    /// The dictionary popup; nil while it is closed. Landscape draws it inside the video column, portrait over the lower screen.
+    @State private var lookup: LookupPopupState?
     @State private var miningRange: ClipRange?
     @State private var miningError: String?
     @State private var draft: CardDraft?
@@ -228,6 +231,40 @@ struct PlayerView: View {
             .background(Theme.panel, in: UnevenRoundedRectangle(topLeadingRadius: Radius.panel, topTrailingRadius: Radius.panel, style: .continuous))
             .padding(.top, Spacing.s)
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
+        .overlay { lookupPopupLayer(insets: EdgeInsets(), isLandscape: false) }
+    }
+
+    /// The dictionary popup at its default place inside `insets` of the host (the whole host in portrait, the video column
+    /// in landscape). Landscape draws it from `videoScreen`, under the centre overlay and the bars; portrait has no bars.
+    @ViewBuilder
+    private func lookupPopupLayer(insets: EdgeInsets, isLandscape: Bool) -> some View {
+        if let lookup {
+            GeometryReader { proxy in
+                let area = CGRect(
+                    x: insets.leading, y: insets.top,
+                    width: max(0, proxy.size.width - insets.leading - insets.trailing),
+                    height: max(0, proxy.size.height - insets.top - insets.bottom))
+                let frame = LookupPopupPlacement.defaultFrame(in: area, isLandscape: isLandscape)
+                let global = proxy.frame(in: .global)
+                LookupPopupView(
+                    state: lookup, label: popupLabel(area: area.offsetBy(dx: global.minX, dy: global.minY)),
+                    onClose: { self.lookup = nil }
+                )
+                .frame(width: frame.width, height: frame.height)
+                .offset(x: frame.minX, y: frame.minY)
+            }
+        }
+    }
+
+    /// "Dictionary". In UI tests it also holds the allowed area in screen coordinates, which the tests can't see otherwise.
+    private func popupLabel(area: CGRect) -> String {
+        #if DEBUG
+        if LaunchFlags.isUITesting {
+            return String(format: "Dictionary area %.1f %.1f %.1f %.1f", area.minX, area.minY, area.width, area.height)
+        }
+        #endif
+        return "Dictionary"
     }
 
     /// Where the portrait video ends, so the style sheet's first detent can stay under it (the sheet measures itself
@@ -290,6 +327,7 @@ struct PlayerView: View {
                 showsMoveOutline: moveCard,
                 badgeTopPadding: shown ? topBarHeight + Spacing.s : insets.top,
                 edgeInsets: EdgeInsets(top: 0, leading: barInsets.leading, bottom: 0, trailing: barInsets.trailing),
+                popupInsets: EdgeInsets(top: insets.top, leading: barInsets.leading, bottom: insets.bottom, trailing: barInsets.trailing),
                 onTap: toggleControls
             )
             .frame(width: videoWidth)
@@ -570,6 +608,7 @@ struct PlayerView: View {
         showsMoveOutline: Bool = false,
         badgeTopPadding: CGFloat = 0,
         edgeInsets: EdgeInsets = EdgeInsets(),
+        popupInsets: EdgeInsets? = nil,
         onTap: @escaping () -> Void
     ) -> some View {
         ZStack(alignment: .bottom) {
@@ -591,6 +630,10 @@ struct PlayerView: View {
                     topObstruction: subtitleTopObstruction, bottomObstruction: subtitleBottomObstruction,
                     stepsFromCard: subtitleStepsFromCard, avoidsOverlay: false, outlined: true, isSample: true)
             }
+        }
+        // The dictionary popup (landscape only) lies under the centre overlay and the bars, so every control stays usable.
+        .overlay {
+            if let popupInsets { lookupPopupLayer(insets: popupInsets, isLandscape: true) }
         }
         // The overlay is positioned against this container (the 16:9 video in portrait, the video column in
         // landscape), so it re-centres when the panel opens or is resized. Rendered only while shown, so the
@@ -860,6 +903,13 @@ struct PlayerView: View {
             startAtMs: episode.lastPositionMs
         )
         model = newModel
+        #if DEBUG
+        // `-uiTestingLookup <text>` opens the popup on an exact lookup; T-030a opens it from a tap instead.
+        if let text = LaunchFlags.lookupText {
+            lookup = .loading
+            Task { lookup = await LookupPopupState.resolve(exact: text, with: dictionaries) }
+        }
+        #endif
     }
 
     private func reloadSubtitles() {

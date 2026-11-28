@@ -3,9 +3,9 @@ id: T-029a
 title: "Dictionary popup: formatted entries"
 lane: frontend
 depends_on: [T-027, T-028]
-status: todo
-round: 0
-base_sha:
+status: building
+round: 1
+base_sha: 51e88b2
 issue: 34
 spec: .loop/specs/player-lookup-timeline.md
 model:
@@ -60,3 +60,25 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 - Moving, resizing, remembering and resetting the popup (T-029b).
 - Tapping words, pausing and highlighting (T-030a), Use for a card (T-030b).
 - Images, and the dictionaries' own `styles.css`.
+
+## Implementation notes (round 1) · sonnet
+_by loop-frontend · 2026-11-28 09:35_
+- Changed:
+  - `GlossaryHTML` (pure): glossary items to safe HTML. Text escaped; tags ruby/rt/rp, ul/ol/li, table parts, details/summary, div/span, br; a link is its text; `img`, `script` and `style` give nothing; unknown tags keep only their text; only `style` survives as an attribute, from word lists (weight, style, decoration, size in em 0.1 to 5, list style, vertical align); depth capped at 24.
+  - `LookupPage` (pure): the popup's HTML document (furigana headword, reasons, frequency badges, one section per dictionary, CSP `default-src 'none'; style-src 'unsafe-inline'`), `summary` (the "expression reading" value) and `headword`.
+  - `LookupPopupView` / `LookupWebView` / `LookupPopupState`: native top row (✕ `lookup.popup.close`, Use for a card `lookup.popup.useForCard` only with a handler) over one WKWebView (JS off, non-persistent store, only `about:blank` navigation allowed). Empty states "No entries for <text>" and "No dictionaries yet" (+ pointer), plus a failed state.
+  - `LookupPopupPlacement.defaultFrame(in:isLandscape:)`: the one place for AC-5.
+  - `PlayerView`: `lookup` state; landscape draws the popup from `videoScreen` (under the centre overlay, and so under the bars), portrait overlays the portrait layout. `-uiTestingLookup <text>` (`LaunchFlags.lookupText`) opens it from `setUp()` (Debug).
+  - `DictionaryManagerModel.makeEngine()`; `popup-frequency.zip` fixture (a frequency row for 元気, because the existing `frequency` fixture has none and its entry counts are asserted elsewhere); seeded only when `-uiTestingLookup` is passed.
+- Files:
+  - New: `ios/ClipDeck/Services/Dictionary/GlossaryHTML.swift`; `ios/ClipDeck/Features/Lookup/{LookupPage,LookupPopup,LookupPopupPlacement}.swift`; `ios/ClipDeckTests/{GlossaryHTMLTests,LookupPageTests}.swift`; `ios/ClipDeckUITests/LookupPopupUITests.swift`; `scripts/fixtures/dictionaries/popup-frequency.zip`.
+  - Edited: `PlayerView.swift`, `ClipDeckApp.swift` (LaunchFlags), `RootView.swift` (seeder), `DictionaryManagerModel.swift`, `scripts/make-dictionary-fixtures.py` (the other zips rebuild byte-identical), `CLAUDE.md`, `docs/{DESIGN,ARCHITECTURE,DEVELOPMENT}.md`.
+- Checked: nothing compiled (Windows). Read every API by hand; scanned the changed Swift files for lines with an odd number of `"` (none); rebuilt the fixture zips and compared them with the checked-in ones.
+- Tester, look at:
+  - **Landscape place**: "16 pt in from the video column's top and trailing edges (inside the safe area)" is measured from the column edges inset by the safe area (`barInsets`: the safe trailing inset, or the 32 pt handle clearance with the side panel open). With no inset it is exactly 16 pt from the column edge.
+  - **Test hook**: in UI-test launches the popup's accessibility label is "Dictionary area x y w h" (screen points), so the frame tests don't need to know the device's safe area. A normal launch says "Dictionary".
+  - **Container frame**: `lookup.popup` is an `.accessibilityElement(children: .contain)` with a background, so XCUITest should report its real frame (CONTEXT, T-016). If it reports the union of its children, the frame checks in `testPortraitDefaultFrame…` and `testLandscapeDefaultFrame…` fail on a few points at the top edge; the attached `…-frame` text shows the numbers.
+  - **Value on a container**: the value "元気 げんき" is set on the same container. If XCUITest doesn't expose it there, every popup test fails at `waitForEntry`.
+  - Web text: the tests read `app.webViews.staticTexts` with a label CONTAINS match (the badge may arrive as one text or two).
+  - Light and dark: the page colours come from `Color.resolve(in:)` at build time; CI can't switch to dark (CONTEXT), so dark is unchecked.
+- Gotchas: the popup reloads its page when the layout flips between portrait and landscape (a new web view). A link in a dictionary is plain text, so nothing in the web view is tappable.

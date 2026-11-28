@@ -50,6 +50,9 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - `-uiTestingDictionary` (Debug, with `-uiTesting`) imports `$CLIPDECK_FIXTURES/dictionaries/` words-v3, words-second, then frequency
   (the zips of `scripts/fixtures/dictionaries`, copied there by `make-test-media.sh`) through the real importer before the library shows.
   Every `-uiTesting` launch uses a new empty temporary dictionary database, never the real one. UI tests never download JMdict.
+- `-uiTestingLookup <text>` (Debug, with `-uiTesting`; add `-uiTestingDictionary` for fixtures): the player runs an exact lookup of `<text>` when it appears and opens the dictionary popup
+  (`lookup.popup`). With `-uiTestingDictionary` it also imports the `popup-frequency` fixture (a frequency badge for 元気). In UI-test launches the popup's accessibility label is
+  "Dictionary area x y w h" (the area it may use, in screen points); its value is the top entry's "expression reading".
 - The Make a Card timeline's Snap chip (`cardEditor.timelineSnap` in the standard defaults) is cleared on every `-uiTesting` launch unless `-uiTestingKeepTimelineSnap` is passed.
 - `-uiTestingExpiry <ISO-8601 date>` (Debug, with `-uiTesting`) overrides the install-expiry date from the signing profile,
   so the library's expiry banner and the Anki settings expiry line can be tested. `-uiTestingKeepExpiryDismissal` keeps the

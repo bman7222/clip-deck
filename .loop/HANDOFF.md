@@ -1079,3 +1079,9 @@
 ## 2026-11-28 · orchestrator · T-027 landed
 - Done: T-027 (landing run 46150712016 all green: the first full run with T-025, T-036 and T-027 together)
 - Open: T-028's reorder drag (round 3, run 46153784207). T-029a starts on its own branch from the loop branch with T-028's branch merged in, since it needs T-028's fixtures and `-uiTestingDictionary`
+
+## 2026-11-28 09:36 · loop-frontend · T-029a · round 1 (sonnet)
+- Done: `GlossaryHTML` (safe HTML), `LookupPage`, `LookupPopupView` + WKWebView (JS off, about:blank only), `LookupPopupPlacement`, `-uiTestingLookup`, `popup-frequency` fixture
+- Left: CI run (nothing compiled). Classes: ClipDeckTests (GlossaryHTMLTests, LookupPageTests), UI LookupPopupUITests (shard 4); T-029b moves/resizes from `LookupPopupPlacement.defaultFrame`
+- Files: ios/ClipDeck/Features/Lookup/*, Services/Dictionary/GlossaryHTML.swift, PlayerView.swift, ios/ClipDeckTests/{GlossaryHTMLTests,LookupPageTests}.swift, ios/ClipDeckUITests/LookupPopupUITests.swift
+- Gotchas: UI-test popup label is "Dictionary area x y w h"; landscape inset is measured from the safe-area-inset column edge

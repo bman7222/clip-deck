@@ -65,6 +65,12 @@ final class DictionaryManagerModel {
         do { dictionaries = try await store.dictionaries() } catch { errorMessage = error.localizedDescription }
     }
 
+    /// A lookup engine on this model's store, or nil when the store or the bundled deconjugation rules can't be opened.
+    func makeEngine() -> LookupEngine? {
+        guard let store, let rules = try? Deconjugator.bundled(Bundle(for: DictionaryManagerModel.self)) else { return nil }
+        return LookupEngine(store: store, deconjugator: rules)
+    }
+
     // MARK: Order, switch, delete
 
     func move(fromOffsets: IndexSet, toOffset: Int) {

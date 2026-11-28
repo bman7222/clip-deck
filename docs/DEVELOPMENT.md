@@ -191,11 +191,13 @@ state, not for time:
 - **MediaAndFileTests:**
   - file names and locations, and importing;
   - real clip extraction from a generated MP4 (2-second clip within ±150 ms, padding clamped, screenshot written).
+- **GlossaryHTMLTests, LookupPageTests:** the glossary to safe HTML converter (escaping, the tag and style allow lists, links as text, images dropped, script and event attributes inert, depth limit); the popup page (furigana, badges, section order, CSP, palette); the popup's default frames; and the exact lookup behind the popup against the dictionary fixtures.
 
 **UI tests (`ClipDeckUITests`):**
 - **LaunchUITests:** the empty library offers Upload, and the upload sheet stays disabled without a video.
 - **AboutUITests:** Settings › About and licences shows the Clip Deck licence and the LGPL text, and both source links open Safari.
 - **MKVImportUITests:** with `-uiTestingMKV`, the converted fixture-4 episode lists its three subtitle lines, plays line 2 and makes a card (`mkv-01-player`, `mkv-02-card`); the upload sheet offers MKV and keeps Add episode disabled without a video.
+- **LookupPopupUITests:** with `-uiTestingLookup <text>` (and `-uiTestingDictionary`): the popup shows 元気 with its definition text and a frequency badge in both orientations and ✕ closes it; "No entries for …" and "No dictionaries yet"; the default frame (portrait and landscape) against the area the popup labels itself with, and `player.playPause` stays hittable.
 - **CardTimelineUITests:** the Make a Card timeline on the sample's line 2 (120 s video): both handles exist, a snapped drag of the end handle lands on 5.5 s and Re-record then Save works, an unsnapped drag lands between edges, a +0.1 nudge moves the end handle, and the Snap chip survives a relaunch with `-uiTestingKeepTimelineSnap`.
 - **MiningFlowUITests:** the full primary flow on the seeded sample:
   1. open the show, then the episode;

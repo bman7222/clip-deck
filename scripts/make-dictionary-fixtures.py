@@ -60,6 +60,10 @@ build("frequency", {
         ["食べる", "pitch", {"reading": "たべる", "pitches": [{"position": 2}]}],
     ],
 })
+build("popup-frequency", {  # 元気 has no frequency in "frequency"; the popup tests (-uiTestingLookup) need a badge for it
+    "index.json": index("Popup Frequency", "1", frequencyMode="rank-based"),
+    "term_meta_bank_1.json": [["元気", "freq", {"value": 1234, "displayValue": "1,234"}]],
+})
 build("legacy-v1", {
     "index.json": index("Legacy Words", "1", fmt=1),
     "term_bank_1.json": [["犬", "いぬ", "n", "", 0, "dog", "hound"], ["猫", "ねこ", "n", "", 0, "cat"]],

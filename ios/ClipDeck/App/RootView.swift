@@ -54,7 +54,8 @@ enum UITestSeeder {
         try? context.save()
     }
 
-    /// `-uiTestingDictionary`: the words v3 fixture, the second words fixture, then the frequency fixture, in that order.
+    /// `-uiTestingDictionary`: the words v3 fixture, the second words fixture, then the frequency fixture, in that order
+    /// (and `popup-frequency` after them when `-uiTestingLookup` is passed, which the Dictionaries sheet tests never do).
     /// A failure prints why and stops, so the UI test fails at its first check.
     static func seedDictionaries(into model: DictionaryManagerModel) async {
         guard let folder = ProcessInfo.processInfo.environment["CLIPDECK_FIXTURES"], !folder.isEmpty else {
@@ -62,7 +63,7 @@ enum UITestSeeder {
             return
         }
         let directory = URL(fileURLWithPath: folder, isDirectory: true).appending(path: "dictionaries", directoryHint: .isDirectory)
-        for name in ["words-v3", "words-second", "frequency"] {
+        for name in ["words-v3", "words-second", "frequency"] + (LaunchFlags.lookupText == nil ? [] : ["popup-frequency"]) {
             await model.importFile(directory.appending(path: "\(name).zip"))
             if let message = model.errorMessage {
                 print("UITestSeeder: importing \(name).zip failed: \(message)")

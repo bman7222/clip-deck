@@ -123,6 +123,18 @@ Both orientations show a centred overlay on the video, like a normal video playe
 
 **Bar order** (later buttons are inserted at the marked places): portrait `⏯ ±0.0s Subs Aa ✥A` then Make a Card on its own row; landscape `⏯ ±0.0s Subs Aa ✥A … Make a Card` with three `ViewThatFits` variants (full label, icon-only Make a Card, two rows).
 
+## Dictionary popup
+
+A panel over the player that shows a word's dictionary entries, offline (`LookupPopupView`, `lookup.popup`). Built in T-029a; for now only the Debug flag `-uiTestingLookup <text>` opens it. Moving and resizing come in T-029b, and tapping words in T-030a.
+
+- **Look:** a Panel-coloured card with `Radius.panel` corners, a thin InkSoft outline and a soft shadow. A native top row holds Use for a card (`lookup.popup.useForCard`, shown only when a handler is given; none yet) and ✕ (`lookup.popup.close`, a `DeckIconButtonStyle`, label "Close dictionary"). Under it is one scrolling web view.
+- **Web view content:** the headword at 1.7 em with its reading as furigana (kana the word and reading share at the start and end stay outside the ruby); the conjugation reasons in small InkSoft type ("past · negative"); frequency badges (Shell chip, dictionary title in Ink, value in InkSoft); then one section per dictionary in priority order, headed by its title in the accent colour. Tags show as small Shell chips. Several definitions in one dictionary are numbered. Text follows Dynamic Type (`font: -apple-system-body`) and the colours are the Theme tokens, resolved for the current light or dark mode when the page is built.
+- **Definition formatting:** Yomitan structured content as safe HTML: ruby, lists, tables and `details`; a link is plain text; images are left out; only weight, style, decoration, size in em, list style and vertical align survive from a dictionary's own styles. Dictionary stylesheets are not used.
+- **Empty states** (native text): "No entries for <text>"; "No dictionaries yet" with "Add one with the Dictionaries button in the Library."; and "The lookup failed" with the reason.
+- **Offline:** JavaScript off, a non-persistent data store, a Content-Security-Policy that allows inline styles only, and every navigation but the first inline load cancelled.
+- **Place:** one rule, in `LookupPopupPlacement` (T-029b's reset goes back to it). Landscape: 300 x 200 pt in the top-trailing corner of the video column, 16 pt in from the safe-area-inset top and trailing edges. Portrait: the safe area's width less 32 pt by 260 pt, over the subtitle list, its bottom 16 pt above the bottom safe area. In landscape the centre overlay and the bars draw above the popup; in portrait the controls row lies above the lower part of the screen, clear of the popup.
+- **Accessibility:** the popup is one container labelled "Dictionary", and its value is the top entry's "expression reading".
+
 ## Screens
 
 ```

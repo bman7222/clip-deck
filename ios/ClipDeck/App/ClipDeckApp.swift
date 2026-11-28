@@ -98,4 +98,11 @@ enum LaunchFlags {
     /// `-uiTesting -uiTestingDictionary` (Debug): imports the dictionary fixtures from `$CLIPDECK_FIXTURES/dictionaries/`
     /// (words-v3, words-second, frequency) through the real importer before the library shows.
     static var shouldSeedDictionary: Bool { isUITesting && ProcessInfo.processInfo.arguments.contains("-uiTestingDictionary") }
+    /// `-uiTesting -uiTestingLookup <text>` (Debug): the player runs an exact lookup of `<text>` when it appears and opens the
+    /// dictionary popup. With `-uiTestingDictionary` the seed also imports `popup-frequency`, so 元気 has a frequency badge.
+    static var lookupText: String? {
+        let arguments = ProcessInfo.processInfo.arguments
+        guard isUITesting, let flag = arguments.firstIndex(of: "-uiTestingLookup"), flag + 1 < arguments.count else { return nil }
+        return arguments[flag + 1]
+    }
 }
