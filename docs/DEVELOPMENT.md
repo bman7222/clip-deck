@@ -97,7 +97,7 @@ With Claude Code, the `ios-simulator-skill` skill can drive the running app. It 
 - `library.sync`, `library.upload`, `library.show.<name>`;
 - `episode.row.<title>`;
 - `cue.row.<n>`, `player.makeCard`, `player.offset`, `player.back` (landscape top bar), `player.video`, `player.panelToggle` (landscape top bar), `player.sidePanel`, `player.panelHandle`, `player.panel.makeCard`;
-- `card.save`, `card.addNext`, `card.rerecord`, `card.field.<field>`;
+- `card.save`, `card.addNext`, `card.rerecord`, `card.field.<field>`, `card.timeline`, `card.timeline.start`, `card.timeline.end`, `card.timeline.snap`;
 - `sync.start`.
 
 ## Tests
@@ -195,6 +195,7 @@ state, not for time:
 - **LaunchUITests:** the empty library offers Upload, and the upload sheet stays disabled without a video.
 - **AboutUITests:** Settings › About and licences shows the Clip Deck licence and the LGPL text, and both source links open Safari.
 - **MKVImportUITests:** with `-uiTestingMKV`, the converted fixture-4 episode lists its three subtitle lines, plays line 2 and makes a card (`mkv-01-player`, `mkv-02-card`); the upload sheet offers MKV and keeps Add episode disabled without a video.
+- **CardTimelineUITests:** the Make a Card timeline on the sample's line 2 (120 s video): both handles exist, a snapped drag of the end handle lands on 5.5 s and Re-record then Save works, an unsnapped drag lands between edges, a +0.1 nudge moves the end handle, and the Snap chip survives a relaunch with `-uiTestingKeepTimelineSnap`.
 - **MiningFlowUITests:** the full primary flow on the seeded sample:
   1. open the show, then the episode;
   2. tap line 2 in the list;

@@ -59,6 +59,17 @@ Subtitles default to the system font (Hiragino Sans for Japanese), bold, with a 
 
 **Code:** `ios/ClipDeck/DesignSystem/` (`Theme.swift`, `Components.swift`) and `Resources/Assets.xcassets` colour sets.
 
+## Clip timeline (Make a Card)
+
+`ClipTimelineView` (`card.timeline`) sits above the Start and End nudge rows. Every rule (window, snapping, handle limits and choice) lives in `ClipTimeline`; the view only draws and passes touches on.
+
+- **Overview strip:** 8 pt tall, the whole episode in Shell, with the clip as an aqua (`Theme.accent`) block. Decorative, hidden from VoiceOver.
+- **Zoomed track:** a 28 pt rounded Shell track, full width of the panel minus the handle radius at each end. Solid `Theme.accent` 2×10 pt notches at line edges, a 25 % accent fill between the handles (the notches stay visible inside it), and two 28 pt white handles with a 3 pt accent border and 44 pt hit areas (`card.timeline.start`, `card.timeline.end`). Labels under it show the window's start and end (m:ss.t).
+- **Dragging:** one drag on the whole track; `ClipTimeline` picks the handle (nearest, then drag direction), clamps it and snaps it. A bubble (Ink fill, Panel text) above the handle shows its time and stays inside the track's edges. The window re-centres with a 0.2 s ease (none under Reduce Motion) when a drag ends at the window's edge or the range leaves the window, for example after a nudge.
+- **Snap chip** (`card.timeline.snap`, value On or Off): on by default, remembered in the standard defaults (`cardEditor.timelineSnap`). With no subtitle lines there are no notches and the chip is disabled.
+- **One range:** handles and nudge rows both write the editor's `range`, so a drag leaves Save disabled and shows Re-record exactly like a nudge.
+- **VoiceOver:** each handle is adjustable by 0.1 s, labelled "Clip start" or "Clip end", with its m:ss.t as the value.
+
 ## Components
 
 - `DeckTile`: a rounded-square show icon with a big initial glyph, a top highlight and a hue-tinted shadow.
