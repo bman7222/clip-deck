@@ -107,10 +107,12 @@ final class DictionaryManagerUITests: XCTestCase {
         let delete = app.buttons["dictionaries.delete.2"]
         XCTAssertTrue(delete.waitForExistence(timeout: 10), "Swiping a row shows Delete")
         delete.tap()
-        let confirm = app.buttons["Delete dictionary"]
-        XCTAssertTrue(confirm.waitForExistence(timeout: 10), "Delete asks first")
+        let confirms = app.buttons.matching(identifier: "Delete dictionary")
+        XCTAssertTrue(confirms.firstMatch.waitForExistence(timeout: 10), "Delete asks first")
         UITestSupport.attachScreenshot(app, name: "dictionaries-04-confirm", to: self)
         XCTAssertTrue(row.exists, "Nothing is deleted before the confirmation")
+        // iOS 26 puts the dialog's buttons in both a popover and its sheet, so the query matches more than one.
+        let confirm = confirms.allElementsBoundByIndex.first { $0.isHittable } ?? confirms.firstMatch
         confirm.tap()
         XCTAssertTrue(UITestSupport.wait(timeout: 10) { !row.exists }, "The dictionary is gone after confirming")
         XCTAssertTrue(element(app, "dictionaries.row.1").exists)
@@ -133,15 +135,22 @@ final class DictionaryManagerUITests: XCTestCase {
         UITestSupport.tap(reorder, patience: 10) { app.buttons["Stop reordering"].exists }
         UITestSupport.settle()
 
-        // The drag handle is at the row's trailing edge; drag row 3's handle above row 1.
-        let screen = app.windows.firstMatch.frame
+        // Drag row 3's reorder control above row 1. The control is the list's own button, inside the row's inset.
         let thirdMid = element(app, "dictionaries.row.3").frame.midY
         let firstTop = element(app, "dictionaries.row.1").frame.minY
+        let controls = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Reorder'")).allElementsBoundByIndex
+        let control = controls.min { abs($0.frame.midY - thirdMid) < abs($1.frame.midY - thirdMid) }
         let origin = app.coordinate(withNormalizedOffset: .zero)
-        let handle = origin.withOffset(CGVector(dx: screen.width - 22, dy: thirdMid))
-        let target = origin.withOffset(CGVector(dx: screen.width - 22, dy: firstTop - 4))
+        let handleX = control.map { $0.frame.midX } ?? element(app, "dictionaries.row.3").frame.maxX - 22
+        let handle = origin.withOffset(CGVector(dx: handleX, dy: thirdMid))
+        let target = origin.withOffset(CGVector(dx: handleX, dy: firstTop - 4))
         handle.press(forDuration: 0.8, thenDragTo: target)
-        XCTAssertTrue(UITestSupport.wait(timeout: 10) { third.frame.minY < first.frame.minY }, "Row 3 moved above row 1")
+        let moved = UITestSupport.wait(timeout: 10) { third.frame.minY < first.frame.minY }
+        if !moved {
+            UITestSupport.attachText("reorder controls: \(controls.map { "\($0.label) \($0.frame)" })\n\n\(app.debugDescription)",
+                                     name: "dictionaries-reorder-tree", to: self)
+        }
+        XCTAssertTrue(moved, "Row 3 moved above row 1")
         UITestSupport.attachScreenshot(app, name: "dictionaries-05-reordered", to: self)
 
         UITestSupport.tap(app.buttons["Stop reordering"], patience: 10) { app.buttons["Reorder"].exists }

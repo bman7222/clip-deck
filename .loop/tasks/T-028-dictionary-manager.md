@@ -4,7 +4,7 @@ title: Dictionary manager
 lane: frontend
 depends_on: [T-026]
 status: testing
-round: 1
+round: 2
 base_sha: 91dc5448c2d5e93823d98327946f04aa557ae3b2
 issue: 33
 spec: .loop/specs/player-lookup-timeline.md
@@ -58,3 +58,10 @@ _by loop-frontend · 2026-11-28_
 ### Orchestrator gate (round 1)
 - Ponytail review (about 425 product lines): no Must or Should fix. Writes are serialised through one task chain; import and download cancel through the run task (the store's import checks cancellation on the same task); the temp download is always removed; `-uiTestingDictionary` goes through `SourceAccess`, the same path the MKV seeder uses for plain fixture files. ErrorBanner, Theme.danger and the deck fonts exist. Comments 4 %: no comment pass.
 - Could-fix: the download iterates `URLSession.AsyncBytes` one byte at a time into a 64 KB buffer; fine for 16 MB but slow-ish. A download task with a progress delegate would avoid it.
+- CI: run 46124158721 (296a26d, own branch, scope=all). Pending, not watched.
+
+## Fix round 2 (orchestrator)
+CI 46124158721 (296a26d, scope=all): shards 1 and 2 and the ipa green (DictionaryManagerModelTests pass); shards 3 and 4 red.
+- `testSwitchingOffAndDeletingWithConfirmation`: "Failed to tap "Delete dictionary" Button … Multiple matching elements found". On iOS 26 the confirmation dialog shows as a popover holding a sheet, with the button in both. Fixed: tap the hittable match.
+- `testAReorderSurvivesReopeningTheSheet`: "Row 3 moved above row 1" failed. The drag started at `screen.width - 22`, the builder's guess; the inset-grouped list's reorder control sits inside the row's inset. Fixed: drag the list's own reorder button nearest row 3's midY (label begins with "Reorder"), falling back to the row's trailing edge. On failure it attaches `dictionaries-reorder-tree` with the controls and the hierarchy.
+- Not T-028: shard 3 `SubtitleStyleCardUITests/testDoneAVideoTapAndARotationEachCloseTheCard`, "The style card opens" on the third open (the Aa tap landed and no card came; the video is paused, so it's not the auto-hide). It passed in every other run today; watch it.
