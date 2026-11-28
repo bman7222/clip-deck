@@ -71,4 +71,8 @@ CI 46124158721 (296a26d, scope=all): shards 1 and 2 and the ipa green (Dictionar
 ## Fix round 3 · orchestrator
 - CI 46150787593 (b9fe85c, only_testing DictionaryManagerUITests, with T-036's settle): the delete-dialog fix passes (`testSwitchingOffAndDeletingWithConfirmation` green). `testAReorderSurvivesReopeningTheSheet` failed, "Row 3 moved above row 1". The round 2 control lookup worked (it pressed row 3's "Reorder Test Frequency" button at 358, 344 and dragged to 183), so the order was the drag itself: `press(forDuration: 0.8, thenDragTo:)` drags fast and lets go on arrival, and the list (a collection view on iOS 26) hadn't moved its drop place yet.
 - Fix (test only): `press(forDuration: 0.5, thenDragTo:, withVelocity: .slow, thenHoldForDuration: 1)`.
-- CI: run 46153784207 (only_testing DictionaryManagerUITests). Pending, not watched.
+- CI: run 46153784207 (5416fa7): reorder still fails. The screen recording shows the drag works: row 3 lifts, moves to the top, the others shift down, and it drops at the top (about 25.0 s). Then by 25.3 s it slides back to third. No error banner, so the store write didn't fail: SwiftUI put its old order back, so `onMove` either wasn't called or changed nothing.
+
+## Diagnostic round · orchestrator
+- Temporary, removed before landing: a print in `DictionaryManagerModel.move(fromOffsets:toOffset:)` (`-uiTesting` only) showing the offsets and the ids before and after; `testDiagMoveRowThreeAboveRowTwo` (a move in the middle of the list).
+- The to-the-top drag now drops inside row 1 (its midY - 8) instead of 4 pt above it, away from the "Installed" header, which is a cell of its own in the iOS 26 list.

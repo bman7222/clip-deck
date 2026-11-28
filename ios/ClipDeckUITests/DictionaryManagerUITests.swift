@@ -137,13 +137,14 @@ final class DictionaryManagerUITests: XCTestCase {
 
         // Drag row 3's reorder control above row 1. The control is the list's own button, inside the row's inset.
         let thirdMid = element(app, "dictionaries.row.3").frame.midY
-        let firstTop = element(app, "dictionaries.row.1").frame.minY
+        let firstMid = element(app, "dictionaries.row.1").frame.midY
         let controls = app.buttons.matching(NSPredicate(format: "label BEGINSWITH[c] 'Reorder'")).allElementsBoundByIndex
         let control = controls.min { abs($0.frame.midY - thirdMid) < abs($1.frame.midY - thirdMid) }
         let origin = app.coordinate(withNormalizedOffset: .zero)
         let handleX = control.map { $0.frame.midX } ?? element(app, "dictionaries.row.3").frame.maxX - 22
         let handle = origin.withOffset(CGVector(dx: handleX, dy: thirdMid))
-        let target = origin.withOffset(CGVector(dx: handleX, dy: firstTop - 4))
+        // T-028 diag: drop inside row 1, away from the "Installed" header (a cell of its own on iOS 26).
+        let target = origin.withOffset(CGVector(dx: handleX, dy: firstMid - 8))
         // A fast drag released at once leaves the list's drop place where it started (CI 46150787593).
         handle.press(forDuration: 0.5, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 1)
         let moved = UITestSupport.wait(timeout: 10) { third.frame.minY < first.frame.minY }
@@ -160,6 +161,28 @@ final class DictionaryManagerUITests: XCTestCase {
         XCTAssertTrue(third.waitForExistence(timeout: 10))
         XCTAssertLessThan(third.frame.minY, first.frame.minY, "The new order is still there after reopening")
         UITestSupport.attachScreenshot(app, name: "dictionaries-06-reopened", to: self)
+    }
+
+    // T-028 diag (temporary): a move in the middle of the list, away from the section header.
+    @MainActor
+    func testDiagMoveRowThreeAboveRowTwo() throws {
+        let app = launch(seeded: true)
+        openSheet(app)
+        let second = app.staticTexts["dictionaries.title.2"]
+        let third = app.staticTexts["dictionaries.title.3"]
+        XCTAssertTrue(third.waitForExistence(timeout: 20))
+        UITestSupport.tap(app.buttons["dictionaries.reorder"], patience: 10) { app.buttons["Stop reordering"].exists }
+        UITestSupport.settle()
+        let thirdMid = element(app, "dictionaries.row.3").frame.midY
+        let secondMid = element(app, "dictionaries.row.2").frame.midY
+        let control = app.buttons["Reorder Test Frequency"]
+        XCTAssertTrue(control.exists)
+        let origin = app.coordinate(withNormalizedOffset: .zero)
+        let x = control.frame.midX
+        origin.withOffset(CGVector(dx: x, dy: thirdMid))
+            .press(forDuration: 0.5, thenDragTo: origin.withOffset(CGVector(dx: x, dy: secondMid - 8)),
+                   withVelocity: .slow, thenHoldForDuration: 1)
+        XCTAssertTrue(UITestSupport.wait(timeout: 10) { third.frame.minY < second.frame.minY }, "Row 3 moved above row 2")
     }
 
     @MainActor

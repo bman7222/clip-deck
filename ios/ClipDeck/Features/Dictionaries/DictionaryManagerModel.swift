@@ -68,8 +68,10 @@ final class DictionaryManagerModel {
     // MARK: Order, switch, delete
 
     func move(fromOffsets: IndexSet, toOffset: Int) {
+        let before = dictionaries.map(\.id)
         dictionaries.move(fromOffsets: fromOffsets, toOffset: toOffset)
         let ids = dictionaries.map(\.id)
+        if LaunchFlags.isUITesting { print("T-028 diag onMove from \(Array(fromOffsets)) to \(toOffset): \(before) -> \(ids)") }
         write { try await $0.setPriorityOrder(ids) }
     }
 
