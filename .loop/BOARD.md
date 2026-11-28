@@ -12,7 +12,7 @@ Goal: player controls, Move-Text, offline dictionary, clip timeline · Branch: l
 | T-024a | Move-Text button and menu with the blue outline #26 | frontend | T-021, T-023 | done | 2 | 1adb3e9 |
 | T-024b | Font menu without arrows, with its own Reset #27 | frontend | T-024a | done | 2 | 465649d |
 | T-035 | Find and remove the invisible layer over the landscape player (a system banner) #40 | frontend | — | done | 2 | f9f896f |
-| T-036 | Let the CI simulator settle before the UI tests start #41 | backend | — | testing | 2 | branch loop/T-036-settle-ci-simulator; round 1 removed the early-boot failures, round 2 fixes a bar-tap race; CI 46144815509 pending |
+| T-036 | Let the CI simulator settle before the UI tests start #41 | backend | — | done | 2 | 07be1ab |
 | T-025 | Drag the outline #28 | frontend | T-024a | done | 2 | 7e905f1 |
 | T-032 | Timeline maths #29 | backend | — | done | 2 | c2531f5 |
 | T-033 | Timeline view in Make a Card #30 | frontend | T-032 | done | 1 | 93c8c67 |

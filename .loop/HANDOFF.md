@@ -1049,3 +1049,12 @@
 - Done: T-025 7e905f1 (landing run 46131610946 all green, also T-035's full-suite check). T-027's two tester tests pass (46137931107, LookupEngineTests), so its Blocked turns into Pass
 - T-036 round 1 (46137995899): no early-boot failure in any shard. One failure in shard 3, a race between the bar tap and the 3 s auto-hide on a slow runner; fixed in round 2 with a shared `UITestSupport.tapBarButtonWhilePlaying` (run 46144815509)
 - Next: T-036 lands when green; then T-027 by tree plus one full run; T-028 reruns DictionaryManagerUITests on top of T-036
+
+## 2026-11-28 · loop-tester · T-036 · round 2
+- Done: reviewed script + shared tap helper; verdict Pass
+- Left: nothing blocking; one Could fix (a build-for-testing failure prints "Tests FAILED"; the exit status is right)
+- Files: .loop/tasks/T-036-settle-the-ci-simulator.md
+
+## 2026-11-28 · orchestrator · T-036 landed; T-027 landing run
+- Done: T-036 07be1ab (CI 46137995899 + 46144815509). T-027's branch diff applied as a patch onto the loop branch (it shares PlayerLandscapeBehaviourUITests with T-036; the patch merged cleanly)
+- Next: the loop-branch full run is T-027's landing run and T-036's first run on the combined tree; then T-028 rebases onto the loop branch
