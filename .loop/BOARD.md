@@ -12,12 +12,13 @@ Goal: player controls, Move-Text, offline dictionary, clip timeline · Branch: l
 | T-024a | Move-Text button and menu with the blue outline #26 | frontend | T-021, T-023 | done | 2 | 1adb3e9 |
 | T-024b | Font menu without arrows, with its own Reset #27 | frontend | T-024a | done | 2 | 465649d |
 | T-035 | Find and remove the invisible layer over the landscape player (a system banner) #40 | frontend | — | done | 2 | f9f896f |
-| T-025 | Drag the outline #28 | frontend | T-024a | testing | 2 | CI 46124710697 pending |
+| T-036 | Let the CI simulator settle before the UI tests start #41 | backend | — | testing | 2 | branch loop/T-036-settle-ci-simulator; round 1 removed the early-boot failures, round 2 fixes a bar-tap race; CI 46144815509 pending |
+| T-025 | Drag the outline #28 | frontend | T-024a | done | 2 | 7e905f1 |
 | T-032 | Timeline maths #29 | backend | — | done | 2 | c2531f5 |
 | T-033 | Timeline view in Make a Card #30 | frontend | T-032 | done | 1 | 93c8c67 |
 | T-026 | Dictionary store and Yomitan importer #31 | backend | — | done | 1 | 748f6d1 |
-| T-027 | Deinflection and lookup engine #32 | backend | T-026 | testing | 2 | branch loop/T-027-deinflection-and-lookup, CI 46128345124 pending |
-| T-028 | Dictionary manager #33 | frontend | T-026 | testing | 2 | branch loop/T-028-dictionary-manager, CI 46130387082 (dictionary UI tests) pending |
+| T-027 | Deinflection and lookup engine #32 | backend | T-026 | testing | 2 | Pass (verify run 46137931107 green); lands after T-036 with one full run |
+| T-028 | Dictionary manager #33 | frontend | T-026 | testing | 2 | delete-dialog fix unproven (screenshot timeout in 46130387082); rerun after T-036 |
 | T-029a | Dictionary popup: formatted entries #34 | frontend | T-027, T-028 | todo | | |
 | T-029b | Dictionary popup: move, resize and reset #35 | frontend | T-021, T-029a | todo | | |
 | T-030a | Lookup Mode in the player: tap or hold a word #36 | frontend | T-021, T-029b | todo | | |

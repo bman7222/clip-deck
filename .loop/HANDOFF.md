@@ -1038,3 +1038,14 @@
 ## 2026-11-28 · orchestrator · T-033 and T-035 · landed
 - Done: T-033 93c8c67 (CI 46124710697 all green); T-035 f9f896f (CI 46123625075 + 46127810223). The loop branch had been rewritten to drop the Co-Authored-By trailers (same trees; 91dc544 → 7df9baa, b8a4128 → b80376b)
 - Left: T-025 re-committed on top; its landing run doubles as T-035's full-suite check. T-033's Could-fix (vertical scroll on the track, end clamp before the duration loads) is open for a later task
+
+## 2026-11-28 · loop-tester · T-025 · round 2
+- Verdict: Pass on CI 46124710697 (same product tree as 648ab96). `dragged` matches `frame` for the Move-Text case (no bottom obstruction, not stepsFromObstruction)
+- 10 pt drag tolerance justified: a constant 7 pt XCUITest lag across 60 and 80 pt drags, scale pinned by SubtitleDragTests
+- Could fix: VoiceOver nudge ignores the landscape card's Highest limit; DESIGN.md should note a tap on the outline no longer closes the menu
+- Unverified (Brent): lift visuals/haptic, Reduce Motion, drag feel, cancel, VoiceOver actions
+
+## 2026-11-28 · orchestrator · T-025 landed; T-027 verified; T-036 round 2
+- Done: T-025 7e905f1 (landing run 46131610946 all green, also T-035's full-suite check). T-027's two tester tests pass (46137931107, LookupEngineTests), so its Blocked turns into Pass
+- T-036 round 1 (46137995899): no early-boot failure in any shard. One failure in shard 3, a race between the bar tap and the 3 s auto-hide on a slow runner; fixed in round 2 with a shared `UITestSupport.tapBarButtonWhilePlaying` (run 46144815509)
+- Next: T-036 lands when green; then T-027 by tree plus one full run; T-028 reruns DictionaryManagerUITests on top of T-036
