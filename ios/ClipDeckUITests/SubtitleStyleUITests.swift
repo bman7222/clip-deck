@@ -137,21 +137,15 @@ final class SubtitleStyleUITests: XCTestCase {
         XCTAssertEqual(bold.value as? String, "Off", "Bold is off")
         attachScreenshot(app, name: "style-01-sheet")
 
-        // The position controls may be below the first detent; reach them by scrolling.
-        let up = app.buttons["subtitleStyle.up"]
-        reveal(up, in: app)
-        XCTAssertEqual(app.staticTexts["subtitleStyle.positionValue"].label, "Default place")
-        XCTAssertFalse(app.buttons["subtitleStyle.down"].isEnabled, "Down is disabled at the default bottom place")
-        for _ in 0..<2 { up.tap() }
-        XCTAssertEqual(app.staticTexts["subtitleStyle.positionValue"].label, "Up 10%")
-        XCTAssertEqual(up.value as? String, "10 percent up")
-        XCTAssertTrue(app.buttons["subtitleStyle.down"].isEnabled, "Down is enabled once the line is raised")
+        for id in ["up", "down", "left", "right"] {
+            XCTAssertFalse(app.buttons["subtitleStyle.\(id)"].exists, "The Font sheet has no \(id) arrow")
+        }
+        XCTAssertFalse(app.staticTexts["subtitleStyle.positionValue"].exists, "The Font sheet has no Position section")
 
         closeStyleSheet(app)
 
         let styled = app.textViews["player.subtitle"].frame
         XCTAssertGreaterThan(styled.height, plain.height, "Bigger text makes a taller line")
-        XCTAssertLessThan(styled.maxY, plain.maxY - 10, "Up twice lifts the line")
         assertInside(styled, video, "styled line in the video")
         XCTAssertEqual(opener.value as? String, "Changed", "The button is aqua once the style changed")
         app.terminate()
@@ -174,32 +168,37 @@ final class SubtitleStyleUITests: XCTestCase {
         second.terminate()
     }
 
+    /// T-024b AC-1, AC-5: Font Reset restores Sans at 100 % and leaves the moved place alone. The expected line is the
+    /// one a position-only seed draws, so a changed font can't shift the comparison.
     @MainActor
-    func testPortraitResetBringsBackTheDefaultLineAndDisablesItself() throws {
+    func testPortraitFontResetRestoresTheFontAndKeepsThePlace() throws {
         XCUIDevice.shared.orientation = .portrait
-        let defaultApp = launch(seed: nil)
-        let plain = seekToSecondLine(defaultApp).frame
-        defaultApp.terminate()
+        let referenceApp = launch(seed: #"{"up":0.30,"right":-0.20}"#)
+        let moved = seekToSecondLine(referenceApp).frame
+        XCTAssertEqual(referenceApp.buttons["player.subtitleStyle"].value as? String, "Default",
+                       "T-024b AC-3: a moved line alone doesn't light Aa")
+        referenceApp.terminate()
 
-        let app = launch(seed: #"{"font":"serif","bold":false,"sizeStep":3,"upSteps":2,"rightSteps":-2}"#)
-        let before = seekToSecondLine(app).frame
-        XCTAssertNotEqual(before.maxY, plain.maxY, accuracy: 2, "The seeded line is somewhere else")
+        let app = launch(seed: #"{"font":"serif","sizeStep":3,"up":0.30,"right":-0.20}"#)
+        _ = seekToSecondLine(app)
         openStyleSheet(app)
         let reset = app.buttons["subtitleStyle.reset"]
         reveal(reset, in: app)
-        XCTAssertTrue(reset.isEnabled, "Reset is enabled while the style isn't the default")
+        XCTAssertTrue(reset.isEnabled, "Reset is enabled while the font group isn't the default")
+        XCTAssertEqual(reset.value as? String, "Changed")
         reset.tap()
-        XCTAssertFalse(reset.isEnabled, "Reset disables itself at the default style")
+        XCTAssertFalse(reset.isEnabled, "Reset disables itself at the default font group")
+        XCTAssertEqual(reset.value as? String, "Default")
         XCTAssertEqual(app.staticTexts["subtitleStyle.sizeValue"].label, "100%")
-        XCTAssertEqual(app.staticTexts["subtitleStyle.positionValue"].label, "Default place")
         XCTAssertTrue(app.buttons["subtitleStyle.font.sans"].isSelected, "Reset picks Sans")
+        XCTAssertEqual(app.buttons["player.moveText"].value as? String, "Up 30% · Left 20%", "The place is left alone")
         closeStyleSheet(app)
 
         let after = app.textViews["player.subtitle"].frame
-        XCTAssertEqual(after.minX, plain.minX, accuracy: 2)
-        XCTAssertEqual(after.minY, plain.minY, accuracy: 2)
-        XCTAssertEqual(after.width, plain.width, accuracy: 2)
-        XCTAssertEqual(after.height, plain.height, accuracy: 2)
+        for (name, now, was) in [("minX", after.minX, moved.minX), ("minY", after.minY, moved.minY),
+                                 ("width", after.width, moved.width), ("height", after.height, moved.height)] {
+            XCTAssertEqual(now, was, accuracy: 1, "\(name) stays at the moved place")
+        }
         app.terminate()
     }
 
@@ -227,7 +226,7 @@ final class SubtitleStyleUITests: XCTestCase {
         let reset = app.buttons["subtitleStyle.reset"]
         reveal(reset, in: app)
         XCTAssertTrue(reset.isHittable, "Reset can be reached by scrolling at an accessibility text size")
-        XCTAssertTrue(reset.isEnabled, "The seeded style isn't the default")
+        XCTAssertTrue(reset.isEnabled, "The seeded size isn't the default")
         attachScreenshot(app, name: "style-02-large-text")
         app.terminate()
     }

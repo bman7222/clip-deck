@@ -75,7 +75,7 @@ final class SubtitleAvoidOverlayUITests: XCTestCase {
     }
 
     /// AC-6: in portrait the overlay gives way to the Aa style sheet, so the line shows at its true saved place
-    /// and every Up step moves it; the overlay comes back when the sheet closes.
+    /// and every size step shows on it; the overlay comes back when the sheet closes.
     @MainActor
     func testOverlayGivesWayToTheStyleSheetPortrait() throws {
         let app = XCUIApplication()
@@ -103,22 +103,12 @@ final class SubtitleAvoidOverlayUITests: XCTestCase {
         XCTAssertFalse(app.buttons["player.overlay.back5"].exists)
         XCTAssertFalse(app.buttons["player.overlay.forward5"].exists)
 
-        // The position controls may be below the first detent; reach them by scrolling.
-        let up = app.buttons["subtitleStyle.up"]
-        var swipes = 0
-        while !up.isHittable && swipes < 8 {
-            app.swipeUp()
-            swipes += 1
-        }
-        XCTAssertTrue(up.isHittable, "Up can be reached")
         XCTAssertTrue(UITestSupport.wait(timeout: 5) { line.exists }, "The line is still there")
-        var previous = try XCTUnwrap(settledFrame(line), "The line settles")
-        for step in 1...3 {
-            up.tap()
-            let moved = UITestSupport.waitForFrame(line, timeout: 8) { $0.minY < previous.minY - 1 }
-            XCTAssertTrue(moved, "Up step \(step) moves the line (was \(previous), now \(line.frame))")
-            previous = try XCTUnwrap(settledFrame(line), "The line settles after step \(step)")
-        }
+        let start = try XCTUnwrap(settledFrame(line), "The line settles")
+        let sizeUp = app.buttons["subtitleStyle.sizeUp"]
+        for _ in 1...3 { sizeUp.tap() }
+        XCTAssertTrue(UITestSupport.waitForFrame(line, timeout: 8) { $0.height > start.height + 3 },
+                      "Three size steps grow the line (was \(start), now \(line.frame))")
         UITestSupport.attachText(app.debugDescription, name: "avoid-overlay-style-sheet-portrait", to: self)
 
         done.tap()

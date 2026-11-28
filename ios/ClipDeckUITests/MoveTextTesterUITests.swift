@@ -133,6 +133,30 @@ final class MoveTextTesterUITests: XCTestCase {
         attachText(app.debugDescription, name: "tester-move-first-down-frames")
         attachElementShot(card, name: "tester-move-card")
         attachElementShot(app.descendants(matching: .any)["player.video"], name: "tester-move-card-video")
+
+        // T-024b (from SubtitleUpLimitTesterUITests): closed and reopened at the same top place, Up is still dimmed.
+        UITestSupport.tap(app.buttons["moveText.done"], patience: 5) { !card.exists }
+        XCTAssertTrue(card.waitForNonExistence(timeout: 5), "Done closes the card")
+        XCTAssertTrue(move.waitForExistence(timeout: 5))
+        move.tap()
+        XCTAssertTrue(card.waitForExistence(timeout: 5), "The card opens again")
+        UITestSupport.settle()
+        XCTAssertFalse(up.isEnabled, "Reopened at the same place, Up is still dimmed")
+        XCTAssertEqual(up.value as? String, "Highest")
+    }
+
+    /// T-024b (from SubtitleStyleSheetTesterUITests): Right dims at its own limit, 40 % right, and Left stays enabled.
+    @MainActor
+    func testRightDimsAtFortyPercentRightPortrait() throws {
+        let app = launch(seed: #"{"right":0.4}"#, landscape: false)
+        _ = showSecondLinePortrait(app)
+        app.buttons["player.moveText"].tap()
+        XCTAssertTrue(app.descendants(matching: .any)["moveText.sheet"].waitForExistence(timeout: 5))
+        let right = app.buttons["moveText.right"]
+        XCTAssertEqual(app.staticTexts["moveText.value"].label, "Right 40%")
+        XCTAssertFalse(right.isEnabled, "Right dims at 40 % right")
+        XCTAssertTrue(app.buttons["moveText.left"].isEnabled, "Left stays enabled")
+        XCTAssertEqual(right.value as? String, "40 percent right")
     }
 
     // MARK: AC-2: each arrow dims at its own limit, with the spoken values of the Aa menu

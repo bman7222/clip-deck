@@ -2,8 +2,9 @@ import SwiftUI
 import UIKit
 
 /// The landscape subtitle style menu: a card docked to the bottom of the video column, in place of the bottom bar
-/// while it is open. It holds the same 13 controls as the portrait sheet, icon only (the values are spoken), and
-/// writes the same saved style, so every tap shows on the line above it at once.
+/// while it is open. It holds the font, bold and size controls of the portrait sheet, icon only (the values are
+/// spoken), and writes the same saved style, so every tap shows on the line above it at once. The position has its
+/// own menu (`MoveTextCard`).
 ///
 /// It has the bars' look (`Color.black.opacity(0.55)`; the player puts it in the `.dark` colour scheme) and only
 /// Theme colours: idle Shell and Ink, on or selected Accent with white. The layout comes from `ViewThatFits`: one
@@ -12,11 +13,6 @@ struct SubtitleStyleCard: View {
     /// The bars' insets (safe area, and the handle clearance while the panel is open), so the card stays inside the
     /// video column and the safe area exactly like the bottom bar.
     let insets: EdgeInsets
-    /// False when one more Up step would not move the line (it already sits under the top bar), so Up dims.
-    var canStepUp = true
-    /// The highest `up` the line can reach with the card open. A stored value above it jumps to 0.05 below it on
-    /// the first Down tap, so Down always shows. The default means "no limit known".
-    var highestUp = SubtitleStyle.upRange.upperBound
     let onMoreFonts: () -> Void
     let onDone: () -> Void
 
@@ -26,21 +22,15 @@ struct SubtitleStyleCard: View {
     private enum Control: Hashable {
         case sans, rounded, serif, more, bold
         case sizeDown, sizeUp
-        case left, up, down, right
         case reset, done
     }
 
     private static let oneRow: [[Control]] = [
-        [.sans, .rounded, .serif, .more, .bold, .sizeDown, .sizeUp, .left, .up, .down, .right, .reset, .done],
+        [.sans, .rounded, .serif, .more, .bold, .sizeDown, .sizeUp, .reset, .done],
     ]
     private static let twoRows: [[Control]] = [
-        [.sans, .rounded, .serif, .more, .bold, .sizeDown, .sizeUp],
-        [.left, .up, .down, .right, .reset, .done],
-    ]
-    private static let threeRows: [[Control]] = [
         [.sans, .rounded, .serif, .more, .bold],
         [.sizeDown, .sizeUp, .reset, .done],
-        [.left, .up, .down, .right],
     ]
 
     private var style: SubtitleStyle { SubtitleStyle.decoded(from: stored) }
@@ -50,7 +40,6 @@ struct SubtitleStyleCard: View {
         ViewThatFits(in: .horizontal) {
             rows(Self.oneRow, current)
             rows(Self.twoRows, current)
-            rows(Self.threeRows, current)
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, Spacing.m)
@@ -103,38 +92,11 @@ struct SubtitleStyleCard: View {
                 symbol: "textformat.size.larger", id: "sizeUp", label: "Larger text", value: current.sizeSpoken,
                 enabled: current.canSizeUp, action: { update { _ = $0.stepSize(1) } }
             )
-        case .left:
-            StyleIconButton(
-                symbol: "arrow.left", id: "left", label: "Move subtitles left", value: current.horizontalSpoken,
-                enabled: current.canMoveLeft, action: { update { _ = $0.stepRight(-1) } }
-            )
-        case .up:
-            StyleIconButton(
-                symbol: "arrow.up", id: "up", label: "Move subtitles up",
-                value: canStepUp ? current.verticalSpoken : "Highest",
-                enabled: current.canMoveUp && canStepUp, action: { update { _ = $0.stepUp(1) } }
-            )
-        case .down:
-            StyleIconButton(
-                symbol: "arrow.down", id: "down", label: "Move subtitles down", value: current.verticalSpoken,
-                enabled: current.canMoveDown,
-                action: {
-                    update {
-                        $0.up = SubtitlePlacement.upAfterDownWithCardOpen(
-                            stored: $0.up, highestReachable: highestUp)
-                    }
-                }
-            )
-        case .right:
-            StyleIconButton(
-                symbol: "arrow.right", id: "right", label: "Move subtitles right", value: current.horizontalSpoken,
-                enabled: current.canMoveRight, action: { update { _ = $0.stepRight(1) } }
-            )
         case .reset:
             StyleIconButton(
                 symbol: "arrow.counterclockwise", id: "reset", label: "Reset to default",
-                value: current.isDefault ? "Already the default" : "Changed",
-                enabled: !current.isDefault, action: { stored = SubtitleStyle.default.json }
+                value: current.isFontDefault ? "Already the default" : "Changed",
+                enabled: !current.isFontDefault, action: { update { $0.resetFont() } }
             )
         case .done:
             StyleIconButton(

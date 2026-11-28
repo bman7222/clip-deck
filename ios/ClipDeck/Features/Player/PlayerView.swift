@@ -315,8 +315,6 @@ struct PlayerView: View {
                         } else if styleMenuOpen {
                             SubtitleStyleCard(
                                 insets: barInsets,
-                                canStepUp: cardCanStepUp,
-                                highestUp: cardHighestUp,
                                 onMoreFonts: { showCardFontPicker = true },
                                 onDone: closeStyleMenu
                             )
@@ -694,6 +692,10 @@ struct PlayerView: View {
             closeMoveText()
             return
         }
+        if showStyleSheet {
+            showStyleSheet = false
+            return
+        }
         portraitOverlayVisible.toggle()
         restartHideTimer()
     }
@@ -785,7 +787,7 @@ struct PlayerView: View {
         }
         // Directly after the subtitles button, in portrait and in all landscape rows. A Button with a presented
         // state, not a Menu: gestures on a Menu don't fire on iOS 26. Aqua when the style isn't the default.
-        let styleIsDefault = SubtitleStyle.decoded(from: storedSubtitleStyle).isDefault
+        let styleIsDefault = SubtitleStyle.decoded(from: storedSubtitleStyle).isFontDefault
         Button {
             guard !moveTextOpen else { return }
             // Landscape opens the card in place of the bottom bar; portrait presents the sheet.

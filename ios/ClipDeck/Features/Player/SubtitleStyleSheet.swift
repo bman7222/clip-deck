@@ -372,7 +372,6 @@ struct SubtitleStyleSheet: View {
                 VStack(alignment: .leading, spacing: Spacing.m) {
                     fontSection(current)
                     sizeSection(current)
-                    positionSection(current)
                     resetButton(current)
                 }
                 .padding(.horizontal, Spacing.l)
@@ -586,47 +585,16 @@ struct SubtitleStyleSheet: View {
         }
     }
 
-    private func positionSection(_ current: SubtitleStyle) -> some View {
-        VStack(alignment: .leading, spacing: Spacing.s) {
-            sectionTitle("Position")
-            HStack(spacing: Spacing.m) {
-                iconButton(
-                    "arrow.left", id: "left", label: "Move subtitles left",
-                    value: current.horizontalSpoken, enabled: current.canMoveLeft
-                ) { _ = $0.stepRight(-1) }
-                Spacer(minLength: 0)
-                iconButton(
-                    "arrow.up", id: "up", label: "Move subtitles up",
-                    value: current.verticalSpoken, enabled: current.canMoveUp
-                ) { _ = $0.stepUp(1) }
-                Spacer(minLength: 0)
-                iconButton(
-                    "arrow.down", id: "down", label: "Move subtitles down",
-                    value: current.verticalSpoken, enabled: current.canMoveDown
-                ) { _ = $0.stepUp(-1) }
-                Spacer(minLength: 0)
-                iconButton(
-                    "arrow.right", id: "right", label: "Move subtitles right",
-                    value: current.horizontalSpoken, enabled: current.canMoveRight
-                ) { _ = $0.stepRight(1) }
-            }
-            Text(current.positionText)
-                .font(.deckCallout)
-                .foregroundStyle(Theme.inkSoft)
-                .frame(maxWidth: .infinity, alignment: .center)
-                .accessibilityIdentifier("subtitleStyle.positionValue")
-        }
-    }
-
     private func resetButton(_ current: SubtitleStyle) -> some View {
         Button {
-            stored = SubtitleStyle.default.json
+            update { $0.resetFont() }
         } label: {
             Label("Reset to default", systemImage: "arrow.counterclockwise")
                 .frame(maxWidth: .infinity)
         }
         .buttonStyle(DeckPrimaryButtonStyle())
-        .disabled(current.isDefault)
+        .disabled(current.isFontDefault)
+        .accessibilityValue(current.isFontDefault ? "Default" : "Changed")
         .accessibilityIdentifier("subtitleStyle.reset")
     }
 

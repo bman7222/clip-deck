@@ -1,7 +1,7 @@
 import XCTest
 
 /// T-016: the landscape subtitle style card. The "Aa" button in the bottom bar swaps the bar for the card
-/// (`subtitleStyle.card`), which holds the 13 controls, keeps the controls up, pushes the line above it, and closes on
+/// (`subtitleStyle.card`), which holds the 9 controls, keeps the controls up, pushes the line above it, and closes on
 /// Done, a tap on the video or a rotation. Uses the seeded "Sample Show": a 6-second video paused at 0:00, with lines
 /// at 0.5-2.0, 2.0-4.0 and 4.0-5.5 s.
 ///
@@ -13,7 +13,6 @@ final class SubtitleStyleCardUITests: XCTestCase {
     private let controlIDs = [
         "subtitleStyle.font.sans", "subtitleStyle.font.rounded", "subtitleStyle.font.serif",
         "subtitleStyle.font.more", "subtitleStyle.bold", "subtitleStyle.sizeDown", "subtitleStyle.sizeUp",
-        "subtitleStyle.left", "subtitleStyle.up", "subtitleStyle.down", "subtitleStyle.right",
         "subtitleStyle.reset", "subtitleStyle.done",
     ]
 
@@ -58,19 +57,15 @@ final class SubtitleStyleCardUITests: XCTestCase {
     // MARK: AC-6 (b): live changes, the line stays above the card
 
     @MainActor
-    func testUpAndSizeChangeTheLineLiveAndItStaysAboveTheCard() throws {
+    func testSizeChangesTheLineLiveAndItStaysAboveTheCard() throws {
         let app = launchLandscape(seed: nil)
-        let line = showSecondLine(app)
-        let before = line.frame
+        _ = showSecondLine(app)
         openCard(app)
         settle()
         let card = cardElement(app)
-        XCTAssertLessThanOrEqual(app.textViews["player.subtitle"].frame.maxY, card.frame.minY + 1,
-                                 "The default line is already above the card")
+        let before = app.textViews["player.subtitle"].frame
+        XCTAssertLessThanOrEqual(before.maxY, card.frame.minY + 1, "The default line is already above the card")
 
-        let up = app.buttons["subtitleStyle.up"]
-        XCTAssertTrue(up.isHittable)
-        for _ in 0..<3 { up.tap() }
         let sizeUp = app.buttons["subtitleStyle.sizeUp"]
         for _ in 0..<2 { sizeUp.tap() }
         settle()
@@ -78,12 +73,11 @@ final class SubtitleStyleCardUITests: XCTestCase {
         let after = app.textViews["player.subtitle"].frame
         XCTAssertGreaterThan(after.height, before.height, "Size up x2 makes a taller line")
         XCTAssertGreaterThan(after.width, before.width, "Size up x2 makes a wider line")
-        XCTAssertLessThan(after.minY, before.minY, "Up x3 and a bigger line move the top edge up")
+        XCTAssertLessThan(after.minY, before.minY, "A bigger line, lifted above the card, moves the top edge up")
         XCTAssertLessThanOrEqual(after.maxY, card.frame.minY + 1, "The line stays above the card")
         let top = app.descendants(matching: .any)["player.topBar"]
         XCTAssertGreaterThanOrEqual(after.minY, top.frame.maxY - 1, "The line stays below the top bar")
         XCTAssertEqual(app.buttons["subtitleStyle.sizeUp"].value as? String, "120 percent", "VoiceOver reads the size")
-        XCTAssertEqual(app.buttons["subtitleStyle.up"].value as? String, "15 percent up", "VoiceOver reads the place")
         attachEvidence(app, name: "landscape-style-03-live")
     }
 
@@ -159,6 +153,67 @@ final class SubtitleStyleCardUITests: XCTestCase {
         XCTAssertTrue(app.descendants(matching: .any)["player.video"].waitForExistence(timeout: 10))
         RunLoop.current.run(until: Date().addingTimeInterval(1))
         XCTAssertFalse(card.exists, "The card does not come back after rotating again")
+    }
+
+    // MARK: T-024b: two resets, two jobs
+
+    /// Font Reset restores Sans at 100 % and leaves the moved place alone, and the card has no arrows. The expected line is
+    /// the one a position-only seed draws with the same bar and panel state, so the old font can't shift the comparison.
+    @MainActor
+    func testFontResetRestoresTheFontAndKeepsThePlaceLandscape() throws {
+        let referenceApp = launchLandscape(seed: #"{"up":0.30,"right":-0.20}"#)
+        let moved = showSecondLine(referenceApp).frame
+        XCTAssertEqual(referenceApp.buttons["player.subtitleStyle"].value as? String, "Default",
+                       "T-024b AC-3: a moved line alone doesn't light Aa")
+        referenceApp.terminate()
+
+        let app = launchLandscape(seed: #"{"font":"serif","sizeStep":3,"up":0.30,"right":-0.20}"#)
+        let line = showSecondLine(app)
+        openCard(app)
+        for id in ["up", "down", "left", "right"] {
+            XCTAssertFalse(app.buttons["subtitleStyle.\(id)"].exists, "The card has no \(id) arrow")
+        }
+        let reset = app.buttons["subtitleStyle.reset"]
+        XCTAssertTrue(reset.isEnabled, "Reset is enabled while the font group isn't the default")
+        XCTAssertEqual(reset.value as? String, "Changed")
+        reset.tap()
+        XCTAssertTrue(UITestSupport.wait(timeout: 5) { !reset.isEnabled }, "Reset disables itself at the default font group")
+        XCTAssertEqual(reset.value as? String, "Already the default")
+        XCTAssertEqual(app.buttons["subtitleStyle.sizeUp"].value as? String, "100 percent")
+        XCTAssertTrue(app.buttons["subtitleStyle.font.sans"].isSelected, "Reset picks Sans")
+        app.buttons["subtitleStyle.done"].tap()
+        XCTAssertTrue(cardElement(app).waitForNonExistence(timeout: 5))
+        settle()
+
+        XCTAssertEqual(app.buttons["player.moveText"].value as? String, "Up 30% · Left 20%", "The place is left alone")
+        let after = line.frame
+        for (name, now, was) in [("minX", after.minX, moved.minX), ("minY", after.minY, moved.minY),
+                                 ("width", after.width, moved.width), ("height", after.height, moved.height)] {
+            XCTAssertEqual(now, was, accuracy: 1, "\(name) stays at the moved place")
+        }
+        attachText("moved \(moved)\nafter \(after)", name: "font-reset-keeps-place")
+    }
+
+    /// Move-Text Reset puts the line back and leaves the serif font and the size alone (landscape; the portrait twin
+    /// is MoveTextUITests/testResetPutsTheLineBackAndKeepsTheFontPortrait).
+    @MainActor
+    func testMoveTextResetKeepsTheFontAndSizeLandscape() throws {
+        let app = launchLandscape(seed: #"{"font":"serif","sizeStep":3,"up":0.30,"right":-0.20}"#)
+        _ = showSecondLine(app)
+        app.buttons["player.moveText"].tap()
+        let moveCard = app.descendants(matching: .any)["moveText.card"]
+        XCTAssertTrue(moveCard.waitForExistence(timeout: 5), "The Move-Text card opens")
+        let reset = app.buttons["moveText.reset"]
+        XCTAssertTrue(reset.isEnabled, "Reset is enabled away from the default place")
+        reset.tap()
+        XCTAssertTrue(UITestSupport.wait(timeout: 5) { !reset.isEnabled }, "Reset restores the default place")
+        app.buttons["moveText.done"].tap()
+        XCTAssertTrue(moveCard.waitForNonExistence(timeout: 5))
+        XCTAssertEqual(app.buttons["player.moveText"].value as? String, "Default place")
+
+        openCard(app)
+        XCTAssertEqual(app.buttons["subtitleStyle.sizeUp"].value as? String, "130 percent", "The size is left alone")
+        XCTAssertTrue(app.buttons["subtitleStyle.font.serif"].isSelected, "The serif font is left alone")
     }
 
     // MARK: AC-6 (e): More fonts

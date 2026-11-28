@@ -5,13 +5,14 @@ import XCTest
 /// - AC-5: every control (not only the first few) starts below the video at the default text size, and the sheet
 ///   itself leaves the bottom of the video uncovered (a pixel check on the screenshot);
 /// - AC-4: each control's spoken label and value;
-/// - AC-3: every limit disables its own button (size at 60%, up at 18, left and right at ±8), not only 200% and down;
-/// - AC-3: opening and using the sheet doesn't pause playback.
+/// - AC-3: the size limit at 60% disables its own button (the position limits are in MoveTextTesterUITests);
+/// - AC-3: opening and using the sheet doesn't pause playback;
+/// - T-024b AC-7: a tap on the video closes the sheet and leaves the overlay as it was.
 final class SubtitleStyleSheetTesterUITests: XCTestCase {
     private let controlIds = [
         "subtitleStyle.done", "subtitleStyle.font.sans", "subtitleStyle.font.rounded", "subtitleStyle.font.serif",
         "subtitleStyle.bold", "subtitleStyle.sizeDown", "subtitleStyle.sizeUp",
-        "subtitleStyle.left", "subtitleStyle.up", "subtitleStyle.down", "subtitleStyle.right", "subtitleStyle.reset",
+        "subtitleStyle.reset",
     ]
 
     override func setUp() {
@@ -61,17 +62,17 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
 
         expect(app, "subtitleStyle.sizeUp", label: "Larger text", value: "100 percent")
         expect(app, "subtitleStyle.sizeDown", label: "Smaller text", value: "100 percent")
-        expect(app, "subtitleStyle.up", label: "Move subtitles up", value: "At the default height")
-        expect(app, "subtitleStyle.down", label: "Move subtitles down", value: "At the default height")
-        expect(app, "subtitleStyle.left", label: "Move subtitles left", value: "Centred")
-        expect(app, "subtitleStyle.right", label: "Move subtitles right", value: "Centred")
+        for id in ["up", "down", "left", "right"] {
+            XCTAssertFalse(app.buttons["subtitleStyle.\(id)"].exists, "The Font sheet has no \(id) arrow")
+        }
         expect(app, "subtitleStyle.bold", label: "Bold", value: "On")
         XCTAssertEqual(app.buttons["subtitleStyle.font.serif"].label, "Serif font")
         XCTAssertEqual(app.buttons["subtitleStyle.font.rounded"].label, "Rounded font")
         XCTAssertTrue(app.buttons["subtitleStyle.font.sans"].isSelected, "The selected chip has the selected trait")
         XCTAssertFalse(app.buttons["subtitleStyle.font.serif"].isSelected)
         XCTAssertEqual(app.buttons["subtitleStyle.done"].label, "Done")
-        XCTAssertFalse(app.buttons["subtitleStyle.reset"].isEnabled, "Reset is disabled at the default style")
+        XCTAssertFalse(app.buttons["subtitleStyle.reset"].isEnabled, "Reset is disabled at the default font group")
+        XCTAssertEqual(app.buttons["subtitleStyle.reset"].value as? String, "Default")
         // Checked last, so a failure here doesn't hide the label checks above (continueAfterFailure is false).
         XCTAssertLessThanOrEqual(difference, 24,
                                  "The sheet covers the bottom of the video: \(nearBottom) at maxY-3 vs \(higher) at maxY-40")
@@ -136,42 +137,26 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
     }
 
     @MainActor
-    func testEveryLimitDisablesItsOwnButton() throws {
+    func testSizeDownDisablesAtSixtyPercent() throws {
         XCUIDevice.shared.orientation = .portrait
-        // Smallest size, top, far right.
-        var app = launch(seed: #"{"sizeStep":-4,"upSteps":18,"rightSteps":8}"#)
+        let app = launch(seed: #"{"sizeStep":-4}"#)
         openStyleSheet(app)
         XCTAssertEqual(app.staticTexts["subtitleStyle.sizeValue"].label, "60%")
-        XCTAssertEqual(app.staticTexts["subtitleStyle.positionValue"].label, "Up 90% \u{00B7} Right 40%")
         XCTAssertFalse(app.buttons["subtitleStyle.sizeDown"].isEnabled, "Size down is disabled at 60%")
         XCTAssertTrue(app.buttons["subtitleStyle.sizeUp"].isEnabled)
-        XCTAssertFalse(app.buttons["subtitleStyle.up"].isEnabled, "Up is disabled at 18 steps")
-        XCTAssertTrue(app.buttons["subtitleStyle.down"].isEnabled)
-        XCTAssertFalse(app.buttons["subtitleStyle.right"].isEnabled, "Right is disabled at +8")
-        XCTAssertTrue(app.buttons["subtitleStyle.left"].isEnabled)
         expect(app, "subtitleStyle.sizeDown", label: "Smaller text", value: "60 percent")
-        expect(app, "subtitleStyle.up", label: "Move subtitles up", value: "90 percent up")
-        expect(app, "subtitleStyle.right", label: "Move subtitles right", value: "40 percent right")
         XCTAssertTrue(app.buttons["subtitleStyle.reset"].isEnabled, "Reset is enabled away from the default")
-        app.terminate()
-
-        // Far left.
-        app = launch(seed: #"{"rightSteps":-8}"#)
-        openStyleSheet(app)
-        XCTAssertEqual(app.staticTexts["subtitleStyle.positionValue"].label, "Left 40%")
-        XCTAssertFalse(app.buttons["subtitleStyle.left"].isEnabled, "Left is disabled at -8")
-        XCTAssertTrue(app.buttons["subtitleStyle.right"].isEnabled)
-        expect(app, "subtitleStyle.left", label: "Move subtitles left", value: "40 percent left")
+        XCTAssertEqual(app.buttons["subtitleStyle.reset"].value as? String, "Changed")
         app.terminate()
     }
 
-    /// The sample is only 6 s long and ends paused, so playback is read while the sheet is still open (the player
-    /// stays in the accessibility tree under the sheet; CI 44888942981 `tester-sheet-open-frames`), about 3 and 5 s
-    /// after Play. Reading it after Done came about 7 s after Play, past the end of the clip.
+    /// The clip is 20 s here (`-uiTestingSampleSeconds 20`): the 6 s default ended 4 to 5 s after Play, and the read
+    /// flaked (CI 45168178904). Playback is read while the sheet is still open (the player stays in the
+    /// accessibility tree under the sheet; CI 44888942981 `tester-sheet-open-frames`).
     @MainActor
     func testUsingTheSheetDoesNotPausePlayback() throws {
         XCUIDevice.shared.orientation = .portrait
-        let app = launch(seed: nil)
+        let app = launch(seed: nil, extraArguments: ["-uiTestingSampleSeconds", "20"])
         let playPause = app.buttons["player.playPause"]
         XCTAssertTrue(playPause.waitForExistence(timeout: 5))
         playPause.tap()
@@ -188,7 +173,37 @@ final class SubtitleStyleSheetTesterUITests: XCTestCase {
         app.terminate()
     }
 
+    /// T-024b AC-7: a tap on the video closes the sheet, as Done does, and the centred overlay keeps the state it had
+    /// (hidden, then shown), instead of the tap silently toggling it.
+    @MainActor
+    func testATapOnTheVideoClosesTheSheetAndLeavesTheOverlayAsItWas() throws {
+        XCUIDevice.shared.orientation = .portrait
+        let app = launch(seed: nil)
+        let overlay = app.buttons["player.overlay.playPause"]
+        let done = app.buttons["subtitleStyle.done"]
+        XCTAssertFalse(overlay.exists, "Portrait starts with the overlay hidden")
+
+        openStyleSheet(app)
+        tapVideo(app)
+        XCTAssertTrue(done.waitForNonExistence(timeout: 5), "A tap on the video closes the sheet")
+        RunLoop.current.run(until: Date().addingTimeInterval(1))
+        XCTAssertFalse(overlay.exists, "The tap only closed the sheet: the hidden overlay stays hidden")
+
+        tapVideo(app)
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5), "A tap on the video shows the overlay")
+        openStyleSheet(app)
+        tapVideo(app)
+        XCTAssertTrue(done.waitForNonExistence(timeout: 5), "A tap on the video closes the sheet again")
+        XCTAssertTrue(overlay.waitForExistence(timeout: 5), "The tap only closed the sheet: the shown overlay stays shown")
+        app.terminate()
+    }
+
     // MARK: Helpers
+
+    @MainActor
+    private func tapVideo(_ app: XCUIApplication) {
+        app.coordinate(withNormalizedOffset: CGVector(dx: 0.3, dy: 0.35)).tap()
+    }
 
     /// The RGB of one point (in points, from the top left) of a screenshot.
     @MainActor

@@ -1,20 +1,19 @@
 import XCTest
 
 /// Tester checks for T-016 that the builder's SubtitleStyleCardUITests leave out:
-/// - AC-2: the `ViewThatFits` level at each panel width (one row of 13 with the panel closed, 7 + 6 at 25 %,
-///   5 + 4 + 4 at 50 %), and every control inside the safe area and the video column, measured against the bars'
+/// - AC-2: the `ViewThatFits` level at each panel width (one row of 9 with the panel closed, 5 + 4 at 50 %), and
+///   every control inside the safe area and the video column, measured against the bars'
 ///   own controls (same paddings), not only against the window;
 /// - AC-5: the line's bottom against the card's real top: the first row's top minus the card's `Spacing.s` (8 pt)
 ///   padding. (In CI 44972664549 XCUITest reported the card's own frame as its real frame, e.g. {0, 322, 874, 80}
 ///   for one row, unlike the T-015 sheet's union frame; the derived top matches it.)
 /// - AC-5: after closing, with the controls hidden, the line rests at its styled place;
-/// - the landscape opener no longer opens the portrait sheet;
-/// - evidence for "every tap shows its effect": where the line is after each Up tap with the card open.
+/// - the landscape opener no longer opens the portrait sheet.
+/// The arrow tests of the old card moved to Move-Text (`moveText.*`) or went: see T-024b.
 final class SubtitleStyleCardTesterUITests: XCTestCase {
     private let controlIDs = [
         "subtitleStyle.font.sans", "subtitleStyle.font.rounded", "subtitleStyle.font.serif",
         "subtitleStyle.font.more", "subtitleStyle.bold", "subtitleStyle.sizeDown", "subtitleStyle.sizeUp",
-        "subtitleStyle.left", "subtitleStyle.up", "subtitleStyle.down", "subtitleStyle.right",
         "subtitleStyle.reset", "subtitleStyle.done",
     ]
     /// The card's top padding above its first row (`Spacing.s`).
@@ -37,14 +36,13 @@ final class SubtitleStyleCardTesterUITests: XCTestCase {
         let line = showSecondLineAndClosePanel(app)
         XCTAssertTrue(line.exists)
 
-        checkCard(app, state: "closed", expectedRows: [13])
+        checkCard(app, state: "closed", expectedRows: [9])
 
         let toggle = app.buttons["player.panelToggle"]
         toggle.tap()
         let panel = app.descendants(matching: .any)["player.sidePanel"]
         XCTAssertTrue(panel.waitForExistence(timeout: 5))
         waitUntilSettled(panel)
-        checkCard(app, state: "panel-25", expectedRows: [7, 6])
 
         let handle = app.descendants(matching: .any)["player.panelHandle"]
         XCTAssertTrue(handle.waitForExistence(timeout: 5))
@@ -52,9 +50,9 @@ final class SubtitleStyleCardTesterUITests: XCTestCase {
         start.press(forDuration: 0.1, thenDragTo: start.withOffset(CGVector(dx: 2 - handle.frame.midX, dy: 0)))
         waitUntilSettled(panel)
         XCTAssertGreaterThan(panel.frame.width, app.windows.firstMatch.frame.width * 0.4, "The panel is at its widest")
-        checkCard(app, state: "panel-50", expectedRows: [5, 4, 4], keepOpen: true)
+        checkCard(app, state: "panel-50", expectedRows: [5, 4], keepOpen: true)
 
-        // The tallest card (three rows) with the biggest line: still above the card's real top, below the top bar.
+        // The tallest card (two rows) with the biggest line: still above the card's real top, below the top bar.
         let sizeUp = app.buttons["subtitleStyle.sizeUp"]
         for _ in 0..<9 where sizeUp.isEnabled { sizeUp.tap() }
         settle()
@@ -104,106 +102,28 @@ final class SubtitleStyleCardTesterUITests: XCTestCase {
         attachEvidence(app, name: "tester-rest-after-close")
     }
 
-    // MARK: Evidence: does each Up tap show while the card is open?
-
-    /// Records the line after each Up tap with the card open (panel closed, one-row card). T-014's placement pins
-    /// the line above the card until its wanted place is higher than the card, so the first taps may not move it.
-    /// The asserts are only what the ACs require; the per-tap list is the evidence for the "every tap shows" goal.
-    @MainActor
-    func testUpTapsWithTheCardOpenRecordWhereTheLineIs() throws {
-        let app = launchLandscape(seed: nil)
-        _ = showSecondLineAndClosePanel(app)
-        openCard(app)
-        settle()
-        let top = cardRealTop(app)
-        let opened = app.textViews["player.subtitle"].frame
-        XCTAssertLessThanOrEqual(opened.maxY, top + 0.5, "The default line ends above the card's real top")
-
-        var log = "card real top \(top)\nopened maxY \(opened.maxY) minY \(opened.minY)"
-        let up = app.buttons["subtitleStyle.up"]
-        var last = opened
-        var previousMaxY = opened.maxY
-        for tap in 1...8 {
-            up.tap()
-            settle()
-            last = app.textViews["player.subtitle"].frame
-            log += "\nup \(tap) (\(up.value as? String ?? "?")): maxY \(last.maxY) minY \(last.minY)"
-            XCTAssertLessThanOrEqual(last.maxY, top + 0.5, "After up \(tap) the line still ends above the card")
-            XCTAssertLessThan(last.maxY, previousMaxY - 1, "Up \(tap) visibly moves the line (a live preview)")
-            previousMaxY = last.maxY
-        }
-        attachText(log, name: "tester-up-taps-card-open")
-        XCTAssertLessThan(last.maxY, opened.maxY - 1, "Up x8 (40 %) lifts the line above where the card pinned it")
-        attachEvidence(app, name: "tester-up-taps-card-open")
-    }
-
-    /// T-018: Up stays enabled only while one more tap still moves the line. Every tap before it dims moves the line
-    /// by more than 1 pt, and the dimmed Up says "Highest".
-    @MainActor
-    func testUpDisablesWhenTheLineCanNoLongerMoveUp() throws {
-        let app = launchLandscape(seed: nil)
-        _ = showSecondLineAndClosePanel(app)
-        openCard(app)
-        settle()
-        let up = app.buttons["subtitleStyle.up"]
-        let down = app.buttons["subtitleStyle.down"]
-        let line = app.textViews["player.subtitle"]
-        var previousMaxY = line.frame.maxY
-        var taps = 0
-        while up.isEnabled && taps < 20 {
-            // T-034: on a slow runner an Up tap can be lost ("Up tap 7 moves the line" failed with the line never moving).
-            // Down's value is the stored percent: a lost tap leaves the old value and is tapped again after the wait; a
-            // doubled tap (a slow tap landing after the re-tap) shows another value and fails here.
-            let before = UITestSupport.upText(taps * 5)
-            taps += 1
-            XCTAssertTrue(UITestSupport.tapStep(up, reader: down, from: before, to: UITestSupport.upText(taps * 5)),
-                          "Up tap \(taps) steps the stored place once (Down reads \(down.value as? String ?? "?"))")
-            let reference = previousMaxY
-            XCTAssertTrue(UITestSupport.waitForFrame(line, timeout: 6) { $0.maxY < reference - 1 },
-                          "Up tap \(taps) moves the line by more than 1 pt")
-            settle()
-            previousMaxY = line.frame.maxY
-        }
-        XCTAssertGreaterThan(taps, 0, "Up starts enabled")
-        XCTAssertLessThan(taps, 18, "The top bar, not the stored 90 % limit, stopped Up")
-        XCTAssertFalse(up.isEnabled, "Up is disabled once the line can't go higher")
-        XCTAssertEqual(up.value as? String, "Highest")
-        attachText("up taps before disabling: \(taps)", name: "up-disables-card-open")
-    }
-
-    /// T-018 AC-5: with a stored place above what the card allows, the first Down tap already moves the line.
-    @MainActor
-    func testFirstDownTapMovesTheLineWhenTheStoredPlaceIsAboveTheClamp() throws {
-        let app = launchLandscape(seed: #"{"upSteps":17}"#)
-        _ = showSecondLineAndClosePanel(app)
-        openCard(app)
-        settle()
-        let up = app.buttons["subtitleStyle.up"]
-        let down = app.buttons["subtitleStyle.down"]
-        XCTAssertFalse(up.isEnabled, "Up opens dimmed")
-        XCTAssertTrue(down.isEnabled, "Down is enabled")
-        let pinned = app.textViews["player.subtitle"].frame
-        down.tap()
-        settle()
-        let after = app.textViews["player.subtitle"].frame
-        XCTAssertGreaterThan(after.minY - pinned.minY, 1, "The first Down tap moves the line down")
-        attachText("pinned \(pinned), after first Down \(after)", name: "down-from-above-clamp")
-    }
-
     // MARK: Checks
 
-    /// From hidden controls: shows them, opens the card, taps Up `upTaps` times, taps Done, hides the controls with a
-    /// video tap, and returns the line's resting frame.
+    /// From hidden controls: shows them, opens the Move-Text card, taps its Up `upTaps` times, taps Done, hides the
+    /// controls with a video tap, and returns the line's resting frame. With no taps it opens and closes the Font card.
     @MainActor
     private func openTapUpCloseAndHide(_ app: XCUIApplication, upTaps: Int) -> CGRect {
         let back = app.buttons["player.back"]
         tapVideo(app)
         XCTAssertTrue(back.waitForExistence(timeout: 5), "A tap shows the controls")
-        openCard(app)
-        let up = app.buttons["subtitleStyle.up"]
-        for _ in 0..<upTaps { up.tap() }
-        app.buttons["subtitleStyle.done"].tap()
-        XCTAssertTrue(cardElement(app).waitForNonExistence(timeout: 5), "Done closes the card")
+        if upTaps > 0 {
+            app.buttons["player.moveText"].tap()
+            let card = app.descendants(matching: .any)["moveText.card"]
+            XCTAssertTrue(card.waitForExistence(timeout: 5), "The Move-Text card opens")
+            let up = app.buttons["moveText.up"]
+            for _ in 0..<upTaps { up.tap() }
+            app.buttons["moveText.done"].tap()
+            XCTAssertTrue(card.waitForNonExistence(timeout: 5), "Done closes the Move-Text card")
+        } else {
+            openCard(app)
+            app.buttons["subtitleStyle.done"].tap()
+            XCTAssertTrue(cardElement(app).waitForNonExistence(timeout: 5), "Done closes the card")
+        }
         tapVideo(app)
         XCTAssertTrue(back.waitForNonExistence(timeout: 5), "A tap hides the controls again")
         settle()

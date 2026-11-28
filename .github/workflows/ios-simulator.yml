@@ -49,7 +49,7 @@ jobs:
         env:
           ONLY_TESTING: ${{ inputs.only_testing }}
         run: |
-          SHARD1_UI="SubtitleStyleCardTesterUITests SubtitleFontTesterUITests SubtitleUpLimitTesterUITests SubtitleFontUITests MiningFlowUITests PlaybackOverlayUITests SubtitleAvoidOverlayUITests"
+          SHARD1_UI="SubtitleStyleCardTesterUITests SubtitleFontTesterUITests SubtitleFontUITests MiningFlowUITests PlaybackOverlayUITests SubtitleAvoidOverlayUITests"
           SHARD2_UI="AboutUITests SubtitleStyleUITests PlayerLandscapeBehaviourUITests"
           SHARD3_UI="MoveTextUITests MoveTextTesterUITests SubtitleStyleSheetTesterUITests SubtitleStyleCardUITests"
           only1="ClipDeckTests"; only2=""; only3=""; skip4="ClipDeckTests"
