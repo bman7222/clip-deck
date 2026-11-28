@@ -1018,6 +1018,11 @@
 - Done: 748f6d1. Evidence CI 46115783465 (all green) and 46118672166 (the tester's schema test green; shard 3 red on the Move-Text hidden layer). Landed on Brent's call
 - Left: T-027 and T-028 are unblocked; the tester's Could-fix items are in T-028's notes. New task T-035 (the invisible layer), before T-025 lands
 
+## 2026-11-28 · loop-frontend · T-028 · round 1 (sonnet)
+- Done: Dictionaries sheet + `DictionaryManagerModel` (import, JMdict download, order, switch, delete, sources), Library button, About link, `-uiTestingDictionary`
+- Left: CI run (not compiled); classes: ClipDeckTests (DictionaryManagerModelTests), DictionaryManagerUITests, AboutUITests
+- Files: ios/ClipDeck/Features/Dictionaries/*, App/{ClipDeckApp,RootView}.swift, LibraryView, AboutView, DictionaryStore (`enabled` now var), 2 test files, make-test-media.sh, CLAUDE.md, docs
+- Gotchas: reorder needs the Reorder button; make-test-media.sh now copies the dictionary zips into build/fixtures/dictionaries
 ## 2026-11-28 · loop-frontend · T-035 · round 1 (diagnosis)
 - Done: cause found. The iOS "Ready for Apple Intelligence" SpringBoard banner covered the card about 7 min after simulator boot (46118672166 and 46102226923). The app reported VisiblePoint -1 for Done/Reset. The two empty Others are normal and present in every passing landscape snapshot.
 - Left: test-side fix in UITestSupport (swipe the SpringBoard banner away when a target exists but isn't hittable, log `system-banner-guard`). No product change.

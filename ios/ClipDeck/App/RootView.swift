@@ -3,16 +3,18 @@ import SwiftUI
 
 struct RootView: View {
     @Environment(\.modelContext) private var context
-    @State private var isSeeding = LaunchFlags.shouldSeedSample || LaunchFlags.shouldSeedMKV
+    @Environment(DictionaryManagerModel.self) private var dictionaries
+    @State private var isSeeding = LaunchFlags.shouldSeedSample || LaunchFlags.shouldSeedMKV || LaunchFlags.shouldSeedDictionary
 
     var body: some View {
         if isSeeding {
             ProgressView("Preparing sample episode…")
                 .task {
                     #if DEBUG
+                    if LaunchFlags.shouldSeedDictionary { await UITestSeeder.seedDictionaries(into: dictionaries) }
                     if LaunchFlags.shouldSeedMKV {
                         await UITestSeeder.seedMKV(context: context)
-                    } else {
+                    } else if LaunchFlags.shouldSeedSample {
                         await UITestSeeder.seed(context: context)
                     }
                     #endif
@@ -50,6 +52,23 @@ enum UITestSeeder {
         context.insert(show)
         context.insert(Episode(title: "Episode 1", number: 1, videoPath: videoPath, subtitlePath: subtitlePath, show: show))
         try? context.save()
+    }
+
+    /// `-uiTestingDictionary`: the words v3 fixture, the second words fixture, then the frequency fixture, in that order.
+    /// A failure prints why and stops, so the UI test fails at its first check.
+    static func seedDictionaries(into model: DictionaryManagerModel) async {
+        guard let folder = ProcessInfo.processInfo.environment["CLIPDECK_FIXTURES"], !folder.isEmpty else {
+            print("UITestSeeder: -uiTestingDictionary needs CLIPDECK_FIXTURES (the folder from scripts/make-test-media.sh)")
+            return
+        }
+        let directory = URL(fileURLWithPath: folder, isDirectory: true).appending(path: "dictionaries", directoryHint: .isDirectory)
+        for name in ["words-v3", "words-second", "frequency"] {
+            await model.importFile(directory.appending(path: "\(name).zip"))
+            if let message = model.errorMessage {
+                print("UITestSeeder: importing \(name).zip failed: \(message)")
+                return
+            }
+        }
     }
 
     static let mkvFixtureName = "04-nosubs-aac51.mkv"

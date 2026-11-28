@@ -11,7 +11,7 @@ nonisolated struct DictionaryInfo: Equatable, Identifiable, Sendable {
     let format: Int
     let kind: DictionaryKind
     let priority: Int
-    let enabled: Bool
+    var enabled: Bool
     let attribution: String
     let frequencyMode: String?
     let termCount: Int

@@ -27,6 +27,11 @@ struct AboutView: View {
                 Text("Versions")
             }
 
+            Section {
+                NavigationLink("Dictionary sources") { DictionarySourcesView() }
+                    .accessibilityIdentifier("about.dictionarySources")
+            }
+
             Section("Clip Deck licence") {
                 licenceBlock(appLicense, identifier: "about.appLicense")
             }

@@ -3,9 +3,9 @@ id: T-028
 title: Dictionary manager
 lane: frontend
 depends_on: [T-026]
-status: todo
-round: 0
-base_sha:
+status: testing
+round: 2
+base_sha: 91dc5448c2d5e93823d98327946f04aa557ae3b2
 issue: 33
 spec: .loop/specs/player-lookup-timeline.md
 model:
@@ -45,3 +45,30 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 
 ### Out of scope
 - Lookups and the popup, automatic dictionary updates, other download sources, non-Japanese dictionaries.
+
+## Implementation notes (round 1)
+_by loop-frontend · 2026-11-28_
+- Changed: Dictionaries sheet and `DictionaryManagerModel` (`Features/Dictionaries/`), Library toolbar button (leftmost, `library.dictionaries`), About link (`about.dictionarySources`) to `DictionarySourcesView`, `-uiTestingDictionary` seed (words-v3, words-second, frequency from `$CLIPDECK_FIXTURES/dictionaries`), and a fresh empty temporary dictionary database on every `-uiTesting` launch. `make-test-media.sh` copies `scripts/fixtures/dictionaries/*.zip` into `$OUT/dictionaries`.
+- Files: ios/ClipDeck/Features/Dictionaries/{DictionaryManagerModel,DictionariesView}.swift, App/{ClipDeckApp,RootView}.swift, Features/Library/LibraryView.swift, Features/Settings/AboutView.swift, Services/Dictionary/DictionaryStore.swift (`DictionaryInfo.enabled` is now `var`, so the list can flip it at once), ios/ClipDeckTests/DictionaryManagerModelTests.swift, ios/ClipDeckUITests/DictionaryManagerUITests.swift, scripts/make-test-media.sh, ios/project.yml (comment), CLAUDE.md, docs/{ARCHITECTURE,DESIGN,DEVELOPMENT,PRODUCT_SPEC}.md
+- Checked: nothing compiled (no Swift here); every API read by hand, odd-quote scan of the changed Swift files is clean.
+- Decisions: reordering needs the Reorder button (edit mode shows the drag handles; swipe-to-delete and the switches stay normal outside it). A cancelled run is silent. "Already installed" shows the importer's message after the download. No background task or idle-timer hold during a long import (the sheet says to keep the app open).
+- T-026 Could-fix items: not taken (the `dict` index would change the schema version and `schemaVersionIndexesAndDefaultLocation`; bank order and the size cap are importer-only). Delete runs on the store actor and the row leaves the list at once, so the UI does not wait for the scan.
+- Tester, look at: the Reorder drag in `testAReorderSurvivesReopeningTheSheet` (handle position is a guess: window width - 22 pt); swipe Delete and the "Delete dictionary" dialog on iOS 26; `testSourcesAreInTheSheetAndLinkedFromAbout` scrolling; the stub-session progress test (`progressShowsWhileDownloadingAndACancelDeletesTheTempFile` needs AsyncBytes to hand over 128 KB before the end of the response).
+
+### Orchestrator gate (round 1)
+- Ponytail review (about 425 product lines): no Must or Should fix. Writes are serialised through one task chain; import and download cancel through the run task (the store's import checks cancellation on the same task); the temp download is always removed; `-uiTestingDictionary` goes through `SourceAccess`, the same path the MKV seeder uses for plain fixture files. ErrorBanner, Theme.danger and the deck fonts exist. Comments 4 %: no comment pass.
+- Could-fix: the download iterates `URLSession.AsyncBytes` one byte at a time into a 64 KB buffer; fine for 16 MB but slow-ish. A download task with a progress delegate would avoid it.
+- CI: run 46124158721 (296a26d, own branch, scope=all). Pending, not watched.
+
+## Fix round 2 (orchestrator)
+CI 46124158721 (296a26d, scope=all): shards 1 and 2 and the ipa green (DictionaryManagerModelTests pass); shards 3 and 4 red.
+- `testSwitchingOffAndDeletingWithConfirmation`: "Failed to tap "Delete dictionary" Button … Multiple matching elements found". On iOS 26 the confirmation dialog shows as a popover holding a sheet, with the button in both. Fixed: tap the hittable match.
+- `testAReorderSurvivesReopeningTheSheet`: "Row 3 moved above row 1" failed. The drag started at `screen.width - 22`, the builder's guess; the inset-grouped list's reorder control sits inside the row's inset. Fixed: drag the list's own reorder button nearest row 3's midY (label begins with "Reorder"), falling back to the row's trailing edge. On failure it attaches `dictionaries-reorder-tree` with the controls and the hierarchy.
+- Not T-028: shard 3 `SubtitleStyleCardUITests/testDoneAVideoTapAndARotationEachCloseTheCard`, "The style card opens" on the third open (the Aa tap landed and no card came; the video is paused, so it's not the auto-hide). It passed in every other run today; watch it.
+- CI: run 46130387082 (b89c4df, only_testing DictionaryManagerUITests): "Failed to get screenshot: Timed out" 2.7 min in, before the delete dialog. That was the early-boot simulator flake fixed by T-036, so the delete-dialog fix is still unproven.
+- Merged the loop branch (T-025, T-033, T-035, T-036; b77f030) into this branch so the rerun gets the 660 s settle. Conflicts kept both sides (CLAUDE.md flags, DEVELOPMENT.md rows, HANDOFF).
+
+## Fix round 3 · orchestrator
+- CI 46150787593 (b9fe85c, only_testing DictionaryManagerUITests, with T-036's settle): the delete-dialog fix passes (`testSwitchingOffAndDeletingWithConfirmation` green). `testAReorderSurvivesReopeningTheSheet` failed, "Row 3 moved above row 1". The round 2 control lookup worked (it pressed row 3's "Reorder Test Frequency" button at 358, 344 and dragged to 183), so the order was the drag itself: `press(forDuration: 0.8, thenDragTo:)` drags fast and lets go on arrival, and the list (a collection view on iOS 26) hadn't moved its drop place yet.
+- Fix (test only): `press(forDuration: 0.5, thenDragTo:, withVelocity: .slow, thenHoldForDuration: 1)`.
+- CI: run 46153784207 (only_testing DictionaryManagerUITests). Pending, not watched.

@@ -17,6 +17,7 @@ struct LibraryView: View {
     @State private var showUpload = false
     @State private var showSync = false
     @State private var showSettings = false
+    @State private var showDictionaries = false
 
     @Environment(\.scenePhase) private var scenePhase
     /// Read once per launch; the profile can't change while the app runs.
@@ -57,6 +58,9 @@ struct LibraryView: View {
                         .accessibilityIdentifier("library.settings")
                 }
                 ToolbarItemGroup(placement: .topBarTrailing) {
+                    Button { showDictionaries = true } label: { Image(systemName: "character.book.closed.ja") }
+                        .accessibilityLabel("Dictionaries")
+                        .accessibilityIdentifier("library.dictionaries")
                     Button { showSync = true } label: { syncLabel }
                         .accessibilityLabel("Sync to Anki")
                         .accessibilityValue("\(unsyncedCards.count) waiting")
@@ -71,6 +75,7 @@ struct LibraryView: View {
             .sheet(isPresented: $showUpload) { UploadEpisodeView() }
             .sheet(isPresented: $showSync) { SyncView() }
             .sheet(isPresented: $showSettings) { AnkiSettingsView() }
+            .sheet(isPresented: $showDictionaries) { DictionariesView() }
             .onAppear(perform: refreshExpiryBanner)
             .onChange(of: scenePhase) { _, phase in
                 if phase == .active { refreshExpiryBanner() }
