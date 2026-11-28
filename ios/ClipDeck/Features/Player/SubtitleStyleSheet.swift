@@ -133,7 +133,7 @@ final class SheetTopProbe {
 }
 
 /// An empty, untouchable UIKit view laid behind the whole sheet (safe areas included) for `SheetTopProbe`.
-private struct SheetTopProbeView: UIViewRepresentable {
+struct SheetTopProbeView: UIViewRepresentable {
     let probe: SheetTopProbe
 
     func makeUIView(context: Context) -> UIView {
@@ -204,6 +204,103 @@ private nonisolated struct SheetFitKey: Equatable {
     var textSize: DynamicTypeSize
 }
 
+private struct FirstDetentFit: ViewModifier {
+    let clearance: SheetClearance?
+    let waitWhile: Binding<Bool>
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+    /// The selected detent. It always names a detent in `detents`: it changes together with `firstHeight`.
+    @State private var detent: PresentationDetent
+    @State private var firstHeight: CGFloat?
+    @State private var probe = SheetTopProbe()
+
+    init(clearance: SheetClearance?, waitWhile: Binding<Bool>) {
+        self.clearance = clearance
+        self.waitWhile = waitWhile
+        let height = clearance.map { SheetFit.detentHeight(for: $0, rise: SubtitleStyleSheet.cachedRise) }
+        _firstHeight = State(initialValue: height)
+        _detent = State(initialValue: height.map { PresentationDetent.height($0) } ?? PresentationDetent.large)
+    }
+
+    func body(content: Content) -> some View {
+        content
+            .background {
+                SheetTopProbeView(probe: probe)
+                    .ignoresSafeArea()
+                    .accessibilityHidden(true)
+            }
+            .task(id: SheetFitKey(clearance: clearance, textSize: dynamicTypeSize)) {
+                await fitFirstDetent()
+            }
+            .presentationDetents(detents, selection: $detent)
+            .presentationBackgroundInteraction(backgroundInteraction)
+    }
+
+    private var detents: Set<PresentationDetent> {
+        guard clearance != nil, let firstHeight else { return [.large] }
+        return [.height(firstHeight), .large]
+    }
+
+    /// Same detent as the first one, so the video is neither dimmed nor covered while the line is judged.
+    private var backgroundInteraction: PresentationBackgroundInteraction {
+        guard clearance != nil, let firstHeight else { return .automatic }
+        return .enabled(upThrough: .height(firstHeight))
+    }
+
+    /// Corrects the detent at most once; nothing measures again until `SheetFitKey` changes, so it can't loop.
+    private func fitFirstDetent() async {
+        guard let clearance else {
+            if firstHeight != nil {
+                firstHeight = nil
+                detent = .large
+            }
+            return
+        }
+        let expected = SheetFit.detentHeight(for: clearance, rise: SubtitleStyleSheet.cachedRise)
+        let needsRefit = firstHeight.map { abs($0 - expected) >= SheetFit.minimumChange } ?? true
+        if needsRefit { useFirstDetent(expected) }
+
+        // The sheet's presentation animation takes about a third of a second.
+        try? await Task.sleep(for: .milliseconds(450))
+        var previousTop: CGFloat?
+        var attempts = 0
+        while attempts < 12 {
+            if Task.isCancelled { return }
+            if waitWhile.wrappedValue {
+                // The picker covers this sheet and the system moves it: wait without using up an attempt.
+                previousTop = nil
+                try? await Task.sleep(for: .milliseconds(100))
+                continue
+            }
+            attempts += 1
+            if let height = firstHeight, detent == .height(height), let top = probe.top {
+                if let previousTop, abs(top - previousTop) < 0.5 {
+                    if let fit = SheetFit.correction(for: clearance, detentHeight: height, sheetTop: top) {
+                        SubtitleStyleSheet.cachedRise = fit.rise
+                        if fit.detentHeight != height { useFirstDetent(fit.detentHeight) }
+                    }
+                    return
+                }
+                previousTop = top
+            } else {
+                previousTop = nil
+            }
+            try? await Task.sleep(for: .milliseconds(100))
+        }
+    }
+
+    private func useFirstDetent(_ height: CGFloat) {
+        let atLarge = detent == .large
+        firstHeight = height
+        detent = atLarge ? .large : .height(height)
+    }
+}
+
+extension View {
+    func fittedFirstDetent(clearance: SheetClearance?, waitWhile: Binding<Bool> = .constant(false)) -> some View {
+        modifier(FirstDetentFit(clearance: clearance, waitWhile: waitWhile))
+    }
+}
+
 /// One 44 pt icon control of the style menu: its label and value are spoken, and its identifier is
 /// `subtitleStyle.<id>`. The portrait sheet and the landscape card both build their controls from it.
 struct StyleIconButton: View {
@@ -213,6 +310,7 @@ struct StyleIconButton: View {
     let value: String
     var active = false
     var enabled = true
+    var prefix = "subtitleStyle"
     let action: () -> Void
 
     var body: some View {
@@ -221,7 +319,7 @@ struct StyleIconButton: View {
             .disabled(!enabled)
             .accessibilityLabel(label)
             .accessibilityValue(value)
-            .accessibilityIdentifier("subtitleStyle.\(id)")
+            .accessibilityIdentifier("\(prefix).\(id)")
     }
 }
 
@@ -256,20 +354,12 @@ struct SubtitleStyleSheet: View {
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @ScaledMetric(relativeTo: .body) private var sampleSize: CGFloat = 20
-    /// The selected detent. It always names a detent in `detents`: it changes together with `firstHeight`.
-    @State private var detent: PresentationDetent
-    /// The first detent's height in use, or nil for `.large` only.
-    @State private var firstHeight: CGFloat?
-    @State private var probe = SheetTopProbe()
     /// The system font picker is presented over this sheet. While it is, the sheet underneath is moved and scaled by
     /// the system, so its top must not be measured (a wrong rise would be cached).
     @State private var showingFontPicker = false
 
     init(clearance: SheetClearance?) {
         self.clearance = clearance
-        let height = clearance.map { SheetFit.detentHeight(for: $0, rise: Self.cachedRise) }
-        _firstHeight = State(initialValue: height)
-        _detent = State(initialValue: height.map { PresentationDetent.height($0) } ?? PresentationDetent.large)
     }
 
     private var style: SubtitleStyle { SubtitleStyle.decoded(from: stored) }
@@ -296,14 +386,7 @@ struct SubtitleStyleSheet: View {
         // separate elements.
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("subtitleStyle.sheet")
-        .background {
-            SheetTopProbeView(probe: probe)
-                .ignoresSafeArea()
-                .accessibilityHidden(true)
-        }
-        .task(id: SheetFitKey(clearance: clearance, textSize: dynamicTypeSize)) {
-            await fitFirstDetent()
-        }
+        .fittedFirstDetent(clearance: clearance, waitWhile: $showingFontPicker)
         .sheet(isPresented: $showingFontPicker) {
             SystemFontPicker(
                 onPick: { name in
@@ -314,82 +397,8 @@ struct SubtitleStyleSheet: View {
             )
             .accessibilityIdentifier("subtitleStyle.fontPicker")
         }
-        // The system sheet animation is used, and it follows Reduce Motion. The video is not dimmed or covered
-        // at the first detent, so the line can be judged while it changes.
-        .presentationDetents(detents, selection: $detent)
-        .presentationBackgroundInteraction(backgroundInteraction)
         .presentationDragIndicator(.visible)
         .presentationBackground(Theme.panel)
-    }
-
-    private var detents: Set<PresentationDetent> {
-        guard clearance != nil, let firstHeight else { return [.large] }
-        return [.height(firstHeight), .large]
-    }
-
-    /// Same detent as the first one, so the video is neither dimmed nor covered while the line is judged.
-    private var backgroundInteraction: PresentationBackgroundInteraction {
-        guard clearance != nil, let firstHeight else { return .automatic }
-        return .enabled(upThrough: .height(firstHeight))
-    }
-
-    // MARK: Fitting the first detent
-
-    /// Keeps the first detent just under the video. It runs when the sheet appears and again only when the geometry
-    /// really changes (`SheetFitKey`). It first refits from the cached rise if needed, then waits for the sheet to
-    /// settle, measures where the system really drew it, and corrects the detent at most once. The correction moves
-    /// the sheet, but nothing measures again until the key changes, so it can't feed back into a loop.
-    private func fitFirstDetent() async {
-        guard let clearance else {
-            // No video to keep clear: `.large` only, and the selection must stay in the set.
-            if firstHeight != nil {
-                firstHeight = nil
-                detent = .large
-            }
-            return
-        }
-        // Usually already fitted: `init` used the same values. A changed geometry refits from the cached rise.
-        let expected = SheetFit.detentHeight(for: clearance, rise: Self.cachedRise)
-        let needsRefit = firstHeight.map { abs($0 - expected) >= SheetFit.minimumChange } ?? true
-        if needsRefit { useFirstDetent(expected) }
-
-        // The sheet's presentation animation takes about a third of a second.
-        try? await Task.sleep(for: .milliseconds(450))
-        var previousTop: CGFloat?
-        var attempts = 0
-        while attempts < 12 {
-            if Task.isCancelled { return }
-            if showingFontPicker {
-                // The picker covers this sheet and the system moves it: wait without using up an attempt.
-                previousTop = nil
-                try? await Task.sleep(for: .milliseconds(100))
-                continue
-            }
-            attempts += 1
-            if let height = firstHeight, detent == .height(height), let top = probe.top {
-                // Two equal readings 0.1 s apart: the sheet has settled (it isn't animating or being dragged).
-                if let previousTop, abs(top - previousTop) < 0.5 {
-                    if let fit = SheetFit.correction(for: clearance, detentHeight: height, sheetTop: top) {
-                        Self.cachedRise = fit.rise
-                        if fit.detentHeight != height { useFirstDetent(fit.detentHeight) }
-                    }
-                    return
-                }
-                previousTop = top
-            } else {
-                // At `.large`, or not in a window yet: nothing to measure now.
-                previousTop = nil
-            }
-            try? await Task.sleep(for: .milliseconds(100))
-        }
-    }
-
-    /// Changes the first detent's height and, unless the sheet is at `.large`, the selection with it, in the same
-    /// update, so the selection always names a detent in the set.
-    private func useFirstDetent(_ height: CGFloat) {
-        let atLarge = detent == .large
-        firstHeight = height
-        detent = atLarge ? .large : .height(height)
     }
 
     // MARK: Pieces
@@ -633,8 +642,6 @@ struct SubtitleStyleSheet: View {
 
     /// Applies a change to the saved style. The mutators clamp, so a change never leaves the allowed ranges.
     private func update(_ change: (inout SubtitleStyle) -> Void) {
-        var next = style
-        change(&next)
-        stored = next.clamped().json
+        stored = SubtitleStyle.edited(stored, change)
     }
 }

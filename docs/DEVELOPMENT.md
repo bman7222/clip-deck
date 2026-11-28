@@ -123,19 +123,20 @@ rebuild, or run `./scripts/make-test-media.sh [folder]` by hand. No media files 
 CI installs `ffmpeg` and generates them fresh on every run. The tests find the folder through `CLIPDECK_FIXTURES`
 (see Environment variables).
 
-**CI jobs and shards.** `ios-simulator.yml` runs the simulator tests as three parallel jobs (`fail-fast: false`), planned by
+**CI jobs and shards.** `ios-simulator.yml` runs the simulator tests as four parallel jobs (`fail-fast: false`), planned by
 a small `plan` job:
 
 - **simulator (shard 1):** `ClipDeckTests` plus an explicit list of UI classes (`SHARD1_UI` in the workflow), then
   `scripts/run-ios.sh` (the launch screenshot). Artifact `simulator-results-1`.
 - **simulator (shard 2):** an explicit list of UI classes (`SHARD2_UI`). Artifact `simulator-results-2`.
-- **simulator (shard 3):** everything else, as `-skip-testing` of `ClipDeckTests` and both lists, so a new UI class or a
-  new test target always runs here without any edit. Artifact `simulator-results-3`.
+- **simulator (shard 3):** another explicit list of UI classes (`SHARD3_UI`). Artifact `simulator-results-3`.
+- **simulator (shard 4):** everything else, as `-skip-testing` of `ClipDeckTests` and the three lists, so a new UI class or a
+  new test target always runs here without any edit. Artifact `simulator-results-4`.
 - **ipa:** builds the unsigned IPA (artifact `ClipDeck-ipa`).
 
 Each artifact holds the screenshots and the xcresult of its job. `workflow_dispatch` inputs: `scope` (`all`, `tests` =
 the simulator jobs only, `ipa`) and `only_testing` (a non-empty value runs just that filter in a single job, shard 1;
-the other shards are not created). To rebalance, move class names between `SHARD1_UI` and `SHARD2_UI`. `test-ios.sh` takes several `-only-testing`
+the other shards are not created). To rebalance, move class names between the three lists (the workflow's comment has the timings); aim for about 22 to 25 minutes per job. `test-ios.sh` takes several `-only-testing`
 values as arguments or as the space-separated `ONLY_TESTING` / `SKIP_TESTING` environment variables.
 
 **UI-test helpers (`ios/ClipDeckUITests/UITestSupport.swift`).** CI runners are slow and lose taps, so UI tests wait for
@@ -166,7 +167,7 @@ state, not for time:
   shows none of them.
 - `UITestAnimationWatch` (app, DEBUG, `-uiTesting` only) hunts the cause. Every 2 s it walks the windows' layer trees
   and prints, once each, any animation that stays on a layer for 3 s or more ("UITestAnimationWatch: …" in the app's
-  stdout in the xcresult). A spinner during a slow seed shows up as one line and proves it runs. No line near a stall
+  stdout in the xcresult). iOS 26 Liquid Glass "match" animations (infinite duration, no delegate) are skipped as permanent noise. A spinner during a slow seed shows up as one line and proves it runs. No line near a stall
   means the animation XCTest waits for is no longer on a layer in any window.
 
 **Unit tests (`ClipDeckTests`, Swift Testing):**

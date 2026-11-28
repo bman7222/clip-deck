@@ -182,7 +182,8 @@ enum UITestSupport {
     /// Reads `exists`, `value` and `label` from one snapshot, so the three agree and nothing hides in between.
     /// Nil when the element isn't there or the snapshot fails.
     static func readTogether(_ element: XCUIElement) -> (value: String?, label: String)? {
-        guard let snapshot = try? element.snapshot() else { return nil }
+        // Check `exists` first: a snapshot of a missing element can sit silent for 20 s on a slow runner (T-022 C3).
+        guard element.exists, let snapshot = try? element.snapshot() else { return nil }
         return (snapshot.value as? String, snapshot.label)
     }
 

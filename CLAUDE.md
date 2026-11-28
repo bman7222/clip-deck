@@ -26,7 +26,7 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - Use the `ios-simulator-skill` skill to build, launch, drive and screenshot the app; check light and
   dark mode and a large Dynamic Type size for UI changes.
 - Run the full test suite before committing; report only results you actually ran.
-- CI runs the simulator tests as three parallel jobs: shard 1 = `ClipDeckTests` + a listed set of UI classes (`SHARD1_UI` in the workflow), shard 2 = another listed set (`SHARD2_UI`), shard 3 = everything else (`-skip-testing` of the rest, so new classes and targets land there). Artifacts: `simulator-results-1`, `-2`, `-3`, `ClipDeck-ipa`. `only_testing` runs one filter in a single job. Details: docs/DEVELOPMENT.md (Tests).
+- CI runs the simulator tests as four parallel jobs: shard 1 = `ClipDeckTests` + a listed set of UI classes (`SHARD1_UI` in the workflow), shards 2 and 3 = other listed sets (`SHARD2_UI`, `SHARD3_UI`), shard 4 = everything else (`-skip-testing` of the rest, so new classes and targets land there). Artifacts: `simulator-results-1` to `-4`, `ClipDeck-ipa`. `only_testing` runs one filter in a single job. Details: docs/DEVELOPMENT.md (Tests).
 - After structural changes run `python3 ~/.claude/skills/iphone-app-setup-skill/scripts/verify_project.py .`
 - To resume setup or re-verify on a new machine: `/iphone-app-setup-skill verify`.
 
@@ -45,7 +45,7 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
   setup with `UITestSupport.rotateToLandscape`, which relaunches the app once if that stall hits (docs/DEVELOPMENT.md, Tests).
 - Subtitle style (`player.subtitleStyle` in the standard defaults): every `-uiTesting` launch clears it, unless
   `-uiTestingKeepSubtitleStyle` is passed. `-uiTestingSubtitleStyle <json>` then seeds one, for example
-  `{"font":"serif","bold":false,"sizeStep":5,"up":0.2,"right":-0.2}`; the old form `"upSteps":4,"rightSteps":-4` (steps x 0.05) is read too, and the new keys win when both are given (missing or invalid fields take the default).
+  `{"font":"serif","bold":false,"sizeStep":5,"up":0.2,"right":-0.2}`; the old form `"upSteps":4,"rightSteps":-4` (steps x 0.05) is read too, and the new keys win when both are given (a missing or invalid field takes the default; an invalid new `up`/`right` key falls back to a valid old `upSteps`/`rightSteps`, then the default).
 - `-uiTestingExpiry <ISO-8601 date>` (Debug, with `-uiTesting`) overrides the install-expiry date from the signing profile,
   so the library's expiry banner and the Anki settings expiry line can be tested. `-uiTestingKeepExpiryDismissal` keeps the
   banner's dismissal day across a relaunch (the "uiTesting" defaults are otherwise cleared on every launch).

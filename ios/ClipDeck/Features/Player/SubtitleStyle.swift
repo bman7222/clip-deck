@@ -216,6 +216,12 @@ nonisolated struct SubtitleStyle: Codable, Equatable, Sendable {
         return style
     }
 
+    static func edited(_ stored: String, _ change: (inout SubtitleStyle) -> Void) -> String {
+        var next = decoded(from: stored)
+        change(&next)
+        return next.clamped().json
+    }
+
     /// A style for a UI-test seed. Like `decoded(from:)`, but a picked font name that isn't installed is kept in the
     /// saved text, so a test can prove the read drops it later.
     static func seeded(from json: String?) -> SubtitleStyle {

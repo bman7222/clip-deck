@@ -67,6 +67,10 @@ enum UITestAnimationWatch {
         }
         for key in layer.animationKeys() ?? [] {
             guard let animation = layer.animation(forKey: key) else { continue }
+            // iOS 26 Liquid Glass keeps infinite "match" animations (no delegate) on glass bar items. They are
+            // permanent noise and never what XCTest waits for, so they are skipped.
+            if animation.duration.isInfinite, animation.delegate == nil,
+               String(describing: type(of: animation)).contains("Match") { continue }
             let id = "\(ObjectIdentifier(layer))|\(key)|\(animation.beginTime)"
             let keyPath = (animation as? CAPropertyAnimation)?.keyPath ?? "-"
             let delegate = animation.delegate.map { String(describing: type(of: $0)) } ?? "none"

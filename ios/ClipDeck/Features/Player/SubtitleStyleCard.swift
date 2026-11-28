@@ -167,8 +167,6 @@ struct SubtitleStyleCard: View {
 
     /// Applies a change to the saved style. The mutators clamp, so a change never leaves the allowed ranges.
     private func update(_ change: (inout SubtitleStyle) -> Void) {
-        var next = style
-        change(&next)
-        stored = next.clamped().json
+        stored = SubtitleStyle.edited(stored, change)
     }
 }
