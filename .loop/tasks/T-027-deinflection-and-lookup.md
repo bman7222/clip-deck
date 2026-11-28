@@ -117,3 +117,7 @@ NEEDED: verify-only pass of ClipDeckTests/LookupEngineTests (halfWidthKatakanaIs
 UNVERIFIED: none for Brent (no UI)
 REVIEWED_AT: 0c6f93d04cbde3bccc1ead3fadb70745832f3535
 ```
+- CI: run 46137931107 (b9ca2af, only_testing ClipDeckTests/LookupEngineTests) for the tester's two AC-2 tests. Pending, not watched.
+
+### Round 2 addendum · orchestrator
+- Verify-only run 46137931107 (b9ca2af, only_testing ClipDeckTests/LookupEngineTests): green, including the tester's `halfWidthKatakanaIsWidenedBeforeTheLookup` and `aDeconjugatedFormNeedsAnEntryWhoseRulesMatch`. That was the only missing evidence and the tester found nothing to fix, so the verdict is Pass. Landing: by tree onto the loop branch after T-036, then one full run.
