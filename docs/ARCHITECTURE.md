@@ -180,6 +180,19 @@ Every video the user adds or re-links goes through `EpisodeImporter`, in two ste
 - Possible follow-up: `BGContinuedProcessingTask` (iOS 26+) could let a conversion continue for minutes in the background. It is not used: untested on a free sideload, and the app targets iOS 17.
 - The `-uiTesting -uiTestingMKV` launch arguments (Debug) seed "MKV Show / Episode 1" by importing fixture 4 from `CLIPDECK_FIXTURES` through this same importer.
 
+## Dictionary store (`Services/Dictionary/`)
+
+Offline dictionaries for Lookup Mode (spec `.loop/specs/player-lookup-timeline.md`, Feature 3). T-026 is the store and the importer; no screen uses them yet.
+
+- `SQLiteDatabase` / `SQLiteStatement`: a thin wrapper over the system `SQLite3` C API (no ORM, no SwiftData). Prepared statements are reused, `transaction {}` commits or rolls back. Neither type is thread-safe.
+- `DictionaryStore` (an `actor`) owns the one connection, in `Library/Application Support/Dictionaries/dictionaries.sqlite` (or a URL given to `init(url:)`). WAL, `synchronous=NORMAL`, `PRAGMA user_version` = schema version (1; a newer file is refused).
+- Schema: `dictionaries` (id, title, revision, format, kind `words|frequency`, priority, enabled, attribution, frequency_mode, term/meta/tag counts, bytes; unique on title + revision), `terms` (dict, expression, reading, def_tags, rules, score, sequence, term_tags, glossary = zlib-compressed JSON; indexed on expression and on reading), `term_meta` (dict, term, mode, data = the raw JSON; `freq` rows only; indexed on term), `tags`. Rows are removed by hand when a dictionary is deleted (no foreign keys).
+- API: `importDictionary(from:progress:)`, `dictionaries()` (by priority), `setPriorityOrder(_:)` (the ids named come first, the rest follow in their old order), `setEnabled(_:_:)`, `delete(_:)`, `terms(matching:)` (rows of the enabled dictionaries whose expression or reading is one of the strings, by dictionary priority then score; `glossaryJSON` is decompressed, T-029 renders it).
+- `YomitanImporter` reads formats 1 to 3 (`index.json` with `format` or the old `version`; v1 term rows keep the glossary as the elements after the score). It keeps term banks, `freq` rows of term-meta banks and tag banks, and ignores kanji banks and pitch/IPA rows. The store runs it inside one transaction, one bank file at a time, with ZIPFoundation. Progress is the share of bank bytes done (0 at the start, 1 at the end); cancellation (`CancellationError`) is checked between banks and every 1,000 rows. A failure or cancel rolls everything back, including the `dictionaries` row. A new dictionary goes last in priority. Refused, with nothing written: a duplicate title + revision, no `index.json`, a format outside 1 to 3, a corrupt zip or bank file, a zip with no words and no frequency rows (`DictionaryImportError`).
+- Frequency data (`term_meta.data`) can be a number, a string, or an object (`{value, displayValue}` or `{reading, frequency}`); T-027 interprets it.
+- Tests: `DictionaryStoreTests` reads the zips in `scripts/fixtures/dictionaries/` (checked in, built by `python -I scripts/make-dictionary-fixtures.py`; the data is written for Clip Deck, none comes from Yomitan, which is GPL-3.0).
+- Licence: ZIPFoundation (MIT) is pinned in `project.yml`; its notice is in `THIRD_PARTY_NOTICES.md` and `Resources/Licenses/ZIPFoundation-LICENSE.txt` (shown in Settings > About and checked by `scripts/check-ipa-notices.sh`).
+
 ## Decisions
 
 | Area | Decision | Why | Alternatives considered |

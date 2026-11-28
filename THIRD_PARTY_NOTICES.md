@@ -39,6 +39,12 @@ The full texts, with every copyright line (including libzvbi's DVB headers and c
 
 FFmpegBuild also contains zimg (WTFPL) and libswscale/libavfilter, which Clip Deck does not link.
 
+## ZIPFoundation (MIT)
+
+Clip Deck uses ZIPFoundation 0.9.19 (https://github.com/weichsel/ZIPFoundation/tree/0.9.19) to open Yomitan dictionary
+.zip files. Copyright (c) 2017-2024 Thomas Zoechling. The MIT licence text is in
+[`ios/ClipDeck/Resources/Licenses/ZIPFoundation-LICENSE.txt`](ios/ClipDeck/Resources/Licenses/ZIPFoundation-LICENSE.txt).
+
 ## Clip Deck itself
 
 See [`LICENSE`](LICENSE): all rights reserved, plus the one LGPL-2.1 section 6 exception.

@@ -23,6 +23,10 @@ packages:
   FFmpegBuild:
     url: https://github.com/superuser404notfound/FFmpegBuild
     exactVersion: 3.16.0
+  # MIT. Unzips Yomitan dictionaries (docs/ARCHITECTURE.md > Dictionary store). Notice: THIRD_PARTY_NOTICES.md.
+  ZIPFoundation:
+    url: https://github.com/weichsel/ZIPFoundation
+    exactVersion: 0.9.19
 
 targets:
   ClipDeck:
@@ -64,6 +68,7 @@ targets:
         product: AetherLibdav1d
       - package: FFmpegBuild
         product: AetherLibzvbi
+      - package: ZIPFoundation
     info:
       path: ClipDeck/Info.plist
       properties:

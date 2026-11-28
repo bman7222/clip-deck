@@ -9,6 +9,7 @@ struct AboutView: View {
     private let appLicense = LicenceText.load("ClipDeck-LICENSE")
     private let ffmpegNotice = LicenceText.load("FFmpeg-NOTICE")
     private let lgpl = LicenceText.load("FFmpeg-LGPL-2.1")
+    private let zipFoundation = LicenceText.load("ZIPFoundation-LICENSE")
     private let otherComponents = LicenceText.load("Other-Components")
 
     private var appVersion: String {
@@ -43,6 +44,10 @@ struct AboutView: View {
 
             Section("GNU Lesser General Public License 2.1") {
                 licenceBlock(lgpl, identifier: "about.lgpl")
+            }
+
+            Section("ZIPFoundation licence") {
+                licenceBlock(zipFoundation, identifier: "about.zipFoundation")
             }
 
             Section("Other components") {
