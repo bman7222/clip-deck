@@ -3,7 +3,7 @@ id: T-029a
 title: "Dictionary popup: formatted entries"
 lane: frontend
 depends_on: [T-027, T-028]
-status: building
+status: testing
 round: 1
 base_sha: 51e88b2
 issue: 34
@@ -82,3 +82,7 @@ _by loop-frontend · 2026-11-28 09:35_
   - Web text: the tests read `app.webViews.staticTexts` with a label CONTAINS match (the badge may arrive as one text or two).
   - Light and dark: the page colours come from `Color.resolve(in:)` at build time; CI can't switch to dark (CONTEXT), so dark is unchecked.
 - Gotchas: the popup reloads its page when the layout flips between portrait and landscape (a new web view). A link in a dictionary is plain text, so nothing in the web view is tappable.
+
+### Orchestrator gate (round 1)
+- 388 added product lines across 8 Swift files, comments 8%: no comment pass; ponytail review after a Pass (over 150 lines). Fixture script compiles; the builder rebuilt the 11 existing zips byte-identical.
+- CI: run 46155569943 (3379643, only_testing ClipDeckTests + LookupPopupUITests + DictionaryManagerUITests). Pending, not watched.
