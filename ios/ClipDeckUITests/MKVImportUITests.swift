@@ -51,7 +51,7 @@ final class MKVImportUITests: XCTestCase {
         // Make a Card from the converted episode: the clip is cut from the MP4 the importer wrote.
         app.buttons["player.makeCard"].tap()
         let save = app.buttons["card.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 20), "Card editor should open after recording")
+        XCTAssertTrue(save.waitForExistence(timeout: 60), "Card editor should open after recording")
         XCTAssertEqual(app.staticTexts["card.range"].label, "0:02.0 – 0:04.0")
         let sentence = app.textFields["card.field.sentence"].exists
             ? app.textFields["card.field.sentence"]

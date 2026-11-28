@@ -6,6 +6,7 @@
 #   FFmpeg-NOTICE.txt      contains the FFmpegBuild tag URL
 #   ClipDeck-LICENSE.txt   contains "All rights reserved"
 #   ZIPFoundation-LICENSE.txt contains "MIT License"
+#   Deconjugation-LICENSE.txt contains "Apache License"
 # Also fails if the bundled copy of LICENSE differs from the repository's LICENSE, and if an FFmpeg
 # framework is missing from the app bundle.
 set -euo pipefail
@@ -37,6 +38,7 @@ check FFmpeg-LGPL-2.1.txt "GNU LESSER GENERAL PUBLIC LICENSE" "bundled LGPL-2.1 
 check FFmpeg-NOTICE.txt "$TAG_URL" "FFmpeg notice with the FFmpegBuild tag URL"
 check ClipDeck-LICENSE.txt "All rights reserved" "Clip Deck licence"
 check ZIPFoundation-LICENSE.txt "MIT License" "ZIPFoundation licence"
+check Deconjugation-LICENSE.txt "Apache License" "JL and Nazeka deconjugation rules licence"
 
 if [[ -f "$WORK/$APP/Licenses/ClipDeck-LICENSE.txt" ]] && ! cmp -s "$ROOT/LICENSE" "$WORK/$APP/Licenses/ClipDeck-LICENSE.txt"; then
   echo "FAIL: bundled ClipDeck-LICENSE.txt differs from the root LICENSE (copy LICENSE to ios/ClipDeck/Resources/Licenses/ClipDeck-LICENSE.txt)" >&2

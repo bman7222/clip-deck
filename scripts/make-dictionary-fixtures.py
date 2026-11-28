@@ -64,6 +64,19 @@ build("legacy-v1", {
     "index.json": index("Legacy Words", "1", fmt=1),
     "term_bank_1.json": [["犬", "いぬ", "n", "", 0, "dog", "hound"], ["猫", "ねこ", "n", "", 0, "cat"]],
 })
+build("lookup-words", {
+    "index.json": index("Lookup Words", "1"),
+    "term_bank_1.json": [["元", "もと", "n", "", 1, ["origin"], 1, ""], ["足", "あし", "n", "", 5, ["foot"], 2, ""],
+                         ["脚", "あし", "n", "", 5, ["leg"], 3, ""]],
+})
+build("frequency-rank", {
+    "index.json": index("Rank Frequency", "1", frequencyMode="rank-based"),
+    "term_meta_bank_1.json": [["足", "freq", 10], ["脚", "freq", {"value": 20, "displayValue": "20 (rare)"}]],
+})
+build("frequency-occurrence", {
+    "index.json": index("Occurrence Frequency", "1", frequencyMode="occurrence-based"),
+    "term_meta_bank_1.json": [["足", "freq", 5], ["脚", "freq", 50]],
+})
 build("no-index", {"term_bank_1.json": words_bank_1})
 build("format-9", {"index.json": index("Future Words", "1", fmt=9), "term_bank_1.json": words_bank_1})
 build("bad-bank", {"index.json": index("Bad Bank", "1"), "term_bank_1.json": words_bank_1},

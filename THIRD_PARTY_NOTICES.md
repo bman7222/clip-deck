@@ -45,6 +45,17 @@ Clip Deck uses ZIPFoundation 0.9.19 (https://github.com/weichsel/ZIPFoundation/t
 .zip files. Copyright (c) 2017-2024 Thomas Zoechling. The MIT licence text is in
 [`ios/ClipDeck/Resources/Licenses/ZIPFoundation-LICENSE.txt`](ios/ClipDeck/Resources/Licenses/ZIPFoundation-LICENSE.txt).
 
+## Deconjugation rules: JL and Nazeka (Apache-2.0)
+
+Clip Deck's word lookup uses JL's deconjugation rule table, `deconjugation_rules.json`, unchanged, at commit
+b6ce75c441d40fe66ee9e4208c036fbcc572bb21: https://github.com/rampaa/JL/blob/b6ce75c441d40fe66ee9e4208c036fbcc572bb21/JL.Core/Resources/deconjugation_rules.json.
+JL is licensed under the Apache License 2.0 (its `LICENSE` is the unmodified licence text and names no copyright holder).
+JL credits Nazeka (https://github.com/wareya/nazeka) for the rules and the deconjugator; Nazeka's README states
+"Copyright 2017~2019; Licensed under the Apache License, Version 2.0". The Swift code that applies the rules is
+written for Clip Deck from those projects' descriptions. No Yomitan code is used (it is GPL-3.0). The licence text and
+the source details are in
+[`ios/ClipDeck/Resources/Licenses/Deconjugation-LICENSE.txt`](ios/ClipDeck/Resources/Licenses/Deconjugation-LICENSE.txt).
+
 ## Clip Deck itself
 
 See [`LICENSE`](LICENSE): all rights reserved, plus the one LGPL-2.1 section 6 exception.

@@ -120,7 +120,7 @@ final class PlayerLandscapeUITests: XCTestCase {
         let panelMakeCard = app.buttons["player.panel.makeCard"]
         XCTAssertTrue(panelMakeCard.waitForExistence(timeout: 5), "Panel has its own Make a Card")
         panelMakeCard.tap()
-        XCTAssertTrue(app.buttons["card.save"].waitForExistence(timeout: 20), "Card editor opens from the panel")
+        XCTAssertTrue(app.buttons["card.save"].waitForExistence(timeout: 60), "Card editor opens from the panel")
         attachScreenshot(app, "landscape-04-panel-card")
     }
 

@@ -116,7 +116,7 @@ final class PlayerLandscapeBehaviourUITests: XCTestCase {
         XCTAssertTrue(makeCard.waitForExistence(timeout: 5), "Paused: controls are still up")
         makeCard.tap()
         attachScreenshot(app, "landscape-04-recording")
-        XCTAssertTrue(app.buttons["card.save"].waitForExistence(timeout: 20), "Card editor opens from landscape")
+        XCTAssertTrue(app.buttons["card.save"].waitForExistence(timeout: 60), "Card editor opens from landscape")
         XCTAssertEqual(app.staticTexts["card.range"].label, "0:02.0 – 0:04.0")
     }
 

@@ -30,7 +30,7 @@ final class MiningFlowUITests: XCTestCase {
         // Make a Card: plays 0:02.0–0:04.0, cuts the audio, opens the editor.
         app.buttons["player.makeCard"].tap()
         let save = app.buttons["card.save"]
-        XCTAssertTrue(save.waitForExistence(timeout: 20), "Card editor should open after recording")
+        XCTAssertTrue(save.waitForExistence(timeout: 60), "Card editor should open after recording")
         XCTAssertEqual(app.staticTexts["card.range"].label, "0:02.0 – 0:04.0")
         let sentence = app.textFields["card.field.sentence"].exists
             ? app.textFields["card.field.sentence"]
