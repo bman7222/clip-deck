@@ -1017,3 +1017,24 @@
 ## 2026-11-28 · orchestrator · T-026 · landed
 - Done: 748f6d1. Evidence CI 46115783465 (all green) and 46118672166 (the tester's schema test green; shard 3 red on the Move-Text hidden layer). Landed on Brent's call
 - Left: T-027 and T-028 are unblocked; the tester's Could-fix items are in T-028's notes. New task T-035 (the invisible layer), before T-025 lands
+
+## 2026-11-28 · loop-frontend · T-035 · round 1 (diagnosis)
+- Done: cause found. The iOS "Ready for Apple Intelligence" SpringBoard banner covered the card about 7 min after simulator boot (46118672166 and 46102226923). The app reported VisiblePoint -1 for Done/Reset. The two empty Others are normal and present in every passing landscape snapshot.
+- Left: test-side fix in UITestSupport (swipe the SpringBoard banner away when a target exists but isn't hittable, log `system-banner-guard`). No product change.
+- Files: .loop/tasks/T-035-invisible-layer-over-the-player.md
+- Gotchas: the banner's iOS 26 SpringBoard identifier is unverified; it stays about 25–30 s, so waiting it out costs too much.
+
+## 2026-11-28 · loop-frontend · T-035 · round 1
+- Done: `UITestSupport.dismissSystemBanner()` (SpringBoard banner swipe-up plus `system-banner-guard` attachment), called from `tap`/`tapStep` and before MoveTextTester's isHittable asserts; test-ios.sh turns it into a GitHub warning
+- Files: ios/ClipDeckUITests/UITestSupport.swift, MoveTextTesterUITests.swift, scripts/test-ios.sh
+- Left: CI run (not compiled); classes: MoveTextTesterUITests, MoveTextUITests, AboutUITests
+- Gotchas: banner identifier on iOS 26 unverified; a miss attaches springboard.debugDescription
+
+## 2026-11-28 · loop-tester · T-035 · round 2
+- Done: Pass. Guard is safe with no banner (query plus warning, hittable check still decides); in-app layers still fail; AboutUITests.tearDown Safari teardown correct
+- Evidence: CI 46123625075 and 46127810223 green on the relevant classes; banner swipe path never exercised
+- Gotchas: if a banner returns, the `system-banner-guard` attachment shows SpringBoard's tree for the real identifier
+
+## 2026-11-28 · orchestrator · T-033 and T-035 · landed
+- Done: T-033 93c8c67 (CI 46124710697 all green); T-035 f9f896f (CI 46123625075 + 46127810223). The loop branch had been rewritten to drop the Co-Authored-By trailers (same trees; 91dc544 → 7df9baa, b8a4128 → b80376b)
+- Left: T-025 re-committed on top; its landing run doubles as T-035's full-suite check. T-033's Could-fix (vertical scroll on the track, end clamp before the duration loads) is open for a later task
