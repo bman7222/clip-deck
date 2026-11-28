@@ -995,3 +995,25 @@
 ## 2026-11-28 · orchestrator · T-024b · landed
 - Done: 465649d (rounds 1-2 plus the tester's verify tests). Evidence CI 46115783465, scope=all, all green; 38b2491 (120 s overlay clip) landed on its own
 - Left: T-025 (drag the outline) is unblocked
+
+## 2026-11-28 01:52 · loop-tester · T-026 · round 1
+- Verdict: Blocked, NEEDED verify-only pass of the new `DictionaryStoreTests/schemaVersionIndexesAndDefaultLocation` (default path, user_version, indexes, WAL, ZIPFoundation licence load)
+- No Must/Should fix; 3 Could fix (no `dict` index for delete, string sort of bank names, no bank size cap)
+- Files: ios/ClipDeckTests/DictionaryStoreTests.swift (test added, uncommitted)
+- Evidence otherwise: CI 46115783465 green; fixtures rebuild byte-identical
+
+## 2026-11-28 · loop-frontend · T-025 · round 1 (sonnet)
+- Done: long-press-then-drag on the Move-Text outline (`SubtitlePlacement.dragged`, lifted arrows, one write on release, VoiceOver adjustable)
+- Files: SubtitlePlacement.swift, MoveTextMenu.swift, PlayerView.swift, SubtitleDragTests.swift, MoveTextUITests.swift, docs/DESIGN.md
+- Left: CI run (not compiled); classes: ClipDeckTests (SubtitleDragTests), MoveTextUITests, MoveTextTesterUITests
+- Gotchas: portrait Up doesn't dim at the drag limit (only at 0.90); no-cue drag test is portrait only
+
+## 2026-11-28 15:00 · loop-tester · T-033 · round 1
+- Verdict: Blocked, NEEDED a verify-only pass of CardTimelineUITests. The snap test dragged 1.5 s onto 5.5 s, so an unsnapped drag also read 0:05.5, and it sat under the 16 pt hold on 4.0. Retightened to 2.0 s
+- Added testTimelineFitsAtALargeDynamicTypeSize (AC-5); no Must fix; Could fix: the track drag ignores vertical scrolls
+- Files: tests only: ios/ClipDeckUITests/CardTimelineUITests.swift (uncommitted)
+- Gotchas: not compiled; shard 3 MoveTextTester landscape failure is pre-existing
+
+## 2026-11-28 · orchestrator · T-026 · landed
+- Done: 748f6d1. Evidence CI 46115783465 (all green) and 46118672166 (the tester's schema test green; shard 3 red on the Move-Text hidden layer). Landed on Brent's call
+- Left: T-027 and T-028 are unblocked; the tester's Could-fix items are in T-028's notes. New task T-035 (the invisible layer), before T-025 lands

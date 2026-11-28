@@ -41,5 +41,7 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 - For the EDRDG wording, use the attribution text from the EDRDG licence page (edrdg.org/edrdg/licence.html) and link CC BY-SA 4.0.
 - Learned: XCUITest reads a List row's label and value as one StaticText. A `.contain` container reports the union of its children's frames.
 
+- Could-fix from T-026's tester: there's no index on `dict`, so `delete` scans every row (slow with JMdict installed); banks are imported in string order (bank 10 before 2; only progress order); a bank file is read whole with no size cap.
+
 ### Out of scope
 - Lookups and the popup, automatic dictionary updates, other download sources, non-Japanese dictionaries.
