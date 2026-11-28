@@ -1058,3 +1058,19 @@
 ## 2026-11-28 · orchestrator · T-036 landed; T-027 landing run
 - Done: T-036 07be1ab (CI 46137995899 + 46144815509). T-027's branch diff applied as a patch onto the loop branch (it shares PlayerLandscapeBehaviourUITests with T-036; the patch merged cleanly)
 - Next: the loop-branch full run is T-027's landing run and T-036's first run on the combined tree; then T-028 rebases onto the loop branch
+
+## 2026-11-28 · loop-backend · T-027 · round 1 (sonnet)
+- Done: `Deconjugator` (JL rule table, Apache-2.0, JSON resource), `LookupEngine` (`scan(text:at:)`, `lookup(exact:)`), result contract in LookupResult.swift, `DictionaryStore.frequencies(matching:)`, licence notices (third-party, bundled file, About, IPA check)
+- Files: ios/ClipDeck/Services/Dictionary/{Deconjugator,LookupEngine,LookupResult,DictionaryStore}.swift, Resources/Dictionary/deconjugation_rules.json, Resources/Licenses/Deconjugation-LICENSE.txt, AboutView.swift, LookupEngineTests.swift, 3 fixture zips + make script, docs/ARCHITECTURE.md
+- Left: CI run (not compiled); classes: ClipDeckTests (LookupEngineTests, DictionaryStoreTests), AboutUITests
+- Gotchas: NLTokenizer word start and `Attachment.record(String)` unverified; ok to see "scan-timings.txt" in the xcresult
+
+## 2026-11-28 18:10 · loop-tester · T-027 · round 2
+- Verdict: Blocked, NEEDED verify-only pass of LookupEngineTests (2 tests added: half-width ﾈｺ → 猫, a deconjugated form needs matching rules)
+- No Must/Should fix; Could fix: no fallback scan from the tapped char when the token start finds nothing, mixed-dictionary frequency key, exact-lookup range untrimmed
+- Licence chain checked: JL Apache-2.0, rules JSON byte-identical to b6ce75c, Nazeka Apache-2.0, no Yomitan code
+- Files: ios/ClipDeckTests/LookupEngineTests.swift (tests only, uncommitted)
+
+## 2026-11-28 · orchestrator · T-027 landed
+- Done: T-027 (landing run 46150712016 all green: the first full run with T-025, T-036 and T-027 together)
+- Open: T-028's reorder drag (round 3, run 46153784207). T-029a starts on its own branch from the loop branch with T-028's branch merged in, since it needs T-028's fixtures and `-uiTestingDictionary`

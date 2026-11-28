@@ -17,9 +17,9 @@ Goal: player controls, Move-Text, offline dictionary, clip timeline · Branch: l
 | T-032 | Timeline maths #29 | backend | — | done | 2 | c2531f5 |
 | T-033 | Timeline view in Make a Card #30 | frontend | T-032 | done | 1 | 93c8c67 |
 | T-026 | Dictionary store and Yomitan importer #31 | backend | — | done | 1 | 748f6d1 |
-| T-027 | Deinflection and lookup engine #32 | backend | T-026 | testing | 2 | Pass (verify run 46137931107 green); lands after T-036 with one full run |
-| T-028 | Dictionary manager #33 | frontend | T-026 | testing | 2 | delete-dialog fix unproven (screenshot timeout in 46130387082); rerun after T-036 |
-| T-029a | Dictionary popup: formatted entries #34 | frontend | T-027, T-028 | todo | | |
+| T-027 | Deinflection and lookup engine #32 | backend | T-026 | done | 2 | 1949022 |
+| T-028 | Dictionary manager #33 | frontend | T-026 | testing | 3 | delete fix proven (46150787593); reorder drag fix, run 46153784207 pending |
+| T-029a | Dictionary popup: formatted entries #34 | frontend | T-027, T-028 | building | 1 | branch loop/T-029a-popup-formatted-entries (T-028 merged in) |
 | T-029b | Dictionary popup: move, resize and reset #35 | frontend | T-021, T-029a | todo | | |
 | T-030a | Lookup Mode in the player: tap or hold a word #36 | frontend | T-021, T-029b | todo | | |
 | T-030b | Lookup Mode in the player: Use for a card #37 | frontend | T-030a | todo | | |
