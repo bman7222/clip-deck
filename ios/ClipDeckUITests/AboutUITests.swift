@@ -62,6 +62,7 @@ final class AboutUITests: XCTestCase {
         XCTAssertTrue(safari.wait(for: .runningForeground, timeout: 60), "FFmpegBuild source link opens Safari")
         attach(text: safari.debugDescription, name: "about-04-safari-ffmpegbuild-tree")
         attach(screenshot: safari.screenshot(), name: "about-04-safari-ffmpegbuild")
+        safari.terminate()
     }
 
     /// Added by loop-tester (T-012 round 2): the About screen shows the real app version (0.1.0 from MARKETING_VERSION,

@@ -4,7 +4,7 @@ title: Find and remove the invisible layer over the landscape player
 lane: frontend
 depends_on: []
 status: testing
-round: 1
+round: 2
 base_sha: 91dc5448c2d5e93823d98327946f04aa557ae3b2
 issue: 40
 spec: .loop/specs/player-lookup-timeline.md
@@ -60,3 +60,9 @@ _by loop-frontend · 2026-11-28 · UI-test code and the test script only, no pro
 - AC-2: the banner is swiped away before the tap or assert. AC-3: the `isHittable` asserts and `tap` conditions still go red when anything else covers a control; a banner guard warning with no app failure tells a system banner apart from an in-app layer (with `t035vp.py`'s -1 VisiblePoint scan).
 - Look closely: not compiled (no Swift here). The banner identifier on iOS 26 is unverified; if the first CI warning says "no SpringBoard banner was found", read its attachment for the real identifier. A control that isn't hittable during a fade (after a tap that landed) also fires the guard, which costs one SpringBoard query and a warning but fails nothing.
 - Classes: MoveTextTesterUITests (shard 3) plus every class that uses `UITestSupport.tap`/`tapStep` (MoveTextUITests, AboutUITests).
+- CI: run 46123625075 (964ea81, branch loop/T-035-system-banner-guard, scope=all). Pending, not watched.
+
+## Fix round 2 (orchestrator)
+CI 46123625075 (964ea81, scope=all): shards 1, 3, 4 and the ipa green, so the banner guard compiled and the Move-Text classes passed. Shard 2 was red on one test: `PlayerLandscapeBehaviourUITests/testLoadDifferentSubtitlesFromLandscapeDialog`, "Failed to terminate dev.brent.clipdeck". It failed in its first step (Open), which stops the previous test's app first, and that timed out after 66 s.
+- The same error hit shard 2 in the loop branch's 46121764180 (`testControlsStayWhilePausedAndAutoHideWhilePlaying`). Both times it was the first or second launch after `AboutUITests/testSourceLinksAreShownAndOpenInSafari`. That test ends with Safari in the foreground, still loading GitHub pages, for the rest of the shard.
+- Fix: the test terminates Safari when it ends. This is likely, not proven, from two failures in the same position; the next shard 2 run will show it.
