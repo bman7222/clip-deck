@@ -144,7 +144,8 @@ final class DictionaryManagerUITests: XCTestCase {
         let handleX = control.map { $0.frame.midX } ?? element(app, "dictionaries.row.3").frame.maxX - 22
         let handle = origin.withOffset(CGVector(dx: handleX, dy: thirdMid))
         let target = origin.withOffset(CGVector(dx: handleX, dy: firstTop - 4))
-        handle.press(forDuration: 0.8, thenDragTo: target)
+        // A fast drag released at once leaves the list's drop place where it started (CI 46150787593).
+        handle.press(forDuration: 0.5, thenDragTo: target, withVelocity: .slow, thenHoldForDuration: 1)
         let moved = UITestSupport.wait(timeout: 10) { third.frame.minY < first.frame.minY }
         if !moved {
             UITestSupport.attachText("reorder controls: \(controls.map { "\($0.label) \($0.frame)" })\n\n\(app.debugDescription)",

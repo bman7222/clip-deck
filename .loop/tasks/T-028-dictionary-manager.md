@@ -67,3 +67,7 @@ CI 46124158721 (296a26d, scope=all): shards 1 and 2 and the ipa green (Dictionar
 - Not T-028: shard 3 `SubtitleStyleCardUITests/testDoneAVideoTapAndARotationEachCloseTheCard`, "The style card opens" on the third open (the Aa tap landed and no card came; the video is paused, so it's not the auto-hide). It passed in every other run today; watch it.
 - CI: run 46130387082 (b89c4df, only_testing DictionaryManagerUITests): "Failed to get screenshot: Timed out" 2.7 min in, before the delete dialog. That was the early-boot simulator flake fixed by T-036, so the delete-dialog fix is still unproven.
 - Merged the loop branch (T-025, T-033, T-035, T-036; b77f030) into this branch so the rerun gets the 660 s settle. Conflicts kept both sides (CLAUDE.md flags, DEVELOPMENT.md rows, HANDOFF).
+
+## Fix round 3 · orchestrator
+- CI 46150787593 (b9fe85c, only_testing DictionaryManagerUITests, with T-036's settle): the delete-dialog fix passes (`testSwitchingOffAndDeletingWithConfirmation` green). `testAReorderSurvivesReopeningTheSheet` failed, "Row 3 moved above row 1". The round 2 control lookup worked (it pressed row 3's "Reorder Test Frequency" button at 358, 344 and dragged to 183), so the order was the drag itself: `press(forDuration: 0.8, thenDragTo:)` drags fast and lets go on arrival, and the list (a collection view on iOS 26) hadn't moved its drop place yet.
+- Fix (test only): `press(forDuration: 0.5, thenDragTo:, withVelocity: .slow, thenHoldForDuration: 1)`.
