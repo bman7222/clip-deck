@@ -32,6 +32,10 @@ NAMES=(
   05-h264-hi10p.mkv
 )
 
+# The dictionary UI tests (-uiTestingDictionary) read these zips from $CLIPDECK_FIXTURES/dictionaries.
+mkdir -p "$OUT/dictionaries"
+cp "$ROOT"/scripts/fixtures/dictionaries/*.zip "$OUT/dictionaries/"
+
 # Skip the work when every fixture exists and is newer than this script.
 fresh=1
 for n in "${NAMES[@]}"; do

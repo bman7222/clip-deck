@@ -32,7 +32,7 @@ Only the scripts and the tests use these:
 | Variable | Used by | Purpose | Default |
 |---|---|---|---|
 | `SIM_NAME` | `run-ios.sh`, `test-ios.sh` | Simulator to use, e.g. `iPhone 17 Pro` | booted iPhone, else the newest |
-| `CLIPDECK_FIXTURES` | The MKV unit tests (unit-test process); the app under `-uiTestingMKV` (Debug) | Folder with the generated MKV fixtures | `<repo>/build/fixtures` in the unit tests; none in the app |
+| `CLIPDECK_FIXTURES` | The MKV unit tests (unit-test process); the app under `-uiTestingMKV` and `-uiTestingDictionary` (Debug) | Folder with the generated MKV fixtures and a `dictionaries/` folder (a copy of `scripts/fixtures/dictionaries`) | `<repo>/build/fixtures` in the unit tests; none in the app |
 | `TEST_RUNNER_CLIPDECK_FIXTURES` | `test-ios.sh` exports it | `xcodebuild test` strips the `TEST_RUNNER_` prefix and passes `CLIPDECK_FIXTURES` to the test process | `<repo>/build/fixtures` |
 
 To run the fixture tests from Xcode against another folder, set `CLIPDECK_FIXTURES` in the scheme's Test action

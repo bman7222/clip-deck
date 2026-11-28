@@ -5,6 +5,7 @@ import SwiftUI
 @main
 struct ClipDeckApp: App {
     @State private var settings: SettingsStore
+    @State private var dictionaries: DictionaryManagerModel
     private let container: ModelContainer
 
     init() {
@@ -40,6 +41,11 @@ struct ClipDeckApp: App {
         _settings = State(initialValue: isUITesting
             ? SettingsStore(defaults: UserDefaults(suiteName: "uiTesting") ?? .standard, key: "ankiSettings.uiTesting")
             : SettingsStore())
+        // UI tests never touch the real dictionary database: each launch gets an empty one (-uiTestingDictionary fills it).
+        _dictionaries = State(initialValue: isUITesting
+            ? DictionaryManagerModel(url: FileManager.default.temporaryDirectory
+                .appending(path: "uiTestingDictionaries-\(UUID().uuidString)/dictionaries.sqlite"))
+            : DictionaryManagerModel())
         do {
             container = try ModelContainer(
                 for: Show.self, Episode.self, PendingCard.self,
@@ -62,6 +68,7 @@ struct ClipDeckApp: App {
         }
         .modelContainer(container)
         .environment(settings)
+        .environment(dictionaries)
     }
 }
 
@@ -85,4 +92,7 @@ enum LaunchFlags {
     /// as "MKV Show / Episode 1" with the sample SRT. The fixture folder comes from the CLIPDECK_FIXTURES
     /// environment variable (UI tests forward it through `launchEnvironment`).
     static var shouldSeedMKV: Bool { isUITesting && ProcessInfo.processInfo.arguments.contains("-uiTestingMKV") }
+    /// `-uiTesting -uiTestingDictionary` (Debug): imports the dictionary fixtures from `$CLIPDECK_FIXTURES/dictionaries/`
+    /// (words-v3, words-second, frequency) through the real importer before the library shows.
+    static var shouldSeedDictionary: Bool { isUITesting && ProcessInfo.processInfo.arguments.contains("-uiTestingDictionary") }
 }

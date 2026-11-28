@@ -32,7 +32,8 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 
 ## Project-specific notes
 
-- No backend. The only network code is `Services/Anki/AnkiConnectClient.swift` (AnkiConnect on the user's PC).
+- No backend. The only network code is `Services/Anki/AnkiConnectClient.swift` (AnkiConnect on the user's PC) and the JMdict download in
+  `Features/Dictionaries/DictionaryManagerModel.swift` (a user-started HTTPS GET of the JMdict English zip from GitHub). Dictionary lookups never use the network.
 - File paths in SwiftData are relative to Documents (`FileStore`); never store absolute paths.
 - Card media names are fixed per card (`CardMediaNames`), so Sync retries are idempotent; keep it that way.
 - `-uiTesting` launch argument (Debug): in-memory library + generated "Sample Show". `-uiTestingNoSeed` skips the sample.
@@ -46,6 +47,9 @@ cd ios && xcodegen generate   # after adding files or editing project.yml
 - Subtitle style (`player.subtitleStyle` in the standard defaults): every `-uiTesting` launch clears it, unless
   `-uiTestingKeepSubtitleStyle` is passed. `-uiTestingSubtitleStyle <json>` then seeds one, for example
   `{"font":"serif","bold":false,"sizeStep":5,"up":0.2,"right":-0.2}`; the old form `"upSteps":4,"rightSteps":-4` (steps x 0.05) is read too, and the new keys win when both are given (a missing or invalid field takes the default; an invalid new `up`/`right` key falls back to a valid old `upSteps`/`rightSteps`, then the default).
+- `-uiTestingDictionary` (Debug, with `-uiTesting`) imports `$CLIPDECK_FIXTURES/dictionaries/` words-v3, words-second, then frequency
+  (the zips of `scripts/fixtures/dictionaries`, copied there by `make-test-media.sh`) through the real importer before the library shows.
+  Every `-uiTesting` launch uses a new empty temporary dictionary database, never the real one. UI tests never download JMdict.
 - `-uiTestingExpiry <ISO-8601 date>` (Debug, with `-uiTesting`) overrides the install-expiry date from the signing profile,
   so the library's expiry banner and the Anki settings expiry line can be tested. `-uiTestingKeepExpiryDismissal` keeps the
   banner's dismissal day across a relaunch (the "uiTesting" defaults are otherwise cleared on every launch).

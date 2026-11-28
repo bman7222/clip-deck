@@ -3,9 +3,9 @@ id: T-028
 title: Dictionary manager
 lane: frontend
 depends_on: [T-026]
-status: todo
-round: 0
-base_sha:
+status: testing
+round: 1
+base_sha: 91dc5448c2d5e93823d98327946f04aa557ae3b2
 issue: 33
 spec: .loop/specs/player-lookup-timeline.md
 model:
@@ -45,3 +45,16 @@ CI only: the orchestrator pushes, then runs `gh workflow run ios-simulator.yml -
 
 ### Out of scope
 - Lookups and the popup, automatic dictionary updates, other download sources, non-Japanese dictionaries.
+
+## Implementation notes (round 1)
+_by loop-frontend · 2026-11-28_
+- Changed: Dictionaries sheet and `DictionaryManagerModel` (`Features/Dictionaries/`), Library toolbar button (leftmost, `library.dictionaries`), About link (`about.dictionarySources`) to `DictionarySourcesView`, `-uiTestingDictionary` seed (words-v3, words-second, frequency from `$CLIPDECK_FIXTURES/dictionaries`), and a fresh empty temporary dictionary database on every `-uiTesting` launch. `make-test-media.sh` copies `scripts/fixtures/dictionaries/*.zip` into `$OUT/dictionaries`.
+- Files: ios/ClipDeck/Features/Dictionaries/{DictionaryManagerModel,DictionariesView}.swift, App/{ClipDeckApp,RootView}.swift, Features/Library/LibraryView.swift, Features/Settings/AboutView.swift, Services/Dictionary/DictionaryStore.swift (`DictionaryInfo.enabled` is now `var`, so the list can flip it at once), ios/ClipDeckTests/DictionaryManagerModelTests.swift, ios/ClipDeckUITests/DictionaryManagerUITests.swift, scripts/make-test-media.sh, ios/project.yml (comment), CLAUDE.md, docs/{ARCHITECTURE,DESIGN,DEVELOPMENT,PRODUCT_SPEC}.md
+- Checked: nothing compiled (no Swift here); every API read by hand, odd-quote scan of the changed Swift files is clean.
+- Decisions: reordering needs the Reorder button (edit mode shows the drag handles; swipe-to-delete and the switches stay normal outside it). A cancelled run is silent. "Already installed" shows the importer's message after the download. No background task or idle-timer hold during a long import (the sheet says to keep the app open).
+- T-026 Could-fix items: not taken (the `dict` index would change the schema version and `schemaVersionIndexesAndDefaultLocation`; bank order and the size cap are importer-only). Delete runs on the store actor and the row leaves the list at once, so the UI does not wait for the scan.
+- Tester, look at: the Reorder drag in `testAReorderSurvivesReopeningTheSheet` (handle position is a guess: window width - 22 pt); swipe Delete and the "Delete dictionary" dialog on iOS 26; `testSourcesAreInTheSheetAndLinkedFromAbout` scrolling; the stub-session progress test (`progressShowsWhileDownloadingAndACancelDeletesTheTempFile` needs AsyncBytes to hand over 128 KB before the end of the response).
+
+### Orchestrator gate (round 1)
+- Ponytail review (about 425 product lines): no Must or Should fix. Writes are serialised through one task chain; import and download cancel through the run task (the store's import checks cancellation on the same task); the temp download is always removed; `-uiTestingDictionary` goes through `SourceAccess`, the same path the MKV seeder uses for plain fixture files. ErrorBanner, Theme.danger and the deck fonts exist. Comments 4 %: no comment pass.
+- Could-fix: the download iterates `URLSession.AsyncBytes` one byte at a time into a 64 KB buffer; fine for 16 MB but slow-ish. A download task with a progress delegate would avoid it.

@@ -84,7 +84,7 @@ targets:
           - UIInterfaceOrientationLandscapeLeft
           - UIInterfaceOrientationLandscapeRight
         # AnkiConnect only speaks plain HTTP, and its address is whatever the user types (LAN IP,
-        # hostname, or a VPN name like Tailscale). The app makes no other network requests.
+        # hostname, or a VPN name like Tailscale). The only other request is the JMdict download (https, user-started).
         NSAppTransportSecurity:
           NSAllowsLocalNetworking: true
           NSAllowsArbitraryLoads: true

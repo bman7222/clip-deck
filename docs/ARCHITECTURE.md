@@ -4,7 +4,7 @@ Created with the `iphone-app-setup-skill` skill.
 
 ## Overview
 
-Clip Deck is a single native SwiftUI app with no server of its own. Everything works offline. The only network traffic is the user-started Sync, which calls the AnkiConnect add-on on the user's computer.
+Clip Deck is a single native SwiftUI app with no server of its own. Everything works offline. The only network traffic is the user-started Sync, which calls the AnkiConnect add-on on the user's computer, and the user-started JMdict download in the Dictionaries sheet (one HTTPS GET to GitHub; dictionary lookups never use the network).
 
 ```mermaid
 flowchart LR
@@ -182,7 +182,9 @@ Every video the user adds or re-links goes through `EpisodeImporter`, in two ste
 
 ## Dictionary store (`Services/Dictionary/`)
 
-Offline dictionaries for Lookup Mode (spec `.loop/specs/player-lookup-timeline.md`, Feature 3). T-026 is the store and the importer; no screen uses them yet.
+Offline dictionaries for Lookup Mode (spec `.loop/specs/player-lookup-timeline.md`, Feature 3). T-026 is the store and the importer; T-028 is the manager screen (`Features/Dictionaries/`).
+
+- `DictionaryManagerModel` (`@Observable`, created in `ClipDeckApp`, in the environment) holds the installed list and runs imports. List edits (order, switch, delete) change the list at once and are written to the store in order (`finishWrites()` waits for them). `importFile(_:)` reads a picked zip through `SourceAccess` (security-scoped, coordinated) and the importer; `downloadJMdict()` streams the JMdict English zip (`URLSession.bytes`, 64 KB chunks, progress from Content-Length) to a temp file, imports it, and deletes the file whether it succeeds, fails or is cancelled. One run at a time; Cancel stops either phase and shows nothing. Under `-uiTesting` the store is an empty temporary database (`-uiTestingDictionary` fills it from `$CLIPDECK_FIXTURES/dictionaries`).
 
 - `SQLiteDatabase` / `SQLiteStatement`: a thin wrapper over the system `SQLite3` C API (no ORM, no SwiftData). Prepared statements are reused, `transaction {}` commits or rolls back. Neither type is thread-safe.
 - `DictionaryStore` (an `actor`) owns the one connection, in `Library/Application Support/Dictionaries/dictionaries.sqlite` (or a URL given to `init(url:)`). WAL, `synchronous=NORMAL`, `PRAGMA user_version` = schema version (1; a newer file is refused).

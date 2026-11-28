@@ -23,8 +23,9 @@ Language learners, Japanese learners in particular, who already mine cards with 
    - jumps to the current line's start and plays it to the end while cutting that audio and a screenshot;
    - opens an editor to replay the audio, extend or trim the range (whole or partial lines), re-record, and edit fields.
 4. **Offline queue and Sync:** cards wait on the phone. The library's Sync button sends them to desktop Anki through AnkiConnect, with per-card status.
-5. **Subtitle files:** stored as Subtitles/Show/Episode folders, browsable in the app's Subtitles tab and in the Files app.
-6. **Clear errors:** a missing video or subtitle file says which file is missing and where it should be.
+5. **Dictionaries:** the Library's dictionary button (top right, left of Sync) opens a sheet to import Yomitan dictionaries (.zip) from Files, download JMdict English in one tap, put them in priority order, switch them off, delete them, and read the sources and licences. Dictionaries live on the phone; the download is the only time this feature uses the network.
+6. **Subtitle files:** stored as Subtitles/Show/Episode folders, browsable in the app's Subtitles tab and in the Files app.
+7. **Clear errors:** a missing video or subtitle file says which file is missing and where it should be.
 
 ## Main user flows
 
@@ -65,7 +66,7 @@ Nothing syncs between devices. Cards are copied to Anki on Sync.
 
 - **Accounts:** none.
 - **Integration:** desktop Anki via the AnkiConnect add-on over the local network (HTTP, optional API key). Anki itself syncs to AnkiWeb, and from there to AnkiMobile.
-- **Dictionary:** iOS's built-in Look Up on selected subtitle text. Field names default to the Lapis/Yomitan note type so cards match existing mining decks.
+- **Dictionary:** iOS's built-in Look Up on selected subtitle text; installable Yomitan dictionaries and a JMdict download are managed from the Library (lookups from them come later). Field names default to the Lapis/Yomitan note type so cards match existing mining decks.
 - **Device capabilities:** Local Network (to reach Anki), Files app access, background audio. No camera, microphone, location or photos.
 
 ## Initial scope (v1)
@@ -80,7 +81,7 @@ Everything in Core features and Main user flows:
 
 - **Other containers** (AVI, WebM, TS) and MKV video the iPhone can't play (H.264 10-bit, VP9, 4:2:2/4:4:4, 12-bit, Dolby Vision profile 5). Convert them on a computer, for example with HandBrake.
 - **Switching the audio track** of an MKV episode after import. Add it again to keep another track.
-- **In-app Yomitan-style dictionary popups** and auto-filling Word/Definition. Use iOS Look Up and type them in.
+- **Looking words up in the installed dictionaries** (popups) and auto-filling Word/Definition. Installing dictionaries works; for now use iOS Look Up and type them in.
 - **Exporting an .apkg** for AnkiMobile without a computer.
 - **Editing or re-opening a card** after saving. You can delete it from the Sync sheet.
 - **Renaming shows or episodes**, and moving an episode to another show.
